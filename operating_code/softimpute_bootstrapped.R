@@ -187,7 +187,7 @@ for (layers_to_train in 1:num_layers) {
     # remove 1s
     remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
     P[remove_indices] <- NA  # Set removed links to NA
-    
+    P_no_1 <- P # save it for later
     
     bootstrapping_results <- NULL
     # Randomly select zeros to remove - bootstrapping
@@ -229,6 +229,7 @@ for (layers_to_train in 1:num_layers) {
                             predicted_values = numeric())
       not_removed_all <- NULL
       
+      
       # Loop over all combinations of k and lambda
       for (k in k_values) {
         for (lambda in lambda_values) {
@@ -246,6 +247,9 @@ for (layers_to_train in 1:num_layers) {
       complete_edges_all <- rbind(results, not_removed_all)
       complete_edges_all$itr <- i
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
+      
+      # reset P
+      P <- P_no_1
     }
 
     combined_results <- rbind(
