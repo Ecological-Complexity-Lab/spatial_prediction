@@ -17,6 +17,17 @@ library(pheatmap)
 library(gridExtra)
 library(dplyr)
 
+# ------------- parsing arguments -----------
+# read args given in command line:
+if (length(commandArgs(trailingOnly=TRUE))==0) { # make sure we have commands
+  stop('No arguments were found!') # the script will not run without arguments
+} else {
+  args <- commandArgs(trailingOnly=TRUE)
+  emln_id <- as.numeric(args[1])
+  is_binary <- as.numeric(args[2])
+  
+}
+
 ## ---- functions ----
 build_interaction_matrix <- function(data, layers_to_filter) {
   # Step 1: Filter rows based on specified layers
@@ -130,12 +141,12 @@ implement_impute <- function(C, k, lambda) {
 }
 
 ## ---- parameters ----
-emln_id <- 25
+#emln_id <- 25
 #layers_to_train <- 1
 #layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 prop_zeros_to_remove <- 0.2
-n_sim <- 100
+n_sim <- 10
 
 ## ---- run ----
 ### ---- load matrices ----
@@ -164,18 +175,23 @@ for (layers_to_train in 1:num_layers) {
     #A <- A[1:8, 1:7]
     #P <- P[1:8, 1:7]
     
-    #A[A > 0] <- 1  # Make binary
-    #P[P > 0] <- 1  # Make binary
+
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
+    if (is_binary == 1) {
+    A[A > 0] <- 1  # Make binary
+    P[P > 0] <- 1  # Make binary
+    }
     
     ### ---- remove some links in P ----
     # map out the 0s and 1s in P
     P_original <- P # save it for later
     num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
     ones_in_P <- which(P > 0, arr.ind = TRUE)
-        
-    num_0_to_remove <- floor((nrow(P)*ncol(P)-sum(P>0, na.rm = T))*prop_zeros_to_remove)  # Number of links to remove
+    
+    num_0_to_remove <- num_1_to_remove
+    prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
+    #num_0_to_remove <- floor((nrow(P)*ncol(P)-sum(P>0, na.rm = T))*prop_zeros_to_remove)  # Number of links to remove
     zeros_in_P <- which(P == 0, arr.ind = TRUE)
     
     # debug print
@@ -183,6 +199,7 @@ for (layers_to_train in 1:num_layers) {
     print(paste("all 1   :", nrow(ones_in_P)))
     print(paste("0s to remove:", num_0_to_remove))
     print(paste("all zeros   :", nrow(zeros_in_P)))
+    print(paste("prop of zeros removed   : ", prop_0_removed))
     
     # remove 1s
     remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
@@ -213,7 +230,11 @@ for (layers_to_train in 1:num_layers) {
       C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
                                             NA, 
                                             C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-      # C[C>0] <- 1 # Make binary
+      
+      if (is_binary == 1) {
+        C[C>0] <- 1 # Make binary 
+      }
+
       sum(is.na(C))
       # might need to convert C into a binary matrix
       
@@ -261,8 +282,9 @@ for (layers_to_train in 1:num_layers) {
           test_layer = layer_to_predict,
           prop_ones_removed = prop_ones_to_remove,
           amount_of_removed_1 = num_1_to_remove,
-          prop_zeros_removed = prop_zeros_to_remove,
-          amount_of_removed_0 = num_0_to_remove
+          #prop_zeros_removed = prop_zeros_to_remove,
+          amount_of_removed_0 = num_0_to_remove,
+          prop_0_removed = prop_0_removed
         ),
         bootstrapping_results
       )
@@ -274,5 +296,6 @@ for (layers_to_train in 1:num_layers) {
 print(combined_results)
 
 # Save the combined results dataframe to a CSV file
-write.csv(combined_results, file = "combined_results_0.2_rem_values_nonbinary_all_edges2.csv", row.names = FALSE)
+output_name <- paste0("nonbinary_equal_0_1_removal_",emln_id,"_",is_binary,".csv")
+write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

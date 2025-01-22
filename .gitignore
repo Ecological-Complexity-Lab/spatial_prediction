@@ -2,5 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-.Rhistory
 .DS_Store
+results/.DS_Store
+.Rproj.user/
