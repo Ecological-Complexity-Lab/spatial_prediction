@@ -7,6 +7,7 @@
 # the variation in predicting zeros is consistantly smaller than predicting ones
 # k=2 is much better for network 25. lambda values result in similar f1 values but lambda 0.1 is a bit better. also for the canary islands.
 # results for averaging evaluators for all iterations are suspiciously similar to the evaluators for one iteration...
+# but the results for different iterations are not the same
 ## ---- to do ----
 # find the best way to binarize the predicted values
 # average the predicted values for the same interactions 

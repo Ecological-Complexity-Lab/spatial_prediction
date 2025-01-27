@@ -21,6 +21,16 @@ sigmoid <- function(x) {
   1 / (1 + exp(-x))
 }
 
+# Min-max normalization function
+normalize_min_max <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# Apply normalization to predicted_value
+d <- d %>%
+  mutate(probability = normalize_min_max(predicted_value))
+
+
 ## ---- load results ----
 d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv')
 
@@ -43,8 +53,13 @@ d <- d %>%
   #mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_1 = if_else(predicted_values > 0, 1, 0)) 
 
-## ---- some evaluators ----
+# or min-max normalization:
+d <- d %>% 
+  filter(removed == 1) %>%
+  mutate(predicted_prob_min_max = normalize_min_max(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_minmax = if_else(predicted_values > 0.5, 1, 0))
 
+## ---- some evaluators ----
 
 # Calculate metrics for each unique combination of train_layer and test_layer
 
