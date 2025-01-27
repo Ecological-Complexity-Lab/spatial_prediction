@@ -48,13 +48,6 @@ d %>%
 
 # Calculate metrics for each unique combination of train_layer and test_layer
 
-specificity = TN / (TN + FP)
-precision = TP / (TP + FP)
-recall = TP / (TP + FN) # split to recall of removed and non-removed links
-f1_score = 2 * (precision * recall) / (precision + recall)
-balanced_accuracy = (recall + specificity) / 2
-mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-
 result <- d %>%
   group_by(emln_id, train_layer, test_layer, lambda, k) %>%
   summarise(
@@ -75,38 +68,89 @@ result <- d %>%
 print(result)
 
 ## ---- visualization ----
-heatmap_plot_rem <- ggplot(result, aes(x = train_layer, y = test_layer, fill = recall)) +
-  geom_tile(color = "white", linewidth = 0.1) +  # Add white borders for better tile distinction
+
+# Get layer names
+net <- emln::load_emln(25)
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+
+
+# Perform left joins to replace IDs with names
+result <- result %>%
+  mutate(train_layer = as.integer(as.character(train_layer)),  # Ensure train_layer is an integer
+         test_layer = as.integer(as.character(test_layer))) %>% # Ensure test_layer is an integer
+  left_join(net_name, by = c("train_layer" = "layer_id")) %>% 
+  rename(train_layer_name = name) %>%                          # Use a different name for clarity
+  left_join(net_name, by = c("test_layer" = "layer_id")) %>%  
+  rename(test_layer_name = name)                               # Use a different name for clarity
+# Rename joined column
+
+
+# Set factor levels for training and predicting layers
+layer_levels <- as.character(1:7)
+result$train_layer <- factor(result$train_layer, levels = layer_levels)
+result$test_layer <- factor(result$test_layer, levels = unique(result$test_layer))
+
+
+result$diagonal <- result$train_layer == result$test_layer
+layer_to_layer_plot <- 
+  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "white", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result[result$train_layer == result$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(title = "recall: with 20% link removal", x = "Training layer", y = "Predicted layer", fill = "Recall") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "recall") +
   theme_minimal() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    axis.text.y = element_text(angle = 0, hjust = 1),
-    plot.title = element_text(hjust = 0.5),
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
     panel.grid.minor = element_blank(),  # Remove minor grid lines
-    panel.background = element_blank()   # Remove panel background (optional)
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
   ) +
-  scale_x_continuous(breaks = seq(1, 7, by = 1)) +  # Ensure each x tick has a label
-  scale_y_continuous(breaks = seq(1, 7, by = 1))
+  coord_fixed()
 
-print(heatmap_plot_rem)
+print(layer_to_layer_plot)
 
-heatmap_plot_rem <- ggplot(result, aes(x = train_layer, y = test_layer, fill = f1_score)) +
-  geom_tile(color = "white", linewidth = 0.1) +  # Add white borders for better tile distinction
-  scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(title = "f1_score: with 20% link removal", x = "Training layer", y = "Predicted layer", fill = "f1_score") +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    axis.text.y = element_text(angle = 0, hjust = 1),
-    plot.title = element_text(hjust = 0.5),
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    panel.background = element_blank()   # Remove panel background (optional)
-  ) +
-  scale_x_continuous(breaks = seq(1, 7, by = 1)) +  # Ensure each x tick has a label
-  scale_y_continuous(breaks = seq(1, 7, by = 1))
+pdf(paste0(output_folder,'pr_layer_to_layer.pdf'), 7, 7)
+print(layer_to_layer_plot)
+dev.off()
 
-print(heatmap_plot_rem)
+# heatmap_plot_rem <- ggplot(result, aes(x = train_layer, y = test_layer, fill = recall)) +
+#   geom_tile(color = "white", linewidth = 0.1) +  # Add white borders for better tile distinction
+#   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
+#   labs(title = "recall: with 20% link removal", x = "Training layer", y = "Predicted layer", fill = "Recall") +
+#   theme_minimal() +
+#   theme(
+#     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+#     axis.text.y = element_text(angle = 0, hjust = 1),
+#     plot.title = element_text(hjust = 0.5),
+#     panel.grid.major = element_blank(),  # Remove major grid lines
+#     panel.grid.minor = element_blank(),  # Remove minor grid lines
+#     panel.background = element_blank()   # Remove panel background (optional)
+#   ) +
+#   scale_x_continuous(breaks = seq(1, 7, by = 1)) +  # Ensure each x tick has a label
+#   scale_y_continuous(breaks = seq(1, 7, by = 1))
+# 
+# print(heatmap_plot_rem)
+# 
+# heatmap_plot_rem <- ggplot(result, aes(x = train_layer, y = test_layer, fill = f1_score)) +
+#   geom_tile(color = "white", linewidth = 0.1) +  # Add white borders for better tile distinction
+#   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
+#   labs(title = "f1_score: with 20% link removal", x = "Training layer", y = "Predicted layer", fill = "f1_score") +
+#   theme_minimal() +
+#   theme(
+#     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+#     axis.text.y = element_text(angle = 0, hjust = 1),
+#     plot.title = element_text(hjust = 0.5),
+#     panel.grid.major = element_blank(),  # Remove major grid lines
+#     panel.grid.minor = element_blank(),  # Remove minor grid lines
+#     panel.background = element_blank()   # Remove panel background (optional)
+#   ) +
+#   scale_x_continuous(breaks = seq(1, 7, by = 1)) +  # Ensure each x tick has a label
+#   scale_y_continuous(breaks = seq(1, 7, by = 1))
+# 
+# print(heatmap_plot_rem)
