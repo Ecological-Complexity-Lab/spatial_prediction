@@ -48,13 +48,13 @@ d %>%
   ggplot(aes(original_links,predicted_values))+geom_point()
 
 # alternatively:
-d <- d %>% 
+d_bin_1 <- d %>% 
   filter(removed == 1) %>%
   #mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_1 = if_else(predicted_values > 0, 1, 0)) 
 
-# or min-max normalization:
-d <- d %>% 
+# or use min-max normalization:
+d_minmax <- d %>% 
   filter(removed == 1) %>%
   mutate(predicted_prob_min_max = normalize_min_max(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_minmax = if_else(predicted_values > 0.5, 1, 0))
@@ -63,7 +63,7 @@ d <- d %>%
 
 # Calculate metrics for each unique combination of train_layer and test_layer
 
-result <- d %>%
+result_bin_1 <- d_bin_1 %>%
   group_by(emln_id, train_layer, test_layer, lambda, k) %>%
   summarise(
     TP = sum(original_links == 1 & predicted_bin_1 == 1),
@@ -78,6 +78,24 @@ result <- d %>%
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
   ) %>%
   ungroup()
+
+result_minamax <- d_minmax %>%
+  group_by(emln_id, train_layer, test_layer, lambda, k) %>%
+  summarise(
+    TP = sum(original_links == 1 & predicted_bin_1 == 1),
+    FN = sum(original_links == 1 & predicted_bin_1 == 0),
+    TN = sum(original_links == 0 & predicted_bin_1 == 0),
+    FP = sum(original_links == 0 & predicted_bin_1 == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+  ) %>%
+  ungroup()
+
+
 
 # View the result
 print(result)

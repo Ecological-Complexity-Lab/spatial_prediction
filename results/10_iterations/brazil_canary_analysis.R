@@ -18,6 +18,12 @@ library(dplyr)
 library(pROC)
 library(emln)
 
+tme <-  theme(axis.text = element_text(size = 10, color = "black"),
+              axis.title = element_text(size = 12, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())
+theme_set(theme_bw())
+
 ## ---- functions ----
 sigmoid <- function(x) {
   1 / (1 + exp(-x))
@@ -104,14 +110,14 @@ result$test_layer <- factor(result$test_layer, levels = unique(result$test_layer
 
 result$diagonal <- result$train_layer == result$test_layer
 layer_to_layer_plot <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result[result$train_layer == result$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "f1 score") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -129,14 +135,14 @@ print(layer_to_layer_plot)
 dev.off()
 
 layer_to_layer_plot_canary <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result[result$train_layer == result$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "f1 score") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -223,14 +229,14 @@ result_summary$test_layer <- factor(result_summary$test_layer, levels = unique(r
 result_summary$diagonal <- result_summary$train_layer == result_summary$test_layer
 
 layer_to_layer_plot_all_itr_brzail <- 
-  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "f1 score") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -244,14 +250,14 @@ layer_to_layer_plot_all_itr_brzail <-
 print(layer_to_layer_plot_all_itr_brzail)
 
 layer_to_layer_plot_all_itr_canary <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result[result$train_layer == result$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "f1 score") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -375,4 +381,66 @@ ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
   ) +
   theme_minimal()
 
+## ---- correlate evaluators with distance ----------
+# Load the pairwise distance matrix
+distance_matrix <- read.csv("brazil_geographic_distances.csv", row.names = 1)
+distance_matrix <- as.matrix(distance_matrix)
+rownames(distance_matrix) <- colnames(distance_matrix) <- 1:7
 
+result_summary$train_layer <- as.factor(result_summary$train_layer)
+result_summary$test_layer <- as.factor(result_summary$test_layer)
+
+# Create a column with the geographic distance between the layers for each row
+result_summary <- result_summary %>%
+  mutate(geographic_distance = mapply(function(train, test) distance_matrix[as.character(train), as.character(test)],
+                                      train_layer, test_layer))
+result_summary[1:15, c("train_layer","test_layer","geographic_distance")]
+
+correlation <- cor.test(result_summary$balanced_accuracy, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Plot the correlation between balanced accuracy and geographic distance
+
+cor_plot <- 
+  ggplot(result_summary, aes(x = geographic_distance, y = balanced_accuracy)) +
+  geom_point(color = "blue", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "purple") +  # Linear regression line
+  labs(x = "Geographic distance (km)",
+       y = "Balanced accuracy") +
+  tme + 
+  annotate("text",
+           x = 7, y = 0.6,   # Adjust depending on your data range
+           label = label_text,
+           size = 4,
+           color = "black")
+
+print(cor_plot)
+
+# try f1...
+correlation <- cor.test(result_summary$f1_score, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Plot the correlation between balanced accuracy and geographic distance
+
+cor_plot <- 
+  ggplot(result_summary, aes(x = geographic_distance, y = f1_score)) +
+  geom_point(color = "blue", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "purple") +  # Linear regression line
+  labs(x = "Geographic distance (km)",
+       y = "F1 score") +
+  tme + 
+  annotate("text",
+           x = 7, y = 0.7,   # Adjust depending on your data range
+           label = label_text,
+           size = 4,
+           color = "black")
+
+print(cor_plot)
