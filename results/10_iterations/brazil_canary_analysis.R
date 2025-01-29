@@ -271,6 +271,9 @@ layer_to_layer_plot_all_itr_canary <-
 
 print(layer_to_layer_plot_all_itr_canary)
 
+# check if the differences are significant
+
+
 
 # checking which k and lambda are the best 
 d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv')
