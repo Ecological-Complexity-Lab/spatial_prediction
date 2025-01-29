@@ -447,13 +447,11 @@ cor_plot <-
 print(cor_plot)
 
 # trying the canary islands...
+result_summary %>% 
+  write_csv('result_summary_canary_with_distance.csv') # summary of all iterations
 
 # Load the pairwise distance matrix
-distance_matrix <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
-# # acast syntax: acast(data, row_variable ~ col_variable, value.var = "...")
-distance_matrix <- acast(distance_matrix, from ~ to, value.var = "distance_km")
-distance_matrix[is.na(dist_mat)] <- 0
-diag(distance_matrix) <- 0
+distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
 
 # For each row's train_layer ID, find which row in net_name has the same layer_id,
 # and pull out the corresponding 'name'.
@@ -462,62 +460,58 @@ result_summary$train_name <- net_name$name[ match(result_summary$train_layer, ne
 # Same for test_layer
 result_summary$test_name <- net_name$name[ match(result_summary$test_layer, net_name$layer_id) ]
 
-library(dplyr)
-
-result_summary <- result_summary %>%
-  rowwise() %>%                                # loop over rows
-  mutate(
-    distance_km = distance_matrix[train_name,  # train_name is e.g. "El_Hierro_site_1"
-                                  test_name]   # test_name is e.g. "Gran_Canaria_site_2"
+distance_table_sym <- distance_table %>%
+  bind_rows(
+    distance_table %>%
+      rename(to = from, from = to)  # swap columns
   ) %>%
-  ungroup()
+  distinct(from, to, distance_km)
 
+# result_summary has train_name, test_name, 
+# plus an old "distance_km" you want to replace
 
-# # site_map$layer_id are the integer IDs
-# # site_map$name are the site names
-# site_map_vector <- setNames(net_name$layer_id, net_name$name)
-# # Rename rows
-# rownames(distance_matrix) <- site_map_vector[ rownames(distance_matrix) ]
-# # Rename columns
-# colnames(distance_matrix) <- site_map_vector[ colnames(distance_matrix) ]
-# diag(distance_matrix) <- 0
-
-
-distance_matrix <- as.matrix(distance_matrix)
-rownames(distance_matrix) <- colnames(distance_matrix) <- 1:14
-
-result_summary$train_layer <- as.factor(result_summary$train_layer)
-result_summary$test_layer <- as.factor(result_summary$test_layer)
-
-# Create a column with the geographic distance between the layers for each row
 result_summary <- result_summary %>%
-  mutate(geographic_distance = mapply(function(train, test) distance_matrix[as.character(train), as.character(test)],
-                                      train_layer, test_layer))
-result_summary[1:15, c("train_layer","test_layer","geographic_distance")]
+  select(-distance_km) %>%                # remove old distance_km if it exists
+  left_join(
+    distance_table_sym,
+    by = c("train_name" = "from", "test_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_name == test_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
 
-correlation <- cor.test(result_summary$balanced_accuracy, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
+
+
+result_summary %>%
+  anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
+
+correlation <- cor.test(result_summary$f1_score, result_summary$distance_km, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
 r_value <- round(correlation$estimate, 3)
-p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+p_value <- formatC(correlation$p.value, digits = 5)  # or round as you prefer
+p_value <- formatC(correlation$p.value, format = "f", digits = 5)
+
+p_value <- round(correlation$p.value, 3)
+
 label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
 # Plot the correlation between balanced accuracy and geographic distance
 
-cor_plot <- 
-  ggplot(result_summary, aes(x = geographic_distance, y = balanced_accuracy)) +
+cor_plot_canary <- 
+  ggplot(result_summary, aes(x = distance_km, y = f1_score)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographic distance (km)",
-       y = "Balanced accuracy") +
-  tme + 
+       y = "F1 score") +
   annotate("text",
-           x = 7, y = 0.6,   # Adjust depending on your data range
+           x = 370, y = 0.7,   # Adjust depending on your data range
            label = label_text,
            size = 4,
-           color = "black")
+           color = "black") +
+  tme
 
-print(cor_plot)
+print(cor_plot_canary)
 
 # try f1...
 correlation <- cor.test(result_summary$f1_score, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
