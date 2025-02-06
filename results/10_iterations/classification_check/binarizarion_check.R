@@ -30,171 +30,88 @@ sigmoid <- function(x) {
   1 / (1 + exp(-x))
 }
 
-## ---- load results ----
-d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv')
+# Min-max normalization function
+normalize_min_max <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
 
-## ---- working on one iteration to test ----
+## ---- checking binarization on 1 iteration ----
 
-d %>%
-  filter(itr==1) %>%
-  filter(k==2) %>%
-  filter(lambda==0.01) %>%
-  write_csv('test_df_itr_1_60_binary.csv') # create a small test dataframe with 1 iteration and the smallest k and lambda.
-
-# analysing binarization in the test dataframe
-d <- read_csv('test_df_itr_1_60_binary.csv')
-d %>% 
-  ggplot(aes(original_links,predicted_values))+geom_point()
-
-d <- d %>% 
-  filter(removed == 1) %>%
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
-
-d %>% 
-  ggplot(aes(original_links,predicted_prob_sigm))+geom_point()
-
-## ---- some evaluators for 1 iteration ----
-
-
-# Calculate metrics for each unique combination of train_layer and test_layer
-
-result <- d %>%
-  group_by(emln_id, train_layer, test_layer, lambda, k) %>%
-  summarise(
-    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-  ) %>%
-  ungroup()
-
-# View the result
-print(result)
-
-## ---- visualization ----
-
-# Get layer names
-net <- emln::load_emln(25)
-net$layers
-net_name <- net$layers %>% select(layer_id, name)
-net_name
-net_name <- net_name %>%
-  mutate(name = gsub("_", " ", name))
-
-# Display the updated tibble
-print(net_name)
-
-# Perform left joins to replace IDs with names
-result <- result %>%
-  mutate(train_layer = as.integer(as.character(train_layer)),  # Ensure train_layer is an integer
-         test_layer = as.integer(as.character(test_layer))) %>% # Ensure test_layer is an integer
-  left_join(net_name, by = c("train_layer" = "layer_id")) %>% 
-  rename(train_layer_name = name) %>%                          # Use a different name for clarity
-  left_join(net_name, by = c("test_layer" = "layer_id")) %>%  
-  rename(test_layer_name = name)                               # Use a different name for clarity
-# Rename joined column
-
-
-# Set factor levels for training and predicting layers
-layer_levels <- as.character(1:7) # for Brazil
-layer_levels <- as.character(1:14) # for Canary Islands
-result$train_layer <- factor(result$train_layer, levels = layer_levels)
-result$test_layer <- factor(result$test_layer, levels = unique(result$test_layer))
-
-
-result$diagonal <- result$train_layer == result$test_layer
-layer_to_layer_plot <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "white", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result[result$train_layer == result$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed()
-
-print(layer_to_layer_plot)
-
-pdf(paste0(output_folder,'pr_layer_to_layer.pdf'), 7, 7)
-print(layer_to_layer_plot)
-dev.off()
-
-layer_to_layer_plot_canary <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "white", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result[result$train_layer == result$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed()
-
-print(layer_to_layer_plot_canary)
-
-# check the effect of k and lambda on a test tibble with 1 iteration
-
-d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv')
-
-## ---- moving to all iterations ----
-
-d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv') # brazil
-d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # canary islands
+# d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv') # brazil
+# d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # canary islands
+d <- read_csv('test_df_itr_1_60_binary.csv') # canary islands test df, contains 1 iteration, k==2, lambda == 0.01
 
 d <- d %>%
   filter(removed == 1) %>% 
-  filter(k == 2) %>% 
-  filter(lambda == 0.1) %>% 
+  # filter(k == 2) %>% 
+  # filter(lambda == 0.1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
+  mutate(predicted_prob_min_max = normalize_min_max(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_minmax = if_else(predicted_values > 0.5, 1, 0)) %>% 
+  mutate(predicted_prob_above_0 = if_else(predicted_values > 0, 1, 0))  %>% # positive predicted values are ones
+  mutate(predicted_bin_sigm0.5 = ifelse(predicted_prob_sigm == 0.5, 0, 1)) # similarly to the classification in the older version code, sigmoid values of 0.5 are zeros
 
 result_summary <- d %>%
-  group_by(emln_id, train_layer, test_layer, itr) %>%
+  group_by(emln_id, train_layer, test_layer) %>%
   summarise(
-    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+    # Metrics for predicted_bin_sigm
+    TP_sigm = sum(original_links == 1 & predicted_bin_sigm == 1),
+    FN_sigm = sum(original_links == 1 & predicted_bin_sigm == 0),
+    TN_sigm = sum(original_links == 0 & predicted_bin_sigm == 0),
+    FP_sigm = sum(original_links == 0 & predicted_bin_sigm == 1),
+    specificity_sigm = TN_sigm / (TN_sigm + FP_sigm),
+    precision_sigm = TP_sigm / (TP_sigm + FP_sigm),
+    recall_sigm = TP_sigm / (TP_sigm + FN_sigm),
+    f1_score_sigm = 2 * (precision_sigm * recall_sigm) / (precision_sigm + recall_sigm),
+    balanced_accuracy_sigm = (recall_sigm + specificity_sigm) / 2,
+    mcc_sigm = (TP_sigm * TN_sigm - FP_sigm * FN_sigm) / sqrt((TP_sigm + FP_sigm) * (TP_sigm + FN_sigm) * (TN_sigm + FP_sigm) * (TN_sigm + FN_sigm)),
+    
+    # Metrics for predicted_bin_minmax
+    TP_minmax = sum(original_links == 1 & predicted_bin_minmax == 1),
+    FN_minmax = sum(original_links == 1 & predicted_bin_minmax == 0),
+    TN_minmax = sum(original_links == 0 & predicted_bin_minmax == 0),
+    FP_minmax = sum(original_links == 0 & predicted_bin_minmax == 1),
+    specificity_minmax = TN_minmax / (TN_minmax + FP_minmax),
+    precision_minmax = TP_minmax / (TP_minmax + FP_minmax),
+    recall_minmax = TP_minmax / (TP_minmax + FN_minmax),
+    f1_score_minmax = 2 * (precision_minmax * recall_minmax) / (precision_minmax + recall_minmax),
+    balanced_accuracy_minmax = (recall_minmax + specificity_minmax) / 2,
+    mcc_minmax = (TP_minmax * TN_minmax - FP_minmax * FN_minmax) / sqrt((TP_minmax + FP_minmax) * (TP_minmax + FN_minmax) * (TN_minmax + FP_minmax) * (TN_minmax + FN_minmax)),
+    
+    # Metrics for predicted_prob_above_0
+    TP_prob0 = sum(original_links == 1 & predicted_prob_above_0 == 1),
+    FN_prob0 = sum(original_links == 1 & predicted_prob_above_0 == 0),
+    TN_prob0 = sum(original_links == 0 & predicted_prob_above_0 == 0),
+    FP_prob0 = sum(original_links == 0 & predicted_prob_above_0 == 1),
+    specificity_prob0 = TN_prob0 / (TN_prob0 + FP_prob0),
+    precision_prob0 = TP_prob0 / (TP_prob0 + FP_prob0),
+    recall_prob0 = TP_prob0 / (TP_prob0 + FN_prob0),
+    f1_score_prob0 = 2 * (precision_prob0 * recall_prob0) / (precision_prob0 + recall_prob0),
+    balanced_accuracy_prob0 = (recall_prob0 + specificity_prob0) / 2,
+    mcc_prob0 = (TP_prob0 * TN_prob0 - FP_prob0 * FN_prob0) / sqrt((TP_prob0 + FP_prob0) * (TP_prob0 + FN_prob0) * (TN_prob0 + FP_prob0) * (TN_prob0 + FN_prob0)),
+    
+    # Metrics for predicted_bin_sigm0.5
+    TP_sigm05 = sum(original_links == 1 & predicted_bin_sigm0.5 == 1),
+    FN_sigm05 = sum(original_links == 1 & predicted_bin_sigm0.5 == 0),
+    TN_sigm05 = sum(original_links == 0 & predicted_bin_sigm0.5 == 0),
+    FP_sigm05 = sum(original_links == 0 & predicted_bin_sigm0.5 == 1),
+    specificity_sigm05 = TN_sigm05 / (TN_sigm05 + FP_sigm05),
+    precision_sigm05 = TP_sigm05 / (TP_sigm05 + FP_sigm05),
+    recall_sigm05 = TP_sigm05 / (TP_sigm05 + FN_sigm05),
+    f1_score_sigm05 = 2 * (precision_sigm05 * recall_sigm05) / (precision_sigm05 + recall_sigm05),
+    balanced_accuracy_sigm05 = (recall_sigm05 + specificity_sigm05) / 2,
+    mcc_sigm05 = (TP_sigm05 * TN_sigm05 - FP_sigm05 * FN_sigm05) / sqrt((TP_sigm05 + FP_sigm05) * (TP_sigm05 + FN_sigm05) * (TN_sigm05 + FP_sigm05) * (TN_sigm05 + FN_sigm05))
   ) %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
   summarise(
-    specificity = mean(specificity, na.rm = TRUE),
-    precision = mean(precision, na.rm = TRUE),
-    recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
-    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    mcc = mean(mcc, na.rm = TRUE)
+    across(starts_with("specificity"), mean, na.rm = TRUE),
+    across(starts_with("precision"), mean, na.rm = TRUE),
+    across(starts_with("recall"), mean, na.rm = TRUE),
+    across(starts_with("f1_score"), mean, na.rm = TRUE),
+    across(starts_with("balanced_accuracy"), mean, na.rm = TRUE),
+    across(starts_with("mcc"), mean, na.rm = TRUE)
   ) %>%
   ungroup()
 
@@ -220,12 +137,11 @@ result_summary <- result_summary %>%
   rename(test_layer_name = name)                               # Use a different name for clarity
 # Rename joined column
 
-# Set factor levels for training and predicting layers
-layer_levels <- as.character(1:7) # for Brazil
-layer_levels <- as.character(1:14) # for Canary Islands
-result_summary$train_layer <- factor(result_summary$train_layer, levels = layer_levels)
-result_summary$test_layer <- factor(result_summary$test_layer, levels = unique(result_summary$test_layer))
-
+# # Set factor levels for training and predicting layers
+# layer_levels <- as.character(1:7) # for Brazil
+# layer_levels <- as.character(1:14) # for Canary Islands
+# result_summary$train_layer <- factor(result_summary$train_layer, levels = layer_levels)
+# result_summary$test_layer <- factor(result_summary$test_layer, levels = unique(result_summary$test_layer))
 
 result_summary$diagonal <- result_summary$train_layer == result_summary$test_layer
 
@@ -250,15 +166,76 @@ layer_to_layer_plot_all_itr_brzail <-
 
 print(layer_to_layer_plot_all_itr_brzail)
 
-layer_to_layer_plot_all_itr_canary <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+layer_to_layer_plot_canary_sigm <- 
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score_sigm)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result[result$train_layer == result$test_layer, ],
+  geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed()
+
+print(layer_to_layer_plot_canary_sigm)
+
+layer_to_layer_plot_canary_minmax <- 
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score_minmax)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "white", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed()
+
+print(layer_to_layer_plot_canary_minmax)
+
+layer_to_layer_plot_canary_prob0 <- 
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score_prob0)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "white", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed()
+
+layer_to_layer_plot_canary_sigm05 <- 
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score_sigm05)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "white", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -271,119 +248,69 @@ layer_to_layer_plot_all_itr_canary <-
 
 print(layer_to_layer_plot_all_itr_canary)
 
-# check if the differences are significant
+library(gridExtra)
+
+grid.arrange(
+  layer_to_layer_plot_canary_sigm + ggtitle("Sigmoid"),
+  layer_to_layer_plot_canary_minmax + ggtitle("Min-Max"),
+  layer_to_layer_plot_canary_prob0 + ggtitle("Prob > 0"),
+  layer_to_layer_plot_canary_sigm05 + ggtitle("Sigmoid 0.5"),
+  ncol = 2,
+  nrow = 2 # Arrange in a single row
+)
 
 
+## ---- check if the differences are significant ----
 
-# checking which k and lambda are the best 
-d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv')
+result_summary <- result_summary %>%
+  mutate(layer_comparison = ifelse(train_layer == test_layer, "Diagonal", "Off-Diagonal"))
 
-d <- d %>%
-  filter(removed == 1) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
+library(ggpubr)
 
-result_summary <- d %>%
-  group_by(emln_id, train_layer, test_layer, lambda, k, itr) %>%
-  summarise(
-    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-  ) %>%
-  ungroup() %>%
-  group_by(lambda, k) %>%  # Group by lambda and k to average the metrics
-  summarise(
-    avg_specificity = mean(specificity, na.rm = TRUE),
-    avg_precision = mean(precision, na.rm = TRUE),
-    avg_recall = mean(recall, na.rm = TRUE),
-    avg_f1_score = mean(f1_score, na.rm = TRUE),
-    avg_balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    avg_mcc = mean(mcc, na.rm = TRUE)
-  ) %>%
-  ungroup()
+# Define a function to create boxplots for each metric
+plot_f1_boxplot <- function(metric) {
+  ggplot(result_summary, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("Comparison of", metric, "by Layer Type"),
+         x = "Layer Comparison",
+         y = metric) +
+    theme(legend.position = "none") +  # Hide redundant legend
+    stat_compare_means(method = "t.test", label = "p.signif") +  # Adds p-value annotation
+    tme
+    }
 
-# Create a boxplot for average F1 scores across different k values
-ggplot(result_summary, aes(x = factor(k), y = avg_f1_score)) +
-  geom_boxplot(fill = "skyblue", color = "darkblue") +
-  labs(
-    title = "Comparison of Average F1 Scores for Different k Values",
-    x = "k value",
-    y = "Average f1 score"
-  ) +
-  theme_minimal()
+# Plot for f1_score_sigm
+boxplot_sigm <- plot_f1_boxplot("f1_score_sigm")
 
-# Create a boxplot for average F1 scores across different lambda values
-ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
-  geom_boxplot(fill = "skyblue", color = "darkblue") +
-  labs(
-    title = "Comparison of Average F1 Scores for Different lambda Values",
-    x = "Lambda value",
-    y = "Average f1 score"
-  ) +
-  theme_minimal()
+# Plot for f1_score_prob0
+boxplot_prob0 <- plot_f1_boxplot("f1_score_prob0")
 
-# checking for the canary islands
+# Plot for f1_score_sigm05
+boxplot_sigm05 <- plot_f1_boxplot("f1_score_sigm05")
 
-d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv')
+grid.arrange(
+  boxplot_sigm + ggtitle("Sigmoid"),
+  boxplot_prob0 + ggtitle("Prob > 0"),
+  boxplot_sigm05 + ggtitle("Sigmoid 0.5"),
+  ncol = 3
+)
 
-d <- d %>%
-  filter(removed == 1) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
+# Function to perform statistical tests
+compare_f1_scores <- function(metric) {
+  t_test <- t.test(result_table[[metric]] ~ result_table$layer_comparison)
+  wilcox_test <- wilcox.test(result_table[[metric]] ~ result_table$layer_comparison)
+  
+  cat("Results for", metric, "\n")
+  cat("T-test p-value:", t_test$p.value, "\n")
+  cat("Wilcoxon test p-value:", wilcox_test$p.value, "\n\n")
+}
 
-result_summary <- d %>%
-  group_by(emln_id, train_layer, test_layer, lambda, k, itr) %>%
-  summarise(
-    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-  ) %>%
-  ungroup() %>%
-  group_by(lambda, k) %>%  # Group by lambda and k to average the metrics
-  summarise(
-    avg_specificity = mean(specificity, na.rm = TRUE),
-    avg_precision = mean(precision, na.rm = TRUE),
-    avg_recall = mean(recall, na.rm = TRUE),
-    avg_f1_score = mean(f1_score, na.rm = TRUE),
-    avg_balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    avg_mcc = mean(mcc, na.rm = TRUE)
-  ) %>%
-  ungroup()
+# Compare F1 scores statistically
+compare_f1_scores("f1_score_sigm")
+compare_f1_scores("f1_score_prob0")
+compare_f1_scores("f1_score_sigm05")
 
-
-# Create a boxplot for average F1 scores across different k values
-ggplot(result_summary, aes(x = factor(k), y = avg_f1_score)) +
-  geom_boxplot(fill = "skyblue", color = "darkblue") +
-  labs(
-    title = "Comparison of Average F1 Scores for Different k Values",
-    x = "k value",
-    y = "Average f1 score"
-  ) +
-  theme_minimal()
-
-# Create a boxplot for average F1 scores across different lambda values
-ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
-  geom_boxplot(fill = "skyblue", color = "darkblue") +
-  labs(
-    title = "Comparison of Average F1 Scores for Different lambda Values",
-    x = "Lambda value",
-    y = "Average f1 score"
-  ) +
-  theme_minimal()
 
 ## ---- correlate evaluators with distance ----------
 # Load the pairwise distance matrix
