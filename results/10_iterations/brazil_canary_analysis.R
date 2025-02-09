@@ -49,7 +49,8 @@ d %>%
 d <- d %>% 
   filter(removed == 1) %>%
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
+  mutate(predicted_bin_over0 = ifelse(predicted_values > 0, 1, 0))
 
 d %>% 
   ggplot(aes(original_links,predicted_prob_sigm))+geom_point()
@@ -77,6 +78,55 @@ result <- d %>%
 
 # View the result
 print(result)
+
+## ---- comparing binarization using sigmoid and above 0 ----
+
+result <- d %>%
+  # Only keep rows that have removed == 1 if desired
+  # filter(removed == 1) %>%
+  group_by(emln_id, train_layer, test_layer, lambda, k) %>%
+  summarise(
+    # --- For predicted_bin_sigm ---
+    TP_sigm = sum(original_links == 1 & predicted_bin_sigm == 1),
+    TN_sigm = sum(original_links == 0 & predicted_bin_sigm == 0),
+    FP_sigm = sum(original_links == 0 & predicted_bin_sigm == 1),
+    FN_sigm = sum(original_links == 1 & predicted_bin_sigm == 0),
+    
+    precision_sigm = TP_sigm / (TP_sigm + FP_sigm),
+    recall_sigm    = TP_sigm / (TP_sigm + FN_sigm),
+    f1_sigm = 2 * (precision_sigm * recall_sigm) / (precision_sigm + recall_sigm),
+    
+    # Optional: specificity, balanced_accuracy, etc. as in your example
+    specificity_sigm = TN_sigm / (TN_sigm + FP_sigm),
+    balanced_acc_sigm = (recall_sigm + specificity_sigm) / 2,
+    
+    # --- For predicted_bin_over0 ---
+    TP_over0 = sum(original_links == 1 & predicted_bin_over0 == 1),
+    TN_over0 = sum(original_links == 0 & predicted_bin_over0 == 0),
+    FP_over0 = sum(original_links == 0 & predicted_bin_over0 == 1),
+    FN_over0 = sum(original_links == 1 & predicted_bin_over0 == 0),
+    
+    precision_over0 = TP_over0 / (TP_over0 + FP_over0),
+    recall_over0    = TP_over0 / (TP_over0 + FN_over0),
+    f1_over0 = 2 * (precision_over0 * recall_over0) / (precision_over0 + recall_over0),
+    
+    specificity_over0 = TN_over0 / (TN_over0 + FP_over0),
+    balanced_acc_over0 = (recall_over0 + specificity_over0) / 2,
+    
+    .groups = "drop"   # Stop grouping after summarise
+  )
+
+f1_summary <- result %>%
+  summarise(
+    max_f1_sigm = max(f1_sigm, na.rm = TRUE),
+    avg_f1_sigm = mean(f1_sigm, na.rm = TRUE),
+    
+    max_f1_over0 = max(f1_over0, na.rm = TRUE),
+    avg_f1_over0 = mean(f1_over0, na.rm = TRUE)
+  )
+
+f1_summary
+
 
 ## ---- visualization ----
 
@@ -170,7 +220,9 @@ d <- d %>%
   filter(k == 2) %>% 
   filter(lambda == 0.1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) 
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>% 
+  #write_csv('working_df_all_itr_25_binary.csv')
+
 
 result_summary <- d %>%
   group_by(emln_id, train_layer, test_layer, itr) %>%
@@ -218,26 +270,27 @@ result_summary <- result_summary %>%
   rename(train_layer_name = name) %>%                          # Use a different name for clarity
   left_join(net_name, by = c("test_layer" = "layer_id")) %>%  
   rename(test_layer_name = name)                               # Use a different name for clarity
-# Rename joined column
+
+#result_summary <- result_summary %>% write_csv('summary_df_all_itr_1_25_binary.csv')
 
 # Set factor levels for training and predicting layers
-layer_levels <- as.character(1:7) # for Brazil
-layer_levels <- as.character(1:14) # for Canary Islands
-result_summary$train_layer <- factor(result_summary$train_layer, levels = layer_levels)
-result_summary$test_layer <- factor(result_summary$test_layer, levels = unique(result_summary$test_layer))
+#layer_levels <- as.character(1:7) # for Brazil
+# layer_levels <- as.character(1:14) # for Canary Islands
+# result_summary$train_layer <- factor(result_summary$train_layer, levels = layer_levels)
+# result_summary$test_layer <- factor(result_summary$test_layer, levels = unique(result_summary$test_layer))
 
 
 result_summary$diagonal <- result_summary$train_layer == result_summary$test_layer
 
 layer_to_layer_plot_all_itr_brzail <- 
-  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -251,14 +304,14 @@ layer_to_layer_plot_all_itr_brzail <-
 print(layer_to_layer_plot_all_itr_brzail)
 
 layer_to_layer_plot_all_itr_canary <- 
-  ggplot(result, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result[result$train_layer == result$test_layer, ],
+  geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -272,8 +325,6 @@ layer_to_layer_plot_all_itr_canary <-
 print(layer_to_layer_plot_all_itr_canary)
 
 # check if the differences are significant
-
-
 
 # checking which k and lambda are the best 
 d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv')
@@ -398,7 +449,7 @@ result_summary$test_layer <- as.factor(result_summary$test_layer)
 result_summary <- result_summary %>%
   mutate(geographic_distance = mapply(function(train, test) distance_matrix[as.character(train), as.character(test)],
                                       train_layer, test_layer))
-result_summary[1:15, c("train_layer","test_layer","geographic_distance")]
+#result_summary[1:15, c("train_layer","test_layer","geographic_distance")]
 
 correlation <- cor.test(result_summary$balanced_accuracy, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
 correlation
@@ -413,7 +464,7 @@ cor_plot <-
   ggplot(result_summary, aes(x = geographic_distance, y = balanced_accuracy)) +
   geom_point(color = "blue", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "purple") +  # Linear regression line
-  labs(x = "Geographic distance (km)",
+  labs(x = "Geographical distance (km)",
        y = "Balanced accuracy") +
   tme + 
   annotate("text",
@@ -438,7 +489,7 @@ cor_plot <-
   ggplot(result_summary, aes(x = geographic_distance, y = f1_score)) +
   geom_point(color = "blue", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "purple") +  # Linear regression line
-  labs(x = "Geographic distance (km)",
+  labs(x = "Geographical distance (km)",
        y = "F1 score") +
   tme + 
   annotate("text",
