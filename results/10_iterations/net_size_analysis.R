@@ -1,14 +1,12 @@
-# ---- calculating network dimentions ----
-library(softImpute)
+# ---- calculating network dimensions ----
 library(ggplot2)
 library(emln)
 library(pheatmap)
 library(gridExtra)
 library(dplyr)
+
 ## ---- parameters ----
-emln_id <- c(25, 60)
-prop_ones_to_remove <- 0.2
-prop_zeros_to_remove <- 0.2
+emln_id <- 60
 
 ## ---- functions ----
 build_interaction_matrix <- function(data, layers_to_filter) {
@@ -119,11 +117,28 @@ for (net in emln_id) {
   }
 }
 
+# add this
+data(olesen2002flores) # Check out the help for information on this data set!
+olesen2002flores_binary <- 1 * (olesen2002flores > 0) # Make the data binary (unweighted)
+I <- nrow(olesen2002flores_binary) # Number of lower level species (e.g., hosts, plants)
+J <- ncol(olesen2002flores_binary) # Number of higher level species (e.g., parasites, pollinators)
+S <- I + J # Total number of species, aka: Network size
+L <- sum(olesen2002flores_binary > 0) # Number of edges in the network
+A_i <- rowSums(olesen2002flores_binary) # The degree of hosts
+A_j <- colSums(olesen2002flores_binary) # The degree of parasites
+C <- L / (I * J) # Connectance
+# Clustering coefficient higher level (the number of realized links 
+# divided by the number of possible links for each species)
+cc_high <- colSums(olesen2002flores_binary) / nrow(olesen2002flores_binary) 
+# Clustering coefficient lower level 
+# (the number of realized links divided by the number of possible links for each species)
+cc_low <- rowSums(olesen2002flores_binary) / ncol(olesen2002flores_binary) 
+
 # View results
 View(results)
 
 # Select only the relevant columns from result_summary
-result_summary_subset <- result_summary[, c("emln_id", "train_layer", "test_layer", "f1_score_sigm")]
+result_summary_subset <- result_summary[, c("emln_id", "train_layer", "test_layer", "f1_score")]
 
 # Merge only the f1_score_sigm column into results
 results <- merge(results, result_summary_subset, 
@@ -134,10 +149,11 @@ results <- merge(results, result_summary_subset,
 View(results)
 
 # Filter results for emln_id = 60
-canary_results <- subset(results, emln_id == 60)
-
+#canary_results <- subset(results, emln_id == 60)
+canary_results <- results
+## ---- checking correlations ----
 # Compute correlation
-correlation <- cor.test(canary_results$f1_score_sigm, canary_results$density_P, 
+correlation <- cor.test(canary_results$f1_score, canary_results$size_C, 
                         use = "complete.obs", method = "pearson")
 
 # Extract correlation coefficient and p-value
@@ -146,16 +162,46 @@ p_value <- formatC(correlation$p.value, digits = 2)  # Use scientific notation i
 label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
 # Create scatter plot
-ggplot(canary_results, aes(x = density_P, y = f1_score_sigm)) +
-  geom_point(color = "blue") +  # Scatter points
+ggplot(canary_results, aes(x = size_C, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6) +  # Scatter points
   geom_smooth(method = "lm", se = FALSE, color = "salmon") +  # Trendline
-  labs(x = "density of P",
-       y = "F1 Score (sigmoid)",
-       title = "F1 Score vs. density_P for Canary Results") +
+  labs(x = "Size of C",
+       y = "F1 score",
+       title = "F1 score vs. size of C for Canary results") +
   tme +  # Corrected theme
   annotate("text",
-           x = max(canary_results$density_P) * 0.9,  # Position text dynamically
-           y = max(canary_results$f1_score_sigm) * 1,  
+           x = max(canary_results$size_C) * 0.9,  # Position text dynamically
+           y = max(canary_results$f1_score) * 1,  
+           label = label_text,
+           size = 3,
+           color = "black")
+
+## ---- now with one off-diagonal ----
+
+canary_results_filtered <- canary_results %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer < test_layer | train_layer == test_layer)
+
+# Compute correlation
+correlation <- cor.test(canary_results_filtered$f1_score, canary_results_filtered$density_C, 
+                        use = "complete.obs", method = "pearson")
+
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # Use scientific notation if needed
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Create scatter plot
+ggplot(canary_results_filtered, aes(x = density_C, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +  # Scatter points
+  geom_smooth(method = "lm", se = FALSE, color = "salmon") +  # Trendline
+  labs(x = "Density of C",
+       y = "F1 score",
+       title = "F1 score vs. density of C for Canary results (1 diagonal)") +
+  tme +  # Corrected theme
+  annotate("text",
+           x = max(canary_results_filtered$density_C) * 0.9,  # Position text dynamically
+           y = max(canary_results_filtered$f1_score) * 1,  
            label = label_text,
            size = 3,
            color = "black")

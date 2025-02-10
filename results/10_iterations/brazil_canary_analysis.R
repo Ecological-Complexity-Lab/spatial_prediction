@@ -220,9 +220,10 @@ d <- d %>%
   filter(k == 2) %>% 
   filter(lambda == 0.1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>% 
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>%
   #write_csv('working_df_all_itr_25_binary.csv')
 
+#d <- read_csv('working_df_all_itr_25_binary.csv')
 
 result_summary <- d %>%
   group_by(emln_id, train_layer, test_layer, itr) %>%
@@ -282,6 +283,8 @@ result_summary <- result_summary %>%
 
 result_summary$diagonal <- result_summary$train_layer == result_summary$test_layer
 
+#write_csv(result_summary, 'working_df_all_itr_60_binary_names.csv')
+
 layer_to_layer_plot_all_itr_brzail <- 
   ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -303,15 +306,122 @@ layer_to_layer_plot_all_itr_brzail <-
 
 print(layer_to_layer_plot_all_itr_brzail)
 
+# making a half heatmap
+
+result_summary_filtered <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer < test_layer | train_layer == test_layer)
+
+layer_to_layer_plot_all_itr_brzail_half <-  
+  ggplot(result_summary_filtered, aes(x = train_layer, y = test_layer, fill = f1_score)) +
+  geom_tile(color = "white", linewidth = 0.1) +  
+  geom_tile(data = result_summary_filtered[result_summary_filtered$train_layer == result_summary_filtered$test_layer, ],
+            color = "black", linewidth = 1.2) +  
+  scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +  
+  scale_x_discrete(limits = rev(unique(result_summary$train_layer))) +  # Reverse x-axis order
+  scale_y_discrete(limits = rev(unique(result_summary$test_layer))) +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  
+    panel.background = element_blank(), 
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  
+  ) +
+  coord_fixed()
+layer_to_layer_plot_all_itr_brzail_half
+
+
+result_summary_filtered <- read.csv('working_df_all_itr_25_binary_names_half_matrix.csv')
+
+# Now you should have two factor columns that won't trigger duplicate-level errors,
+# assuming each numeric layer truly lines up with exactly one layer name.
+result_summary_filtered <- result_summary_filtered %>%
+  mutate(
+    # Make them factors, reversing the sorted numeric vector
+    train_layer_factor = factor(
+      train_layer,
+      levels = rev(sort(unique(train_layer)))  # largest -> smallest
+    ),
+    test_layer_factor = factor(
+      test_layer,
+      levels = rev(sort(unique(test_layer)))
+    )
+  )
+
+result_summary_filtered <- result_summary_filtered %>%
+  mutate(
+    train_layer = factor(train_layer, levels = rev(sort(unique(train_layer)))),
+    test_layer  = factor(test_layer,  levels = rev(sort(unique(test_layer))))
+  )
+
+layer_to_layer_plot_all_itr_brazil_half <- ggplot(
+  result_summary_filtered,
+  aes(x = train_layer, y = test_layer
+      , fill = f1_score)
+) +
+  geom_tile(color = "white", linewidth = 0.1) +
+  
+  # If you want black borders on the diagonal:
+  geom_tile(
+    data = subset(result_summary_filtered, train_layer == test_layer),
+    color = "black", linewidth = 1.2
+  ) +
+  #scale_x_discrete(limits = levels(rev(result_summary_filtered$train_layer_factor)), drop = FALSE) +
+  #scale_y_discrete(limits = levels(result_summary_filtered$test_layer_factor), drop = FALSE) +
+  #scale_y_continuous(trans = "reverse", breaks = seq(1, by = 1)) +
+
+  scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin      = unit(c(0, 0, 0, 0), "cm"),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x      = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) +
+  coord_fixed()
+
+layer_to_layer_plot_all_itr_brazil_half
+
+
+layer_to_layer_plot_all_itr_brzail_half <- ggplot(
+  result_summary_filtered, 
+  aes(x = train_layer_name, y = test_layer_name, fill = f1_score)
+) +
+  geom_tile(color = "white", linewidth = 0.1) +
+  # Black borders only for diagonal tiles
+  geom_tile(
+    data = result_summary_filtered[result_summary_filtered$train_layer == result_summary_filtered$test_layer, ],
+    color = "black", linewidth = 1.2
+  ) +
+  scale_fill_gradient(low = "skyblue", high = "orchid4", na.value = "gray") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) +
+  coord_fixed()
+
+layer_to_layer_plot_all_itr_brzail_half
+
+# canaries 
+
 layer_to_layer_plot_all_itr_canary <- 
-  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+  ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "white", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +
+  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -323,6 +433,35 @@ layer_to_layer_plot_all_itr_canary <-
   coord_fixed()
 
 print(layer_to_layer_plot_all_itr_canary)
+
+# now make half a heatmap
+
+result_summary_filtered_canary <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer < test_layer | train_layer == test_layer)
+
+layer_to_layer_plot_all_itr_canary_half <-  
+  ggplot(result_summary_filtered_canary, 
+         aes(x = factor(train_layer, levels = unique(train_layer)),  
+             y = factor(test_layer, levels = rev(unique(test_layer))),  # ✅ FIXED: Closed parentheses here
+             fill = f1_score)) +  
+  geom_tile(color = "white", linewidth = 0.1) +  
+  geom_tile(data = result_summary_filtered_canary[result_summary_filtered_canary$train_layer == result_summary_filtered_canary$test_layer, ], 
+            color = "black", linewidth = 1.2) +  
+  scale_fill_gradient(low = "steelblue2", high = "salmon2", na.value = "gray") +  
+  labs(x = "Training layer", y = "Predicted layer", fill = "f1") +  
+  theme_minimal() +  
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  
+    panel.background = element_blank(),  
+    panel.grid.major = element_blank(),  
+    panel.grid.minor = element_blank(),  
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  
+  ) +  
+  coord_fixed()  # ✅ FIXED: Removed extra closing parenthesis
+
+
+print(layer_to_layer_plot_all_itr_canary_half)
 
 # check if the differences are significant
 
@@ -501,45 +640,80 @@ cor_plot <-
 print(cor_plot)
 
 # trying the canary islands...
-result_summary %>% 
-  write_csv('result_summary_canary_with_distance.csv') # summary of all iterations
+# result_summary %>% 
+#   write_csv('result_summary_canary_with_distance.csv') # summary of all iterations
+# 
+# # Load the pairwise distance matrix
+# distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
+# 
+# # For each row's train_layer ID, find which row in net_name has the same layer_id,
+# # and pull out the corresponding 'name'.
+# result_summary$train_name <- net_name$name[ match(result_summary$train_layer, net_name$layer_id) ]
+# 
+# # Same for test_layer
+# result_summary$test_name <- net_name$name[ match(result_summary$test_layer, net_name$layer_id) ]
+# 
+# distance_table_sym <- distance_table %>%
+#   bind_rows(
+#     distance_table %>%
+#       rename(to = from, from = to)  # swap columns
+#   ) %>%
+#   distinct(from, to, distance_km)
+# 
+# # result_summary has train_name, test_name, 
+# # plus an old "distance_km" you want to replace
+# 
+# result_summary <- result_summary %>%
+#   select(-distance_km) %>%                # remove old distance_km if it exists
+#   left_join(
+#     distance_table_sym,
+#     by = c("train_name" = "from", "test_name" = "to")
+#   ) %>%
+#   mutate(distance_km = if_else(train_name == test_name,
+#                                0,              # distance = 0 if same site
+#                                distance_km))   # otherwise, keep joined distance
+# 
+# 
+# 
+# result_summary %>%
+#   anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
 
-# Load the pairwise distance matrix
-distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
-
-# For each row's train_layer ID, find which row in net_name has the same layer_id,
-# and pull out the corresponding 'name'.
-result_summary$train_name <- net_name$name[ match(result_summary$train_layer, net_name$layer_id) ]
-
-# Same for test_layer
-result_summary$test_name <- net_name$name[ match(result_summary$test_layer, net_name$layer_id) ]
-
-distance_table_sym <- distance_table %>%
-  bind_rows(
-    distance_table %>%
-      rename(to = from, from = to)  # swap columns
-  ) %>%
-  distinct(from, to, distance_km)
-
-# result_summary has train_name, test_name, 
-# plus an old "distance_km" you want to replace
-
-result_summary <- result_summary %>%
-  select(-distance_km) %>%                # remove old distance_km if it exists
-  left_join(
-    distance_table_sym,
-    by = c("train_name" = "from", "test_name" = "to")
-  ) %>%
-  mutate(distance_km = if_else(train_name == test_name,
-                               0,              # distance = 0 if same site
-                               distance_km))   # otherwise, keep joined distance
-
-
-
-result_summary %>%
-  anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
+result_summary <- read_csv('result_summary_canary_with_distance.csv')
 
 correlation <- cor.test(result_summary$f1_score, result_summary$distance_km, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, format = "f", digits = 5)
+
+#p_value <- round(correlation$p.value, 5)
+
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Plot the correlation between balanced accuracy and geographic distance
+
+cor_plot_canary <- 
+  ggplot(result_summary, aes(x = distance_km, y = f1_score)) +
+  geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
+  labs(x = "Geographical distance (km)",
+       y = "F1 score") +
+  annotate("text",
+           x = 370, y = 0.7,   # Adjust depending on your data range
+           label = label_text,
+           size = 3,
+           color = "black") +
+  tme
+
+print(cor_plot_canary)
+
+# now for half the matrix
+
+result_summary_filtered_canary <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer < test_layer | train_layer == test_layer)
+
+correlation <- cor.test(result_summary_filtered_canary$f1_score, result_summary_filtered_canary$distance_km, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
 r_value <- round(correlation$estimate, 3)
@@ -552,20 +726,21 @@ label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
 # Plot the correlation between balanced accuracy and geographic distance
 
-cor_plot_canary <- 
-  ggplot(result_summary, aes(x = distance_km, y = f1_score)) +
+cor_plot_canary_half <- 
+  ggplot(result_summary_filtered_canary, aes(x = distance_km, y = f1_score)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
-  labs(x = "Geographic distance (km)",
+  labs(x = "Geographical distance (km)",
        y = "F1 score") +
   annotate("text",
-           x = 370, y = 0.7,   # Adjust depending on your data range
+           x = 385, y = 0.7,   # Adjust depending on your data range
            label = label_text,
-           size = 4,
+           size = 3,
            color = "black") +
   tme
 
-print(cor_plot_canary)
+print(cor_plot_canary_half)
+
 
 # try f1...
 correlation <- cor.test(result_summary$f1_score, result_summary$geographic_distance, use = "complete.obs", method = "pearson")
@@ -591,3 +766,11 @@ cor_plot <-
            color = "black")
 
 print(cor_plot)
+
+## ---- check if the predictions of the off-diagonals are different ----
+
+## ---- check correlation with similarity in species composition ----
+
+
+## ---- check correlation with similarity in interaction composition ----
+
