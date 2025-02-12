@@ -18,6 +18,7 @@ library(dplyr)
 library(pROC)
 library(emln)
 library(reshape2)
+library(ggpubr)
 
 tme <-  theme(axis.text = element_text(size = 10, color = "black"),
               axis.title = element_text(size = 12, face = "bold"),
@@ -768,6 +769,52 @@ cor_plot <-
 print(cor_plot)
 
 ## ---- check if the predictions of the off-diagonals are different ----
+
+result_table <- read.csv('working_df_all_itr_60_binary_names.csv')
+
+result_table <- result_table %>%
+  mutate(layer_comparison = case_when(
+    train_layer == test_layer ~ "Diagonal",
+    train_layer > test_layer ~ "Off-diagonal (train > test)",
+    train_layer < test_layer ~ "Off-diagonal (train < test)"
+  ))
+
+
+# Define custom colors for each group
+custom_colors <- c("Diagonal" = "#1b9e77", 
+                   "Off-diagonal (train > test)" = "#d95f02", 
+                   "Off-diagonal (train < test)" = "#7570b3")
+
+# Function to create notched boxplots with customizations
+plot_f1_boxplot <- function(metric, y_axis_label = "F1 score") {
+  ggplot(result_table, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = TRUE, alpha = 0.4, color = "black") +  # Notched, semi-transparent, black outline
+    theme_minimal() +
+    labs(x = "Layer comparison",
+         y = y_axis_label) +  # Custom y-axis title
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)  # Black frame around the plot
+    ) +
+    tme +
+    scale_fill_manual(values = custom_colors) +  # Apply custom colors
+    stat_compare_means(method = "t.test", label = "p.signif", comparisons = list(
+      c("Diagonal", "Off-diagonal (train > test)"),
+      c("Diagonal", "Off-diagonal (train < test)"),
+      c("Off-diagonal (train > test)", "Off-diagonal (train < test)")
+    ))  # Pairwise t-tests with significance labels
+}
+
+# Generate boxplots for each F1 score metric
+plot_f1_boxplot("f1_score")
+
+anova_result <- aov(f1_score ~ layer_comparison, data = result_table)
+summary(anova_result)
+
+tukey_result <- TukeyHSD(anova_result)
+print(tukey_result)
+
 
 ## ---- check correlation with similarity in species composition ----
 
