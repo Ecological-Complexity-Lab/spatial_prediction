@@ -36,6 +36,13 @@ build_interaction_matrix <- function(data, layers_to_filter) {
   
   return(interaction_matrix)
 }
+
+## ---- themes ----
+tme <-  theme(axis.text = element_text(size = 10, color = "black"),
+              axis.title = element_text(size = 12, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())
+theme_set(theme_bw())
 ## ---- parameters ----
 emln_id <- 60
 
@@ -207,7 +214,9 @@ head(results_jaccard)
 
 ## ---- analyse ----
 
-results_jaccard %>% write_csv('result_jaccard_canaries.csv')
+#results_jaccard %>% write_csv('result_jaccard_canaries.csv')
+
+results_jaccard <- read.csv('result_jaccard_canaries.csv')
 
 result_summary <- read_csv('result_summary_canary_with_distance.csv')
 
@@ -240,7 +249,79 @@ ggplot(df_long, aes(x = jaccard_value, y = f1_score, color = jaccard_type)) +
   ) +
   theme_minimal()
 
-# only for off-diagonals
+ggplot(df_long, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  labs(x = "Jaccard similarity", y = "F1 score") +
+  facet_wrap(~ jaccard_type, scales = "free_x") +
+  theme_minimal() +
+  tme
+
+# Suppose your long data is df_long with columns:
+#   f1_score, jaccard_value, jaccard_type
+# And you have cor_table_annot with columns:
+#   jaccard_type, label_text  (plus other stats if desired)
+
+type_labels <- c(
+  "jaccard_pollinators" = "Pollinator overlap",
+  "jaccard_plants"      = "Plant overlap",
+  "jaccard_edges"       = "Edge overlap"
+)
+
+cor_table <- df_long %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 3),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "f", digits = 3),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x",             # or "free" if you want x & y free
+    labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 2.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard measures - 1 off-diag + diag"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1)
+  )
+
+
+### ---- only for off-diagonals ----
 
 canary_results_offs <- result_summary %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
@@ -271,7 +352,6 @@ ggplot(df_long_offs, aes(x = jaccard_value, y = f1_score)) +
   theme_minimal() +
   tme
 
-### ---- calculating correlation ----
 # For each jaccard_type, compute correlation with f1_score:
 cor_table <- df_long_offs %>%
   group_by(jaccard_type) %>%
@@ -306,4 +386,147 @@ ggplot(df_long_offs, aes(x = jaccard_value, y = f1_score)) +
     color = "black",
     size = 3
   ) + tme
+
+type_labels <- c(
+  "jaccard_pollinators" = "Pollinator overlap",
+  "jaccard_plants"      = "Plant overlap",
+  "jaccard_edges"       = "Edge overlap"
+)
+
+cor_table <- df_long_offs %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 3),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "e", digits = 2),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long_offs, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x",             # or "free" if you want x & y free
+    labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 2.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard measures - both off- diagonals"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1)
+  )
+
+### ---- only 1 off- diagonal an no diagonal ----
+
+canary_results_1off <- canary_results_offs %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer < test_layer)
+
+df_long_1off <- canary_results_1off %>%
+  pivot_longer(
+    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
+    names_to = "jaccard_type",
+    values_to = "jaccard_value"
+  )
+
+# For each jaccard_type, compute correlation with f1_score:
+cor_table <- df_long_1off %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+
+# Convert cor_table to a format suitable for annotation:
+cor_table_annot <- cor_table %>%
+  mutate(
+    label_text = paste0("r = ", round(cor_value, 3),
+                        "\np = ", formatC(p_value, digits = 3))
+  )
+
+cor_table <- df_long_1off %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 2),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "e", digits = 2),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x",             # or "free" if you want x & y free
+    labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 2.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard measures - 1 off-diagonal"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.ticks = element_line(color = "black")
+  )
 
