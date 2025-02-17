@@ -9,6 +9,7 @@ library(emln)
 library(pheatmap)
 library(gridExtra)
 library(dplyr)
+library(tidyverse)
 
 # ------------- parsing arguments -----------
 # read args given in command line:
@@ -17,7 +18,7 @@ if (length(commandArgs(trailingOnly=TRUE))==0) { # make sure we have commands
 } else {
   args <- commandArgs(trailingOnly=TRUE)
   emln_id <- as.numeric(args[1])
-  is_binary <- as.numeric(args[2])
+  is_binary <- as.numeric(args[2]) # set to 1 if TRUE
   
 }
 
@@ -149,10 +150,45 @@ combined_results <- data.frame()
 # Load matrices
 d <- load_emln(emln_id)
 graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
-A_l <- d$extended 
-# Total number of layers
-num_layers <- length(graph_list)
+A_l <- d$extended
+
 # aggregate to island scale
+# Extract numeric layer numbers
+A_l <- A_l %>%
+  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
+  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
+                                   paste0("layer_", layer_num, "_", layer_num + 1),
+                                   paste0("layer_", layer_num - 1, "_", layer_num)))
+
+# Aggregate data
+aggregated_df <- A_l %>%
+  group_by(aggregated_layer, node_from, node_to, type) %>%
+  summarise(weight = sum(weight), .groups = "drop") %>%
+  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# Generate new layer names
+unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
+new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
+
+# Create a mapping table
+layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
+
+# Save the mapping to CSV
+write_csv(layer_mapping, "layer_mapping.csv")
+
+# Apply renaming in aggregated_df
+aggregated_df <- aggregated_df %>%
+  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
+  mutate(layer_from = new_layer, layer_to = new_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# View updated aggregated_df
+print(aggregated_df)
+
+# Total number of layers
+num_layers <- length(unique(aggregated_df$layer_from))
+num_layers <- 2
 
 # Loop through all combinations of layers_to_train and layer_to_predict
 for (layers_to_train in 1:num_layers) {
@@ -160,10 +196,10 @@ for (layers_to_train in 1:num_layers) {
     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
     
     # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
     
     # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
     
     # # # crop to make toy example matrices
     #A <- A[1:8, 1:7]
@@ -290,6 +326,6 @@ for (layers_to_train in 1:num_layers) {
 print(combined_results)
 
 # Save the combined results dataframe to a CSV file
-output_name <- paste0("nonbinary_equal_0_1_removal_",emln_id,"_",is_binary,".csv")
+output_name <- paste0("aggregated_equal_0_1_removal_",emln_id,"_",is_binary,".csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)
