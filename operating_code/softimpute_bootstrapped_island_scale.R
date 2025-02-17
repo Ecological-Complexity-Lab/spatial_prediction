@@ -152,6 +152,7 @@ graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended 
 # Total number of layers
 num_layers <- length(graph_list)
+# aggregate to island scale
 
 # Loop through all combinations of layers_to_train and layer_to_predict
 for (layers_to_train in 1:num_layers) {
