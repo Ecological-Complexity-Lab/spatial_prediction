@@ -173,6 +173,8 @@ df_sorensen_pollinators <- df_pollinators %>%
 nonbinary_fidelity_merged <- nonbinary_fidelity_merged %>%
   left_join(df_sorensen_pollinators, by = "node_to")
 
+write.csv(nonbinary_fidelity_merged, 'nonbinary_canaries_fidelity_obs_pred.csv')
+
 # plot relationship with partner fidelity
 nonbinary_fidelity_merged_removed <- nonbinary_fidelity_merged %>% filter(removed == 1)
 correlation <- cor.test(nonbinary_fidelity_merged_removed$pred_obs, nonbinary_fidelity_merged_removed$mean_sorensen_plants, use = "complete.obs", method = "pearson")
