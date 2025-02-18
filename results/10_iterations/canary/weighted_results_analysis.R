@@ -173,10 +173,12 @@ df_sorensen_pollinators <- df_pollinators %>%
 nonbinary_fidelity_merged <- nonbinary_fidelity_merged %>%
   left_join(df_sorensen_pollinators, by = "node_to")
 
-write.csv(nonbinary_fidelity_merged, 'nonbinary_canaries_fidelity_obs_pred.csv')
+# write.csv(nonbinary_fidelity_merged, 'nonbinary_canaries_fidelity_obs_pred.csv')
+nonbinary_fidelity_merged <- read.csv('nonbinary_canaries_fidelity_obs_pred.csv')
 
 # plot relationship with partner fidelity
 nonbinary_fidelity_merged_removed <- nonbinary_fidelity_merged %>% filter(removed == 1)
+#nonbinary_fidelity_merged_removed_itr_1 <- nonbinary_fidelity_merged %>% filter(itr == 1) # try 1 itr
 correlation <- cor.test(nonbinary_fidelity_merged_removed$pred_obs, nonbinary_fidelity_merged_removed$mean_sorensen_plants, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
@@ -217,8 +219,100 @@ ggplot(long_data, aes(x = sorensen_value, y = pred_obs, color = group)) +
   theme_minimal() +
   tme
 
+# plot the distribution of partner fidelity with a histogram
+nonbinary_fidelity_merged_removed_itr_1_tn_1_ts_2 <- nonbinary_fidelity_merged_removed_itr_1 %>% filter(train_layer == 1) %>%  filter(test_layer == 2)
+nonbinary_fidelity_merged_removed_itr_1_tn_1_ts_2 <- nonbinary_fidelity_merged_removed_itr_1_tn_1_ts_2 %>% filter(removed == 1)
+nonbinary_fidelity_merged_removed_itr_1 <- nonbinary_fidelity_merged_removed_itr_1 %>% filter(removed == 1)
+ggplot(nonbinary_fidelity_merged_removed_itr_1, aes(x = node_to, y = pred_obs)) +
+  geom_boxplot() +
+  theme_minimal() +
+  coord_flip() +  # optional: flip if you have many species
+  tme +
+  labs(
+    title = "Boxplot of pred_obs by pollinator species",
+    x     = "Pollinator species (node_to)",
+    y     = "pred_obs"
+  )
+
+
 ## ---- check if the results relate to sample size ----
 
+## ---- probability of observed zero interactions to actually be zero ----
+df_all_itr <- read.csv('working_all_itr_nonbinary_canary.csv') # weighted
+df_all_itr <- read.csv('working_all_itr_nonbinary_canary.csv') # predictions made on binary matrices
+
+df_all_itr_zero <- df_all_itr %>% filter(removed == 1 & original_links == 0) # filter only removed links that are observed as zeros
+
+# filter only links that appear several times for the analysis
+df_summary <- df_all_itr_zero %>%
+  group_by(node_from, node_to) %>%
+  # Keep only those links/groups with >= 5 observations 
+  filter(n() >= 5) %>%  
+  summarise(
+    n         = n(),
+    mean_pred = mean(sigm_predicted, na.rm = TRUE),
+    sd_pred   = sd(sigm_predicted, na.rm = TRUE),  # to check variance
+    p_value   = if (sd_pred == 0) {
+      NA_real_  # can't run a t-test if there's no variance
+    } else {
+      t.test(sigm_predicted, mu = 0.5)$p.value
+    },
+    .groups   = "drop"
+  )
+
+df_summary %>%
+  arrange(desc(mean_pred)) %>%
+  head(10)
+
+write.csv(df_summary, 'links_probability_to_be_non_zeros.csv')
+
+df_summary_sign <- df_summary %>% filter(p_value < 0.05)
+
+df_top_20 <- df_summary %>%
+  # Order by ascending p-value
+  arrange(p_value) %>%
+  # Take the first 20 rows
+  slice(1:20)
+
+ggplot(df_top_20, 
+       aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
+           y = mean_pred,
+           fill = p_value < 0.05)) +
+  geom_col(fill = "steelblue") +
+  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
+                width = 0.2) +
+  coord_flip() +
+  #scale_fill_manual(name = "Significant?", values = c("gray70", "tomato")) +
+  theme_minimal() +
+  scale_x_discrete(
+    labels = function(x) sapply(x, function(lbl) {
+      # 1) Replace underscores with a tilde (for spacing in plotmath)
+      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
+      lbl_tilde <- gsub("_", "~", lbl)
+      # 2) Wrap in italic(), so the entire thing is in italics
+      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
+      parse(text = paste0("italic(", lbl_tilde, ")"))
+    })) +
+  labs(
+    x = "Link (pollinator - plant)",
+    y = "Mean predicted value"
+    #title = "Mean predicted value and significance"
+  ) + tme
+
+ggplot(df_top_20, aes(x = node_from, y = mean_pred)) +
+  geom_col() +
+  scale_x_discrete(
+    labels = function(x) sapply(x, function(lbl) {
+      # 1) Replace underscores with a tilde (for spacing in plotmath)
+      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
+      lbl_tilde <- gsub("_", "~", lbl)
+      # 2) Wrap in italic(), so the entire thing is in italics
+      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
+      parse(text = paste0("italic(", lbl_tilde, ")"))
+    })
+  ) +
+  coord_flip() +
+  theme_minimal()
 
 ## ---- train a model ----
 set.seed(123)  # For reproducibility
