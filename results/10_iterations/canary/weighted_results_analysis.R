@@ -239,10 +239,10 @@ ggplot(nonbinary_fidelity_merged_removed_itr_1, aes(x = node_to, y = pred_obs)) 
 
 ## ---- probability of observed zero interactions to actually be zero ----
 df_all_itr <- read.csv('working_all_itr_nonbinary_canary.csv') # weighted
-df_all_itr <- read.csv('working_all_itr_nonbinary_canary.csv') # predictions made on binary matrices
-
+df_all_itr <- read.csv('nonbinary_equal_0_1_removal_60_1.csv') # predictions made on binary matrices
+df_all_itr <- df_all_itr %>% filter(k == 2 & lambda == 0.1)
 df_all_itr_zero <- df_all_itr %>% filter(removed == 1 & original_links == 0) # filter only removed links that are observed as zeros
-
+df_all_itr_zero <- df_all_itr_zero %>% mutate(sigm_predicted = sigmoid(predicted_values)) # add sigm_predicted to the binary-based prediction data
 # filter only links that appear several times for the analysis
 df_summary <- df_all_itr_zero %>%
   group_by(node_from, node_to) %>%
@@ -299,20 +299,94 @@ ggplot(df_top_20,
     #title = "Mean predicted value and significance"
   ) + tme
 
-ggplot(df_top_20, aes(x = node_from, y = mean_pred)) +
-  geom_col() +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      # 1) Replace underscores with a tilde (for spacing in plotmath)
-      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
-      lbl_tilde <- gsub("_", "~", lbl)
-      # 2) Wrap in italic(), so the entire thing is in italics
-      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })
+# what's different between the predictions based on binary and non-binary data?
+df_summary_bin <- df_summary
+df_summary_weight <- df_summary
+library(dplyr)
+
+df_compare <- df_summary_bin %>%
+  inner_join(df_summary_weight,
+             by = c("node_from", "node_to"),
+             suffix = c("_1", "_2")  # Suffixes for matching column names
+  )
+
+df_compare <- df_compare %>%
+  mutate(
+    sig_1 = p_value_1 < 0.05,
+    sig_2 = p_value_2 < 0.05
+  )
+
+ggplot(df_compare, aes(x = mean_pred_1, y = mean_pred_2)) +
+  geom_point(aes(color = sig_1 & sig_2), # color by whether both sets are significant
+             size = 2, alpha = 0.7) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") + 
+  scale_color_manual(
+    values = c("FALSE" = "gray70", "TRUE" = "tomato"),
+    name = "Both significant?"
   ) +
+  labs(
+    title = "Comparison of mean predictions",
+    x = "Mean predicted value (binary)",
+    y = "Mean predicted value (weighted)"
+  ) +
+  theme_minimal() + tme
+
+## ---- which species give us the best predictions? ----
+nonbinary_fidelity_merged_removed_pred_obs_0 <- nonbinary_fidelity_merged_removed %>% filter(pred_obs == 0)
+# there are no such interactions
+
+
+df_plants <- nonbinary_fidelity_merged_removed %>%
+  group_by(node_from) %>%
+  summarise(
+    mean_pred_obs = mean(pred_obs, na.rm = TRUE),
+    median_pred_obs = median(pred_obs, na.rm = TRUE),
+    n = n()
+  ) %>%
+  ungroup() %>%
+  arrange(mean_pred_obs)
+
+head(df_plants, 20)
+
+df_pollinators <- nonbinary_fidelity_merged_removed %>%
+  group_by(node_to) %>%
+  summarise(
+    mean_pred_obs = mean(pred_obs, na.rm = TRUE),
+    median_pred_obs = median(pred_obs, na.rm = TRUE),
+    n = n()
+  ) %>%
+  ungroup() %>%
+  arrange(mean_pred_obs)
+
+head(df_pollinators, 20)
+
+df_plants_lowest_20 <- head(df_plants, 20)
+
+ggplot(df_plants_lowest_20,
+       aes(x = reorder(node_from, mean_pred_obs), y = mean_pred_obs)) +
+  geom_col(fill = "forestgreen") +
   coord_flip() +
-  theme_minimal()
+  labs(
+    title = "Top 20 Plants with Lowest Mean pred_obs",
+    x = "Plant Species (node_from)",
+    y = "Mean pred_obs"
+  ) +
+  tme
+
+df_consistency_plants <- nonbinary_fidelity_merged_removed %>%
+  group_by(node_from, train_layer, test_layer, itr) %>%
+  summarise(
+    avg_pred_obs = mean(pred_obs, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(node_from) %>%
+  summarise(
+    overall_mean = mean(avg_pred_obs),
+    sd_pred_obs  = sd(avg_pred_obs)
+  ) %>%
+  arrange(overall_mean)
+
+
 
 ## ---- train a model ----
 set.seed(123)  # For reproducibility
