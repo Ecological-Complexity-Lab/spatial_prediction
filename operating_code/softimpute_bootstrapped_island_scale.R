@@ -188,7 +188,6 @@ print(aggregated_df)
 
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
-num_layers <- 2
 
 # Loop through all combinations of layers_to_train and layer_to_predict
 for (layers_to_train in 1:num_layers) {
