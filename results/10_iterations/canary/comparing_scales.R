@@ -239,6 +239,7 @@ print(layer_to_layer_plot_islands)
 
 ## ---- correlate performance with distance ----
 # first convert distances to distances between islands
+island_scale <- read.csv('working_df_evaluators_island_names.csv')
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
 # Function to extract island names (removes "_site_X")
@@ -267,9 +268,74 @@ distance_island_table <- distance_table %>%
 # Print result
 print(distance_island_table)
 
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_island_table <- distance_island_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Perform the left join
 island_scale <- island_scale %>%
-    left_join(
-      distance_island_table,
-      by = c("train_layer_name" = "from", "test_layer_name" = "to")
-    ) %>%
-    mutate(distance_km = avg_distance_km)
+  left_join(distance_island_table, by = c("train_layer_name" = "from", "test_layer_name" = "to")) %>%
+  mutate(distance_km = avg_distance_km)
+
+island_scale <- island_scale %>% select(-avg_distance_km)
+
+write.csv(island_scale, 'working_df_islands_evaluators_distance.csv')
+
+correlation <- cor.test(island_scale$f1_score, island_scale$distance_km, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, format = "f", digits = 3)
+
+#p_value <- round(correlation$p.value, 5)
+
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Plot the correlation between balanced accuracy and geographic distance
+
+cor_plot_canary <- 
+  ggplot(island_scale, aes(x = distance_km, y = f1_score)) +
+  geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
+  labs(x = "Geographical distance (km)",
+       y = "F1 score") +
+  annotate("text",
+           x = 370, y = 0.7,   # Adjust depending on your data range
+           label = label_text,
+           size = 3,
+           color = "black") +
+  tme
+
+print(cor_plot_canary)
+
+island_scale_off <- island_scale %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer != test_layer)
+
+correlation <- cor.test(island_scale_off$f1_score, island_scale_off$distance_km, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, format = "f", digits = 3)
+
+#p_value <- round(correlation$p.value, 5)
+
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+# Plot the correlation between balanced accuracy and geographic distance
+
+cor_plot_canary_off <- 
+  ggplot(island_scale_off, aes(x = distance_km, y = f1_score)) +
+  geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
+  labs(x = "Geographical distance (km)",
+       y = "F1 score") +
+  annotate("text",
+           x = 370, y = 0.7,   # Adjust depending on your data range
+           label = label_text,
+           size = 3,
+           color = "black") +
+  tme
+
+print(cor_plot_canary_off)
