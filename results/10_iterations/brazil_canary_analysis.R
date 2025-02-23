@@ -770,7 +770,8 @@ print(cor_plot)
 
 ## ---- check if the predictions of the off-diagonals are different ----
 
-result_table <- read.csv('working_df_all_itr_60_binary_names.csv')
+result_table <- read.csv('working_df_all_itr_60_binary_names.csv') # site scale
+result_table <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv') # island scale
 
 result_table <- result_table %>%
   mutate(layer_comparison = case_when(
