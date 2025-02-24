@@ -1,0 +1,116 @@
+Loading required package: Matrix
+Loaded softImpute 1.4-1
+
+Loading required package: magrittr
+Loading required package: stringr
+Loading required package: igraph
+
+Attaching package: ‘igraph’
+
+The following objects are masked from ‘package:stats’:
+
+    decompose, spectrum
+
+The following object is masked from ‘package:base’:
+
+    union
+
+Loading required package: tibble
+
+Attaching package: ‘tibble’
+
+The following object is masked from ‘package:igraph’:
+
+    as_data_frame
+
+Loading required package: dplyr
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:igraph’:
+
+    as_data_frame, groups, union
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Loading required package: purrr
+
+Attaching package: ‘purrr’
+
+The following objects are masked from ‘package:igraph’:
+
+    compose, simplify
+
+The following object is masked from ‘package:magrittr’:
+
+    set_names
+
+Loading required package: tidyr
+
+Attaching package: ‘tidyr’
+
+The following object is masked from ‘package:igraph’:
+
+    crossing
+
+The following object is masked from ‘package:magrittr’:
+
+    extract
+
+The following object is masked from ‘package:softImpute’:
+
+    complete
+
+The following objects are masked from ‘package:Matrix’:
+
+    expand, pack, unpack
+
+Loading required package: DT
+Loading required package: hablar
+
+Attaching package: ‘hablar’
+
+The following object is masked from ‘package:dplyr’:
+
+    na_if
+
+The following object is masked from ‘package:tibble’:
+
+    num
+
+
+Attaching package: ‘gridExtra’
+
+The following object is masked from ‘package:dplyr’:
+
+    combine
+
+[1] "Creating state node map"
+[1] "Creating extended link list with node IDs"
+Joining with `by = join_by(node_name, layer_name)`
+Joining with `by = join_by(node_name, node_id)`
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+Warning: One or more rows sum to 0. This may be ok if you expect some links with only outgoing links (e.g., basal species in a food web)
+[1] "** from: 1  to: 1 **"
+Error in `[<-`(`*tmp*`, row, col, value = aggregated_data$weight[i]) : 
+  subscript out of bounds
+Calls: build_interaction_matrix
+Execution halted
