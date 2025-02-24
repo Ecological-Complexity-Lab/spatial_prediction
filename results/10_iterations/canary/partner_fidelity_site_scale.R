@@ -19,11 +19,12 @@ library(tidyverse)
 
 ## ---- load data ----
 df <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # canary islands. replace with the nonbinary version or just add the weights from it
-df <- read_csv('test_df_itr_1_60_binary.csv') # test on 1 iteration
+df <- df %>% filter(k == 2 & lambda == 0.1)
+#df <- read_csv('test_df_itr_1_60_binary.csv') # test on 1 iteration
 
 # filter out cases in which train = test layer
-df <- df %>% filter(train_layer < test_layer) %>% 
-  filter(original_links == 1)
+df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
+  filter(original_links == 1) %>% filter(itr == 1)
 
 ## ---- plants ----
 # 1. For each plant (node_from) and layer, gather the pollinators (node_to).
@@ -97,6 +98,9 @@ df_sorensen_pollinators <- df_pollinators %>%
 
 df_merged <- df_merged %>%
   left_join(df_sorensen_pollinators, by = "node_to")
+
+write.csv(df_sorensen_pollinators, "sorensen_pollinators_site.csv")
+write.csv(df_sorensen, "sorensen_plants_site.csv")
 
 ## ---- add distance between predicted and observed values ----
 df_merged <- df_merged %>% mutate(predicted_value_sigm = sigmoid(predicted_values))

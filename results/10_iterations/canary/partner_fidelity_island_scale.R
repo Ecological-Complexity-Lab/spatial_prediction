@@ -22,8 +22,10 @@ library(grid)
 library(scales)
 
 ## ---- load data ----
-df <- read_csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # canary islands. replace with the nonbinary version or just add the weights from it
+df <- read_csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # island scale
 #df <- read_csv('test_df_itr_1_60_binary.csv') # test on 1 iteration
+df <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # site scale
+df <- df %>% filter(k == 2 & lambda == 0.1) # for site scale
 
 # filter out cases in which train = test layer
 df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
