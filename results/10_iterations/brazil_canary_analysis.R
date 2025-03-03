@@ -770,16 +770,21 @@ print(cor_plot)
 
 ## ---- check if the predictions of the off-diagonals are different ----
 
-result_table <- read.csv('working_df_all_itr_60_binary_names.csv') # site scale
-result_table <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv') # island scale
+result_table_site <- read.csv('working_df_all_itr_60_binary_names.csv') # site scale
+result_table_isl <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv') # island scale
 
-result_table <- result_table %>%
+result_table_site <- result_table_site %>%
   mutate(layer_comparison = case_when(
     train_layer == test_layer ~ "Diagonal",
     train_layer > test_layer ~ "Off-diagonal (train > test)",
     train_layer < test_layer ~ "Off-diagonal (train < test)"
   ))
-
+result_table_isl <- result_table_isl %>%
+  mutate(layer_comparison = case_when(
+    train_layer == test_layer ~ "Diagonal",
+    train_layer > test_layer ~ "Off-diagonal (train > test)",
+    train_layer < test_layer ~ "Off-diagonal (train < test)"
+  ))
 
 # Define custom colors for each group
 custom_colors <- c("Diagonal" = "#1b9e77", 
@@ -787,9 +792,9 @@ custom_colors <- c("Diagonal" = "#1b9e77",
                    "Off-diagonal (train < test)" = "#7570b3")
 
 # Function to create notched boxplots with customizations
-plot_f1_boxplot <- function(metric, y_axis_label = "F1 score") {
-  ggplot(result_table, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
-    geom_boxplot(notch = TRUE, alpha = 0.4, color = "black") +  # Notched, semi-transparent, black outline
+plot_f1_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy") {
+  ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +  # Notched, semi-transparent, black outline
     theme_minimal() +
     labs(x = "Layer comparison",
          y = y_axis_label) +  # Custom y-axis title
@@ -800,7 +805,7 @@ plot_f1_boxplot <- function(metric, y_axis_label = "F1 score") {
     ) +
     tme +
     scale_fill_manual(values = custom_colors) +  # Apply custom colors
-    stat_compare_means(method = "t.test", label = "p.signif", comparisons = list(
+    stat_compare_means(method = "t.test", label = "p.signif", hide.ns = FALSE, comparisons = list(
       c("Diagonal", "Off-diagonal (train > test)"),
       c("Diagonal", "Off-diagonal (train < test)"),
       c("Off-diagonal (train > test)", "Off-diagonal (train < test)")
@@ -808,13 +813,37 @@ plot_f1_boxplot <- function(metric, y_axis_label = "F1 score") {
 }
 
 # Generate boxplots for each F1 score metric
-plot_f1_boxplot("f1_score")
+island_f1 <- plot_f1_boxplot(result_table_isl, metric = "balanced_accuracy")
+
+# combined scales plot
+site_f1 <- plot_f1_boxplot(result_table_site, metric = "balanced_accuracy")
+
+island_f1 <- island_f1 +
+  theme(legend.position = "none",
+        axis.title = element_blank())
+
+site_f1 <- site_f1 +
+  theme(legend.position = "none",
+        axis.title = element_blank())
+
+# Add a title to each plot using the 'top' argument
+island_f1_title <- arrangeGrob(island_f1, top = textGrob("Island scale", 
+                                                gp = gpar(fontsize = 13, fontface = "bold")))
+site_f1_title <- arrangeGrob(site_f1, top = textGrob("Site scale", 
+                                                gp = gpar(fontsize = 13, fontface = "bold")))
+
+grid.arrange(
+  arrangeGrob(site_f1_title, island_f1_title, ncol = 2),
+  left = textGrob("Balanced accuracy", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
+)
 
 anova_result <- aov(f1_score ~ layer_comparison, data = result_table)
 summary(anova_result)
 
 tukey_result <- TukeyHSD(anova_result)
 print(tukey_result)
+
+# for ba
 
 
 ## ---- check correlation with similarity in species composition ----

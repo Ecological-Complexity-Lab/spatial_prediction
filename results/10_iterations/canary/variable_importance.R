@@ -10,12 +10,12 @@ df_off <- df %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer < test_layer)
 # subset relavant columns
-df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
+df_subset <- df_off %>% select(balanced_accuracy, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 
 ## ---- autocorrelation check ----
 # 2. Compute correlation matrix
 cor_mat <- cor(df_subset, use = "complete.obs")
-write.csv(cor_mat, "island_autocorrelation.csv")
+#write.csv(cor_mat, "island_autocorrelation.csv")
 
 # 3. Visualize (optional)
 
@@ -40,7 +40,7 @@ summary(lm_fit)
 library(randomForest)
 
 # Random Forest (only with numeric columns)
-rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
+rf_fit <- randomForest(balanced_accuracy ~ ., data = df_subset, importance = TRUE)
 
 # Check variable importance
 importance(rf_fit)
@@ -60,10 +60,10 @@ imp_df$F1_score <- rownames(imp_df)  # Keep variable names in a column
 ggplot(imp_df, aes(x = reorder(F1_score, `%IncMSE`), y = `%IncMSE`)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +
-  labs(x = "F1 score", 
+  labs(x = "Balanced accuracy", 
        y = "% Increase in MSE",
        title = "Variable Importance (by Permutation)") +
-  theme_minimal(base_size = 14) + tme
+  tme
 
 ### ---- pca ----
 # Install if needed
