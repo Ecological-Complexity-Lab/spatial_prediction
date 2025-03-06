@@ -241,7 +241,17 @@ ggplot(nonbinary_fidelity_merged_removed_itr_1, aes(x = node_to, y = pred_obs)) 
 df_all_itr <- read.csv('working_all_itr_nonbinary_canary.csv') # weighted
 df_all_itr <- read.csv('nonbinary_equal_0_1_removal_60_1.csv') # predictions made on binary matrices
 df_all_itr <- df_all_itr %>% filter(k == 2 & lambda == 0.1)
-df_all_itr_zero <- df_all_itr %>% filter(removed == 1 & original_links == 0) # filter only removed links that are observed as zeros
+
+#df_all_itr_zero <- df_all_itr %>% filter(removed == 1 & original_links == 0) # filter only removed links that are observed as zeros
+
+# filter the interactions that were always predicted as zeros
+df_all_itr_zero <- df_all_itr %>%
+  group_by(node_from, node_to) %>%
+  # Check if all rows for that interaction have original_links == 0
+  filter(all(original_links == 0)) %>%
+  filter(removed == 1) %>% 
+  ungroup()
+
 df_all_itr_zero <- df_all_itr_zero %>% mutate(sigm_predicted = sigmoid(predicted_values)) # add sigm_predicted to the binary-based prediction data
 # filter only links that appear several times for the analysis
 df_summary <- df_all_itr_zero %>%
