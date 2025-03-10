@@ -18,7 +18,7 @@ tme <-  theme(axis.text = element_text(size = 10, color = "black"),
               panel.grid.minor = element_blank())
 theme_set(theme_bw())
 
-## ---- plot ----
+## ---- heatmaps ----
 result_summary_isl <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv')
 
 layer_to_layer_plot_all_itr_isl <- 
@@ -123,4 +123,116 @@ selected_vars <- result_summary_isl[, c("f1_score", "distance_km", "avg_sorensen
 # Create a pairwise scatterplot matrix
 ggpairs(selected_vars) + tme
 
+# ---- distance ----
+distance_site <- read.csv('result_summary_canary_with_distance.csv')
+correlation_site <- cor.test(distance_site$balanced_accuracy, distance_site$distance_km, use = "complete.obs", method = "pearson")
+correlation_site
+# Extract correlation coefficient and p-value
+r_value_site <- round(correlation_site$estimate, 3)
+p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 5)
 
+correlation_island <- cor.test(result_summary_isl$balanced_accuracy, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
+correlation_island
+# Extract correlation coefficient and p-value
+r_value_island <- round(correlation_island$estimate, 3)
+p_value_island <- formatC(correlation_island$p.value, format = "f", digits = 5)
+
+label_text_site <- paste0("r = ", r_value_site, ", p = ", p_value_site)
+label_text_isl <- paste0("r = ", r_value_island, ", p = ", p_value_island)
+
+cor_plot_site <- 
+  ggplot(distance_site, aes(x = distance_km, y = balanced_accuracy)) +
+  geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
+  labs(x = "Geographical distance (km)",
+       y = "Balanced accuracy") +
+  annotate("text",
+           x = 370, y = 0.65,   # Adjust depending on your data range
+           label = label_text_site,
+           size = 3,
+           color = "black") +
+  tme
+
+cor_plot_isl <- 
+  ggplot(result_summary_isl, aes(x = distance_km, y = balanced_accuracy)) +
+  geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
+  labs(x = "Geographical distance (km)",
+       y = "Balanced accuracy") +
+  annotate("text",
+           x = 370, y = 0.6,   # Adjust depending on your data range
+           label = label_text_isl,
+           size = 3,
+           color = "black") +
+  tme
+
+p1 <- cor_plot_site +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+
+p2 <- cor_plot_isl +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+
+combined_plots <- arrangeGrob(
+  p1, p2, 
+  ncol = 2, 
+  widths = c(1, 1)
+)
+combined_with_axes <- arrangeGrob(
+  combined_plots,
+  bottom = textGrob("Geographical distance (km)", gp = gpar(fontsize = 14), vjust = -1.5),
+  left   = textGrob("Balanced accuracy", rot = 90, gp = gpar(fontsize = 14))
+)
+
+final_plot <- grid.arrange(
+  combined_with_axes,
+  ncol = 2,
+  widths = c(2, 0.3)
+)
+
+## ---- distribution ----
+site_distrib <- ggplot(site_df, aes(x = f1_score)) +
+  geom_histogram(bins = 20, fill = "rosybrown2", color = "black", alpha = 0.5) + 
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(title = "Site scale",
+       x = "mcc",
+       y = "Count") +
+  tme
+
+isl_distrib <- ggplot(result_summary_isl, aes(x = f1_score)) +
+  geom_histogram(bins = 20, fill = "rosybrown2", color = "black", alpha = 0.5) + 
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(title = "Island scale",
+       x = "F1 score",
+       y = "Count") +
+  tme
+
+p1 <- site_distrib +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+
+p2 <- isl_distrib +
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+
+combined_plots <- arrangeGrob(
+  p1, p2, 
+  ncol = 2, 
+  widths = c(1, 1)
+)
+combined_with_axes <- arrangeGrob(
+  combined_plots,
+  bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  left   = textGrob("Count of instances", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+final_plot <- grid.arrange(
+  combined_with_axes,
+  ncol = 2,
+  widths = c(2, 0.3)
+)

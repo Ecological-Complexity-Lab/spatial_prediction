@@ -339,3 +339,21 @@ cor_plot_canary_off <-
   tme
 
 print(cor_plot_canary_off)
+
+## ---- distribution of evaluators ----
+site_df <- read.csv('result_summary_canary_with_distance.csv')
+
+site_distrib <- ggplot(site_df, aes(x = balanced_accuracy)) +
+  geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.5) + 
+  labs(title = "Site scale",
+       x = "Balanced Accuracy",
+       y = "Count") +
+  tme
+
+isl_distrib <- ggplot(result_summary_isl, aes(x = balanced_accuracy)) +
+  geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.5) + 
+  labs(title = "Island scale",
+       x = "Balanced Accuracy",
+       y = "Count") +
+  tme
+

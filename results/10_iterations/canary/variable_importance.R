@@ -2,6 +2,13 @@
 # load libaries
 library(corrplot)
 
+## ---- themes ----
+tme <-  theme(axis.text = element_text(size = 10, color = "black"),
+              axis.title = element_text(size = 12, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
 # load data
 df <- read.csv("working_df_island_distance_fidelity_jaccard_netsize.csv")
 
@@ -54,16 +61,21 @@ imp <- importance(rf_fit)
 
 # Turn it into a data frame for easier plotting
 imp_df <- as.data.frame(imp)
-imp_df$F1_score <- rownames(imp_df)  # Keep variable names in a column
+imp_df$balanced_accuracy <- rownames(imp_df)  # Keep variable names in a column
 
 # Example for %IncMSE
-ggplot(imp_df, aes(x = reorder(F1_score, `%IncMSE`), y = `%IncMSE`)) +
+ggplot(imp_df, aes(x = reorder(balanced_accuracy, `%IncMSE`), y = `%IncMSE`)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +
   labs(x = "Balanced accuracy", 
-       y = "% Increase in MSE",
-       title = "Variable Importance (by Permutation)") +
-  tme
+       y = "% Increase in MSE") +
+  theme_minimal() + tme +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
 
 ### ---- pca ----
 # Install if needed

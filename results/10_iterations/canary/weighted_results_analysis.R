@@ -293,7 +293,7 @@ ggplot(df_top_20,
                 width = 0.2) +
   coord_flip() +
   #scale_fill_manual(name = "Significant?", values = c("gray70", "tomato")) +
-  theme_minimal() +
+  tme +
   scale_x_discrete(
     labels = function(x) sapply(x, function(lbl) {
       # 1) Replace underscores with a tilde (for spacing in plotmath)
@@ -307,7 +307,7 @@ ggplot(df_top_20,
     x = "Link (pollinator - plant)",
     y = "Mean predicted value"
     #title = "Mean predicted value and significance"
-  ) + tme
+  )
 
 # what's different between the predictions based on binary and non-binary data?
 df_summary_bin <- df_summary

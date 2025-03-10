@@ -110,18 +110,30 @@ layer_to_layer_plot_all_itr_canary <-
 
 print(layer_to_layer_plot_all_itr_canary)
 
+
 ggplot(d, aes(x=predicted_values))
 
-
-test <- 
-  d%>% filter(original_links==1) %>% filter(k==2)
+test <- read.csv('aggregated_equal_0_1_removal_60_1_filtered.csv')
+# test <- 
+#   d %>% filter(original_links == 1) %>% filter(k == 2)
 
 ggplot(test, aes(x=predicted_values))+
-  geom_histogram(fill='orange')+geom_vline(xintercept = 0)
+  geom_histogram(fill='lightsteelblue') + geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(title = "Island scale",
+       x = "Predicted values",
+       y = "Count") + tme
+# 
+# test %>% 
+#   mutate(sig_pred = sigmoid(predicted_values)) %>% 
+#   ggplot(aes(x=sig_pred)) + geom_histogram(fill = 'lightsteelblue')
 
-test %>% 
-  mutate(sig_pred=sigmoid(predicted_values)) %>% 
-  ggplot(aes(x=sig_pred))+geom_histogram(fill='blue')
+test <- test %>% mutate(sigm_pred = sigmoid(predicted_values))
+
+ggplot(test, aes(x=sigm_pred))+
+  geom_histogram(fill='lightsteelblue') + geom_vline(xintercept = 0.53, linetype = "dashed") +
+  labs(title = "Island scale",
+       x = "Predicted values (logistic)",
+       y = "Count") + tme
 
 tanh_transform <- function(x){
   (tanh(x)+1)/2
@@ -135,8 +147,17 @@ clip_transform <- function(x){
 
 test %>% 
   mutate(tanh_pred=tanh_transform(predicted_values)) %>% 
-  ggplot(aes(x=tanh_pred))+geom_histogram(fill='purple')+geom_vline(xintercept = 0.5)
+  ggplot(aes(x=tanh_pred)) +
+  geom_histogram(fill='thistle') +
+  geom_vline(xintercept = 0.5) +
+  labs(title = "Island scale",
+       x = "Predicted values (tanh transformed)",
+       y = "Count") + tme
 
 test %>% 
-  mutate(tanh_pred=clip_transform(predicted_values)) %>% 
-  ggplot(aes(x=tanh_pred))+geom_histogram(fill='green')
+  mutate(clip = clip_transform(predicted_values)) %>% 
+  ggplot(aes(x=clip)) + 
+  geom_histogram(fill='darkseagreen3') +
+  labs(title = "Island scale",
+       x = "Predicted values (>1)",
+       y = "Count") + tme
