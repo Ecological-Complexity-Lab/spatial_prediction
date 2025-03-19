@@ -10,6 +10,7 @@ library(gridExtra)
 library(grid)
 library(scales)
 library(cowplot)  # for get_legend()
+library(patchwork)
 
 
 tme <-  theme(axis.text = element_text(size = 10, color = "black"),
@@ -62,6 +63,25 @@ layer_to_layer_plot_all_itr_site <-
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
   ) +
   coord_fixed()
+
+layer_to_layer_plot_all_itr_site <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+  geom_tile(color = "black", linewidth = 0.1) +  
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +
+  labs(x = "Added layer", y = "Predicted layer", fill = "Balanced \naccuracy") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) +
+  coord_fixed() + tme
+
 
 print(layer_to_layer_plot_all_itr_site)
 
@@ -236,3 +256,118 @@ final_plot <- grid.arrange(
   ncol = 2,
   widths = c(2, 0.3)
 )
+
+# ---- diagonal and offs comparison ----
+result_table_site <- read.csv('working_df_all_itr_60_binary_names.csv') # site scale
+
+result_table_site <- result_table_site %>%
+  mutate(layer_comparison = case_when(
+    train_layer == test_layer ~ "Diagonal",
+    train_layer != test_layer ~ "Off-diagonals"
+  ))
+
+custom_colors <- c("Diagonal" = "steelblue",
+                   "Off-diagonals" = "thistle")
+
+plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
+                            stat_label_y = NULL, stat_size = 3) {
+  ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
+    theme_minimal() +
+    labs(y = y_axis_label) +   # y-axis title is set via the function argument
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    tme + 
+    scale_fill_manual(values = custom_colors) +
+    stat_compare_means(method = "t.test", label = "p.signif", hide.ns = FALSE, 
+                       comparisons = list(c("Diagonal", "Off-diagonals")),
+                       label.y = stat_label_y,  # Adjust vertical position here
+                       size = stat_size) +
+    scale_y_continuous(limits = c (0.1, 0.8))
+    
+}
+
+plot_hist <- function(data, metric, 
+                                        x_axis_label = "Balanced accuracy", 
+                                        y_axis_label = "Count") {
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+    geom_histogram(aes(y = ..density..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    theme_minimal() +
+    labs(x = x_axis_label,
+         y = y_axis_label,
+         fill = "Layer comparison") +
+    theme(
+      axis.text.x = element_text(hjust = 1),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    scale_fill_manual(values = custom_colors) + tme
+}
+
+# if you prefer density over counts:
+plot_hist <- function(data, metric, 
+                      x_axis_label = "Balanced accuracy", 
+                      y_axis_label = "Density") {  
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+    geom_histogram(aes(y = after_stat(density)), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    theme_minimal() +
+    labs(x = x_axis_label,
+         y = y_axis_label,
+         fill = "Layer comparison") +
+    theme(
+      axis.text.x = element_text(hjust = 1),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    scale_fill_manual(values = custom_colors) + tme
+}
+
+# boxplots:
+site_ba <- plot_boxplot(result_table_site, metric = "balanced_accuracy", 
+                           y_axis_label = "Balanced accuracy", stat_label_y = 0.7, stat_size = 4)
+site_f1 <- plot_boxplot(result_table_site, metric = "f1_score", 
+                           y_axis_label = "F1 score", stat_label_y = 0.7, stat_size = 6)
+
+combined_plots <- arrangeGrob(
+  site_ba, site_f1, 
+  ncol = 2, 
+  widths = c(1, 1)
+)
+
+final_plot <- grid.arrange(
+  combined_plots,
+  ncol = 2,
+  widths = c(2, 0.3)
+)
+
+# histograms: 
+hist_ba <- plot_hist(result_table_site, metric = "balanced_accuracy", 
+                        y_axis_label = "Density")
+hist_f1 <- plot_hist(result_table_site, metric = "f1_score", 
+                        y_axis_label = "Density",
+                        x_axis_label = "F1 score")
+
+hist_f1 <- hist_f1 + theme(axis.title.y = element_blank())
+
+combined_plot <- hist_ba + hist_f1 + 
+  plot_layout(guides = "collect") +
+  # Optionally, set the legend position (e.g., to the right or bottom)
+  plot_annotation(theme = theme(legend.position = "right"))
+# hist_ba <- hist_ba +
+#   theme(legend.position = "none",
+#         axis.title = element_blank())
+# 
+# combined_plots <- arrangeGrob(
+#   hist_ba, hist_f1, 
+#   ncol = 2, 
+#   widths = c(1, 1)
+# )
+# 
+# final_plot <- grid.arrange(
+#   combined_plots,
+#   ncol = 2,
+#   widths = c(7, 0.4)
+# )

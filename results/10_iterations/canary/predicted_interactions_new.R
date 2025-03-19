@@ -337,7 +337,7 @@ summary_stats <- analysis_df %>%
             n = n())
 print(summary_stats)
 
-### ---- new heatmap ----
+## ---- new heatmap ----
 library(dplyr)
 library(ggplot2)
 library(tidyr)
@@ -483,11 +483,11 @@ ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
     axis.text.y = element_text(size = 8) 
   ) + 
   # Overlay circles for high predicted probability (avg_sigm_predicted > 0.6)
-  geom_point(
-    data = df_summary %>% filter(avg_sigm_predicted > 0.6, avg_prop == 0),
-    aes(x = node_to, y = node_from),
-    color = "thistle", shape = 19, size = 3, alpha = 0.6
-  ) +
+  # geom_point(
+  #   data = df_summary %>% filter(avg_sigm_predicted > 0.6, avg_prop == 0),
+  #   aes(x = node_to, y = node_from),
+  #   color = "thistle", shape = 19, size = 3, alpha = 0.6
+  # ) +
   geom_point(
     data = df_summary %>% filter(always_correct == 1 & avg_prop != 0),
     aes(x = node_to, y = node_from),
@@ -527,7 +527,7 @@ ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
   # Manually assign shapes and colors to circle_type levels:
   scale_shape_manual(
     name = "Prediction type",
-    values = c("predicted, never observed" = 19, "always predicted correctly" = 21)
+    values = c("predicted, never observed" = 20, "always predicted correctly" = 21)
   ) +
   scale_color_manual(
     name = "Prediction type",
@@ -540,8 +540,8 @@ ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
     fill = "Proportion\nof islands\nobserved"
   ) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 3),
-    axis.text.y = element_text(size = 8)
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 4)
+    #axis.text.y = element_text(size = 8)
   ) +
   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
@@ -550,3 +550,166 @@ ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
     bquote(italic(.(paste(y, collapse = " "))))
   })) + tme
 
+### ---- two scales ----
+library(ggnewscale)
+
+ggplot(df_summary, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop)) +
+  scale_fill_gradient(low = "white", high = "steelblue", 
+                      name = "Proportion\nof islands\nobserved") +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but have high predicted value
+  geom_tile(
+    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > 0.6),
+    aes(fill = avg_sigm_predicted),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2", 
+                      name = "Average \npredicted \nprobability") +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+### ---- always predicted correctly separately ----
+ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme_minimal() +
+  labs(
+    x = "Pollinator",
+    y = "Plant",
+    fill = "Proportion\nof islands\nobserved"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5),
+    axis.text.y = element_text(size = 8) 
+  ) + 
+
+  geom_point(
+    data = df_summary %>% filter(always_correct == 1 & avg_prop != 0),
+    aes(x = node_to, y = node_from),
+    shape = 21,     # circle shape that supports fill and border
+    fill = NA,      # no fill (empty circle)
+    color = "palegreen3",  # outline color
+    size = 4.5,       # adjust size as needed
+    stroke = 1,    # adjust border thickness
+    alpha = 0.7
+  )  +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal"
+  ) +
+  tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+df_summary <- df_summary %>%
+  mutate(circle = case_when(
+    always_correct == 1 & avg_prop != 0 ~ "always predicted correctly",
+    TRUE ~ NA_character_
+  ))
+
+# Then, modify your ggplot code:
+ggplot(df_summary, aes(x = node_to, y = node_from, fill = avg_prop)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  # Add a combined geom_point layer for circle_type:
+  geom_point(
+    data = df_summary %>% filter(!is.na(circle)),
+    aes(shape = circle, color = circle),
+    size = 4.5, stroke = 1, fill = NA, alpha = 0.7
+  ) +
+  # Manually assign shapes and colors to circle_type levels:
+  scale_shape_manual(
+    name = "Prediction type",
+    values = c("always predicted correctly" = 21)
+  ) +
+  scale_color_manual(
+    name = "Prediction type",
+    values = c("always predicted correctly" = "palegreen3")
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Pollinator",
+    y = "Plant",
+    fill = "Proportion\nof islands\nobserved"
+  ) +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal"
+  ) +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) + tme
+
+## --- check degree ----
+df_summary <- df_summary %>% left_join(df_interaction_summary,
+                                       by = c("node_from", "node_to"))
+view(df_summary)
+ggplot(df_summary, aes(x = degree, y = prop_correct)) +
+  geom_point()
+
+# Group by pollinator (node_to) and calculate the average proportion correct and average degree
+df_pollinator_summary <- df_summary %>%
+  group_by(node_to) %>%
+  summarise(
+    avg_prop_correct = mean(prop_correct, na.rm = TRUE),
+    avg_degree = mean(degree, na.rm = TRUE),
+    n = n()  # optional, for diagnostic purposes
+  ) %>%
+  ungroup()
+
+# Plot the average proportion correct vs. the average degree for each pollinator species
+pollinator_degree <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = avg_prop_correct)) +
+  geom_point(alpha = 0.7, size = 2, color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Degree",
+    y = "Proportion correct",
+    title = "Pollinators"
+  ) +
+  theme_minimal() + tme
+
+# plants
+
+# Group by pollinator (node_to) and calculate the average proportion correct and average degree
+df_plant_summary <- df_summary %>%
+  group_by(node_from) %>%
+  summarise(
+    avg_prop_correct = mean(prop_correct, na.rm = TRUE),
+    avg_degree = mean(degree, na.rm = TRUE),
+    n = n()  # optional, for diagnostic purposes
+  ) %>%
+  ungroup()
+
+# Plot the average proportion correct vs. the average degree for each pollinator species
+plant_degree <- ggplot(df_plant_summary, aes(x = avg_degree, y = avg_prop_correct)) +
+  geom_point(alpha = 0.6, size = 2, color = "seagreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Degree",
+    y = "Proportion correct",
+    title = "Plants"
+  ) +
+  theme_minimal() + tme
+
+final_plot <- combine_plots(pollinator_degree, plant_degree)

@@ -812,11 +812,29 @@ plot_f1_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy") {
     ))  # Pairwise t-tests with significance labels
 }
 
+# for histograms
+plot_balanced_accuracy_hist <- function(data, metric, 
+                                        x_axis_label = "Balanced accuracy", 
+                                        y_axis_label = "Count") {
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+    geom_histogram(alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    theme_minimal() +
+    labs(x = x_axis_label,
+         y = y_axis_label,
+         fill = "Layer comparison") +
+    theme(
+      axis.text.x = element_text(hjust = 1),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    scale_fill_manual(values = custom_colors) + tme
+}
 # Generate boxplots for each F1 score metric
 island_f1 <- plot_f1_boxplot(result_table_isl, metric = "balanced_accuracy")
+island_ba <- plot_balanced_accuracy_hist(result_table_isl, metric = "balanced_accuracy")
 
 # combined scales plot
 site_f1 <- plot_f1_boxplot(result_table_site, metric = "balanced_accuracy")
+site_ba <- plot_balanced_accuracy_hist(result_table_site, metric = "balanced_accuracy")
 
 island_f1 <- island_f1 +
   theme(legend.position = "none",
@@ -844,7 +862,7 @@ tukey_result <- TukeyHSD(anova_result)
 print(tukey_result)
 
 # for ba
-
+final_plot <- combine_plots(site_ba, island_ba)
 
 ## ---- check correlation with similarity in species composition ----
 
