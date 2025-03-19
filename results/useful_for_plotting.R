@@ -1,10 +1,10 @@
 # ---- useful for plotting ----
 ## ---- combine plots ----
 combine_plots <- function(p1, p2,
-                          bottom_label = "Balanced accuracy",
-                          left_label = "Count",
+                          bottom_label = "Degree",
+                          left_label = "Number of predicted, non-observed links",
                           plot_margin = c(0.5, 0.5, 1, 0.3),
-                          label_fontsize = 14,
+                          label_fontsize = 16,
                           label_fontface = "bold",
                           widths_subplots = c(1, 1),
                           final_widths = c(2, 0.3)) {
