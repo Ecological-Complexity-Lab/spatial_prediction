@@ -22,6 +22,9 @@ pr_obj <- pr.curve(
 # Plot the PR curve with the AUC (integral) in the title
 plot(pr_obj, main = paste("PR Curve (AUC =", round(pr_obj$auc.integral, 2), ")"))
 
+best_threshold <- coords(roc_obj, "best", ret = "threshold", best.method = "youden")
+print(best_threshold)
+
 library(dplyr)
 
 # Compute ROC AUC for each group (train_layer, test_layer, itr)
@@ -32,3 +35,16 @@ roc_results <- df %>%
   )
 
 print(roc_results)
+
+thresholds <- seq(0, 1, by = 0.01)
+f1_scores <- sapply(thresholds, function(th) {
+  predicted <- ifelse(df$predicted_prob_sigm >= th, 1, 0)
+  precision <- sum(predicted == 1 & df$original_links == 1) / sum(predicted == 1)
+  recall <- sum(predicted == 1 & df$original_links == 1) / sum(df$original_links == 1)
+  if (is.na(precision) || is.na(recall) || (precision + recall) == 0) return(0)
+  2 * precision * recall / (precision + recall)
+})
+best_threshold_pr <- thresholds[which.max(f1_scores)]
+print(best_threshold_pr)
+
+

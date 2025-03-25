@@ -243,6 +243,10 @@ result_summary <- d %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
   summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
     specificity = mean(specificity, na.rm = TRUE),
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),

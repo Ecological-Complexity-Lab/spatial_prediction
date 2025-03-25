@@ -303,7 +303,7 @@ plot_hist <- function(data, metric,
                                         x_axis_label = "Balanced accuracy", 
                                         y_axis_label = "Count") {
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
-    geom_histogram(aes(y = ..density..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
     theme_minimal() +
     labs(x = x_axis_label,
@@ -317,12 +317,12 @@ plot_hist <- function(data, metric,
 }
 
 # if you prefer density over counts:
-plot_hist <- function(data, metric, 
+plot_hist_density <- function(data, metric, 
                       x_axis_label = "Balanced accuracy", 
                       y_axis_label = "Density") {  
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = after_stat(density)), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
-    geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -354,9 +354,9 @@ final_plot <- grid.arrange(
 
 # histograms: 
 hist_ba <- plot_hist(result_table_site, metric = "balanced_accuracy", 
-                        y_axis_label = "Density")
+                        y_axis_label = "Count")
 hist_f1 <- plot_hist(result_table_site, metric = "f1_score", 
-                        y_axis_label = "Density",
+                        y_axis_label = "Count",
                         x_axis_label = "F1 score")
 
 hist_f1 <- hist_f1 + theme(axis.title.y = element_blank())
