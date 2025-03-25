@@ -11,8 +11,8 @@ sigmoid <- function(x) {
 }
 
 ## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
               panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
@@ -67,17 +67,19 @@ site_scale_off <- site_scale %>% filter(test_layer != train_layer)
 island_scale_diag <- island_scale %>% filter(test_layer == train_layer) # these are for diagonals. for all data use site_scale and island_scale
 site_scale_diag <- site_scale %>% filter(test_layer == train_layer)
 
-df1_labeled <- site_scale_diag %>%
+island_scale <- read.csv('evaluation_df_all_itr_60_binary_island.csv')
+
+df1_labeled <- site_scale %>%
   mutate(scale = "Site")
 
-df2_labeled <- island_scale_diag %>%
+df2_labeled <- island_scale %>%
   mutate(scale = "Island")
 
 df_combined <- bind_rows(df1_labeled, df2_labeled)
 
 df_long <- df_combined %>%
   pivot_longer(
-    cols = c("f1_score", "recall", "mcc", "balanced_accuracy"),
+    cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc"),
     names_to = "metric",
     values_to = "value"
   )
@@ -91,27 +93,28 @@ ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
     x = "Metric",
     y = "Value"
   ) +
-  scale_fill_manual(values = c("Site" = "steelblue2", "Island" = "wheat2")) +  # Custom colors
+  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
   scale_x_discrete(labels = c(
-    "f1_score" = "f1 fcore",
-    "recall" = "recall",
+    "f1_score" = "F1 fcore",
+    "recall" = "Recall",
+    "precision" = "Precision",
     "mcc" = "MCC",
-    "balanced_accuracy" = "balanced cccuracy"
+    "balanced_accuracy" = "Balanced \naccuracy"
   )) +
   tme
 
 ## ---- test for significance ----
 
-metrics <- c("f1_score", "balanced_accuracy", "recall", "mcc")
+metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc")
 
 results <- lapply(metrics, function(metric) {
-  test_normality_site <- shapiro.test(site_scale_diag[[metric]])$p.value
-  test_normality_island <- shapiro.test(island_scale_diag[[metric]])$p.value
+  test_normality_site <- shapiro.test(site_scale[[metric]])$p.value
+  test_normality_island <- shapiro.test(island_scale[[metric]])$p.value
   
   if (test_normality_site > 0.05 & test_normality_island > 0.05) {
-    test <- t.test(site_scale_diag[[metric]], island_scale_diag[[metric]], var.equal = FALSE)
+    test <- t.test(site_scale[[metric]], island_scale[[metric]], var.equal = FALSE)
   } else {
-    test <- wilcox.test(site_scale_diag[[metric]], island_scale_diag[[metric]])
+    test <- wilcox.test(site_scale[[metric]], island_scale[[metric]])
   }
   
   data.frame(
@@ -129,12 +132,12 @@ print(results_df)
 ## plot with significance levels
 
 # Prepare dataset with labels
-df1_labeled <- site_scale_diag %>% mutate(scale = "Site")
-df2_labeled <- island_scale_diag %>% mutate(scale = "Island")
+df1_labeled <- site_scale %>% mutate(scale = "Site")
+df2_labeled <- island_scale %>% mutate(scale = "Island")
 df_combined <- bind_rows(df1_labeled, df2_labeled)
 
 df_long <- df_combined %>%
-  pivot_longer(cols = c("f1_score", "recall", "mcc", "balanced_accuracy"),
+  pivot_longer(cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc"),
                names_to = "metric",
                values_to = "value")
 
@@ -147,7 +150,7 @@ get_pvalue_asterisks <- function(p) {
 }
 
 # Perform statistical tests and collect results
-metrics <- c("f1_score", "balanced_accuracy", "recall", "mcc")
+metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc")
 
 stat_results <- lapply(metrics, function(metric) {
   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
@@ -172,18 +175,46 @@ df_long <- df_long %>%
 
 # Create the boxplot with significance annotations
 ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
-  geom_boxplot(notch = FALSE, position = position_dodge(width = 0.8)) +
+  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
   theme_minimal() +
-  labs(title = "Comparison of Performance (Diags)", x = "Metric", y = "Value") +
-  scale_fill_manual(values = c("Site" = "steelblue2", "Island" = "wheat2")) +  # Custom colors
+  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
   scale_x_discrete(labels = c(
     "f1_score" = "F1 score",
     "recall" = "Recall",
-    "mcc" = "MCC",
-    "balanced_accuracy" = "Balanced accuracy"
+    "precision" = "Precision",
+    "balanced_accuracy" = "Balanced \naccuracy",
+    "mcc" = "MCC"
   )) +  # Properly formatted labels
   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
-                     label.y = max(df_long$value, na.rm = TRUE) + 0.05)  + tme
+                     label.y = max(df_long$value, na.rm = TRUE) + 0.05,
+                     size = 5)  + 
+  theme(legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14), ) + tme
+
+library(ggplot2)
+library(ggpubr)  # For stat_compare_means()
+
+ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
+  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
+  theme_minimal() +
+  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
+  scale_x_discrete(labels = c(
+    "f1_score" = "F1 score",
+    "recall" = "Recall",
+    "precision" = "Precision",
+    "balanced_accuracy" = "Balanced \naccuracy",
+    "mcc" = "MCC"
+  )) +  # Properly formatted labels
+  stat_compare_means(
+    aes(group = scale), method = "t.test", label = "p.signif", 
+    label.y = max(df_long$value, na.rm = TRUE) + 0.05, 
+    size = 8  # Increase significance asterisk size
+  ) +
+  theme(
+    legend.text = element_text(size = 14)  # Increase legend font size
+  )
 
 ## ---- heatmap of island scale ----
 net <- emln::load_emln(60) # canary islands
@@ -342,6 +373,7 @@ print(cor_plot_canary_off)
 
 ## ---- distribution of evaluators ----
 site_df <- read.csv('result_summary_canary_with_distance.csv')
+result_summary_isl <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv')
 
 site_distrib <- ggplot(site_df, aes(x = balanced_accuracy)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.5) + 
@@ -350,10 +382,10 @@ site_distrib <- ggplot(site_df, aes(x = balanced_accuracy)) +
        y = "Count") +
   tme
 
-isl_distrib <- ggplot(result_summary_isl, aes(x = balanced_accuracy)) +
+isl_distrib <- ggplot(result_summary_isl, aes(x = recall)) +
   geom_histogram(bins = 20, fill = "steelblue", color = "black", alpha = 0.5) + 
   labs(title = "Island scale",
-       x = "Balanced Accuracy",
+       x = "Recall",
        y = "Count") +
   tme
 

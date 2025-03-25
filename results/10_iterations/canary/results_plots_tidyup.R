@@ -13,8 +13,8 @@ library(cowplot)  # for get_legend()
 library(patchwork)
 
 
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank())
 theme_set(theme_bw())
@@ -64,14 +64,14 @@ layer_to_layer_plot_all_itr_site <-
   ) +
   coord_fixed()
 
-layer_to_layer_plot_all_itr_site <- 
-  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+layer_to_layer_plot_all_itr_site_pr <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = precision)) +
   geom_tile(color = "black", linewidth = 0.1) +  
   geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
             color = "black", linewidth = 1.2) +
   scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +
-  labs(x = "Added layer", y = "Predicted layer", fill = "Balanced \naccuracy") +
+  labs(x = "Added layer", y = "Predicted layer", fill = "Precision") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -83,7 +83,7 @@ layer_to_layer_plot_all_itr_site <-
   coord_fixed() + tme
 
 
-print(layer_to_layer_plot_all_itr_site)
+print(layer_to_layer_plot_all_itr_site_pr)
 
 # --- Remove individual legends and axis titles from the plots ---
 # Reduce margins to decrease extra spacing between heatmaps.
@@ -145,42 +145,42 @@ ggpairs(selected_vars) + tme
 
 # ---- distance ----
 distance_site <- read.csv('result_summary_canary_with_distance.csv')
-correlation_site <- cor.test(distance_site$balanced_accuracy, distance_site$distance_km, use = "complete.obs", method = "pearson")
+correlation_site <- cor.test(distance_site$f1_score, distance_site$distance_km, use = "complete.obs", method = "pearson")
 correlation_site
 # Extract correlation coefficient and p-value
 r_value_site <- round(correlation_site$estimate, 3)
 p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 5)
 
-correlation_island <- cor.test(result_summary_isl$balanced_accuracy, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
+correlation_island <- cor.test(result_summary_isl$f1_score, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
 correlation_island
 # Extract correlation coefficient and p-value
 r_value_island <- round(correlation_island$estimate, 3)
-p_value_island <- formatC(correlation_island$p.value, format = "f", digits = 5)
+p_value_island <- formatC(correlation_island$p.value, format = "f", digits = 3)
 
 label_text_site <- paste0("r = ", r_value_site, ", p = ", p_value_site)
 label_text_isl <- paste0("r = ", r_value_island, ", p = ", p_value_island)
 
 cor_plot_site <- 
-  ggplot(distance_site, aes(x = distance_km, y = balanced_accuracy)) +
+  ggplot(distance_site, aes(x = distance_km, y = f1_score)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographical distance (km)",
-       y = "Balanced accuracy") +
+       y = "F1 score") +
   annotate("text",
-           x = 370, y = 0.65,   # Adjust depending on your data range
+           x = 370, y = 0.7,   # Adjust depending on your data range
            label = label_text_site,
            size = 3,
            color = "black") +
   tme
 
 cor_plot_isl <- 
-  ggplot(result_summary_isl, aes(x = distance_km, y = balanced_accuracy)) +
+  ggplot(result_summary_isl, aes(x = distance_km, y = f1_score)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographical distance (km)",
-       y = "Balanced accuracy") +
+       y = "F1_score") +
   annotate("text",
-           x = 370, y = 0.6,   # Adjust depending on your data range
+           x = 370, y = 0.7,   # Adjust depending on your data range
            label = label_text_isl,
            size = 3,
            color = "black") +
@@ -203,8 +203,8 @@ combined_plots <- arrangeGrob(
 )
 combined_with_axes <- arrangeGrob(
   combined_plots,
-  bottom = textGrob("Geographical distance (km)", gp = gpar(fontsize = 14), vjust = -1.5),
-  left   = textGrob("Balanced accuracy", rot = 90, gp = gpar(fontsize = 14))
+  bottom = textGrob("Geographical distance (km)", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  left   = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
 )
 
 final_plot <- grid.arrange(
@@ -214,11 +214,10 @@ final_plot <- grid.arrange(
 )
 
 ## ---- distribution ----
-site_distrib <- ggplot(site_df, aes(x = f1_score)) +
-  geom_histogram(bins = 20, fill = "rosybrown2", color = "black", alpha = 0.5) + 
-  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  labs(title = "Site scale",
-       x = "mcc",
+site_precision <- ggplot(result_summary_site, aes(x = precision)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Precision",
        y = "Count") +
   tme
 
@@ -230,24 +229,34 @@ isl_distrib <- ggplot(result_summary_isl, aes(x = f1_score)) +
        y = "Count") +
   tme
 
-p1 <- site_distrib +
+p1 <- site_f1 +
   theme(legend.position = "none",
-        axis.title = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
-p2 <- isl_distrib +
+p2 <- site_recall +
   theme(legend.position = "none",
-        axis.title = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p3 <- site_ba +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p4 <- site_precision +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
 combined_plots <- arrangeGrob(
-  p1, p2, 
+  p1, p2, p3, p4,
   ncol = 2, 
-  widths = c(1, 1)
+  nrow = 2
 )
 combined_with_axes <- arrangeGrob(
   combined_plots,
-  bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
   left   = textGrob("Count of instances", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
 )
 

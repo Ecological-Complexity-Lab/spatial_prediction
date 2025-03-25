@@ -17,7 +17,7 @@ df_off <- df %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer < test_layer)
 # subset relavant columns
-df_subset <- df_off %>% select(balanced_accuracy, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
+df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 
 ## ---- autocorrelation check ----
 # 2. Compute correlation matrix
@@ -47,7 +47,7 @@ summary(lm_fit)
 library(randomForest)
 
 # Random Forest (only with numeric columns)
-rf_fit <- randomForest(balanced_accuracy ~ ., data = df_subset, importance = TRUE)
+rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
 
 # Check variable importance
 importance(rf_fit)
@@ -61,13 +61,13 @@ imp <- importance(rf_fit)
 
 # Turn it into a data frame for easier plotting
 imp_df <- as.data.frame(imp)
-imp_df$balanced_accuracy <- rownames(imp_df)  # Keep variable names in a column
+imp_df$f1_score <- rownames(imp_df)  # Keep variable names in a column
 
 # Example for %IncMSE
-ggplot(imp_df, aes(x = reorder(balanced_accuracy, `%IncMSE`), y = `%IncMSE`)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
+ggplot(imp_df, aes(x = reorder(f1_score, `%IncMSE`), y = `%IncMSE`)) +
+  geom_bar(stat = "identity", fill = "lightsteelblue") +
   coord_flip() +
-  labs(x = "Balanced accuracy", 
+  labs(x = "F1 score", 
        y = "% Increase in MSE") +
   theme_minimal() + tme +
   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
