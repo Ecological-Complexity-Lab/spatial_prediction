@@ -2,6 +2,9 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(tidyverse)
+library(gridExtra)
+
+source("~/Documents/github/softimpute/results/useful_for_plotting.R")
 
 ## ---- functions ----
 sigmoid <- function(x) {
@@ -358,9 +361,10 @@ tme <-  theme(axis.text = element_text(size = 10, color = "black"),
 
 df <- read.csv('aggregated_equal_0_1_removal_60_1_filtered.csv')
 
-# 1. Create island ID and filter for removed == 1
+# 1. Create island ID
 df <- df %>%
-  filter(removed == 1) %>% mutate(sigm_predicted = sigmoid(predicted_values)) %>% 
+  # filter(removed == 1) %>% mutate(sigm_predicted = sigmoid(predicted_values)) %>% 
+  mutate(sigm_predicted = sigmoid(predicted_values)) %>% 
   mutate(island_id = paste(train_layer, test_layer, sep = "_"))
 
 # 2. Aggregate across iterations and island combinations.
@@ -386,6 +390,8 @@ df_island <- df %>%
     island_sigm_predicted = mean(sigm_predicted, na.rm = TRUE),
     .groups = "drop"
   )
+
+table(df_island$observed)
 
 # Step 2: Now, for each unique interaction, compute:
 # - The proportion of islands where it was observed.
@@ -682,7 +688,7 @@ df_pollinator_summary <- df_summary %>%
   ungroup()
 
 # Plot the average proportion correct vs. the average degree for each pollinator species
-pollinator_degree <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = avg_prop_correct)) +
+pollinator_degree1 <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = avg_prop_correct)) +
   geom_point(alpha = 0.7, size = 2, color = "steelblue") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
@@ -700,7 +706,7 @@ r_value <- round(correlation$estimate, 3)
 p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
 label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
-pollinator_degree <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = avg_sigm_predicted)) +
+pollinator_degree2 <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = avg_sigm_predicted)) +
   geom_point(alpha = 0.7, size = 2, color = "steelblue") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
@@ -737,14 +743,14 @@ df_plant_summary <- df_never_observed %>%
 # Plot the average proportion correct vs. the average degree for each plant species
 
 # correlation
-correlation <- cor.test(df_plant_summary$count_never_observed, df_plant_summary$avg_degree, use = "complete.obs", method = "pearson")
-correlation
+correlation_plants <- cor.test(df_plant_summary$count_never_observed, df_plant_summary$avg_degree, use = "complete.obs", method = "pearson")
+correlation_plants
 # Extract correlation coefficient and p-value
-r_value <- round(correlation$estimate, 3)
-p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-label_text <- paste0("r = ", r_value, ", p = ", p_value)
+r_value <- round(correlation_plants$estimate, 3)
+p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
+label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
-plant_degree <- ggplot(df_plant_summary, aes(x = avg_degree, y = count_never_observed)) +
+plant_degree1 <- ggplot(df_plant_summary, aes(x = avg_degree, y = count_never_observed)) +
   geom_point(alpha = 0.6, size = 2, color = "seagreen") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
@@ -755,7 +761,7 @@ plant_degree <- ggplot(df_plant_summary, aes(x = avg_degree, y = count_never_obs
   theme_minimal() + tme +
   annotate("text",
            x = 90, y = 165,   # Adjust depending on your data range
-           label = label_text,
+           label = label_text_plants,
            size = 5,
            color = "black")
 
@@ -771,12 +777,12 @@ df_pollinator_summary <- df_never_observed_poll %>%
 # Plot the average proportion correct vs. the average degree for each plant species
 
 # correlation
-correlation <- cor.test(df_pollinator_summary$count_never_observed, df_pollinator_summary$avg_degree, use = "complete.obs", method = "pearson")
-correlation
+correlation_poll <- cor.test(df_pollinator_summary$count_never_observed, df_pollinator_summary$avg_degree, use = "complete.obs", method = "pearson")
+correlation_poll
 # Extract correlation coefficient and p-value
-r_value <- round(correlation$estimate, 3)
-p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-label_text <- paste0("r = ", r_value, ", p = ", p_value)
+r_value_poll <- round(correlation_poll$estimate, 3)
+p_value_poll <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value_poll, ", p = ", p_value_poll)
 
 poll_degree <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = count_never_observed)) +
   geom_point(alpha = 0.6, size = 2, color = "thistle") +
@@ -809,7 +815,7 @@ plant_degree <- df_filtered %>%
 
 # Average plant degree by train_layer and test_layer
 avg_plant_degree <- plant_degree %>%
-  group_by(train_layer, test_layer) %>%
+  group_by(node_from) %>%
   summarise(avg_plant_degree = mean(degree), .groups = "drop")
 
 # Step 2b: Calculate degree for each pollinator species (node_to)
@@ -819,7 +825,7 @@ pollinator_degree <- df_filtered %>%
 
 # Average pollinator degree by train_layer and test_layer
 avg_pollinator_degree <- pollinator_degree %>%
-  group_by(train_layer, test_layer) %>%
+  group_by(node_to) %>%
   summarise(avg_pollinator_degree = mean(degree), .groups = "drop")
 
 # Optional: Merge the two average degree data frames into one
@@ -828,4 +834,78 @@ avg_degrees <- full_join(avg_plant_degree, avg_pollinator_degree,
 
 # Print the results
 print(avg_degrees)
+
+## ---- try again ----
+df_summary2 <- df_summary %>% left_join(pollinator_degree, by = "node_to")
+df_summary2 <- df_summary %>% left_join(plant_degree, by = "node_from")
+
+df_never_observed_poll <- df_summary2 %>%
+  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  group_by(node_to) %>%
+  summarise(count_never_observed = n(), .groups = "drop")
+
+df_summary2 <- df_summary2 %>%
+  left_join(df_never_observed_poll, by = "node_to")
+
+# Plot the average proportion correct vs. the average degree for each plant species
+
+# correlation
+correlation <- cor.test(df_summary2$count_never_observed, df_summary2$pollinator_degree, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+poll_degree <- ggplot(df_summary2, aes(x = pollinator_degree, y = count_never_observed)) +
+  geom_point(alpha = 0.6, size = 2, color = "thistle") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Degree",
+    y = "Number of predicted, non-observed interactions",
+    title = "Pollinators"
+  ) +
+  theme_minimal() + tme +
+  annotate("text",
+           x = 130, y = 26,   # Adjust depending on your data range
+           label = label_text,
+           size = 5,
+           color = "black")
+
+## plants
+
+df_never_observed_plants <- df_summary2 %>%
+  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  group_by(node_from) %>%
+  summarise(count_never_observed_plants = n(), .groups = "drop")
+
+df_summary2 <- df_summary2 %>%
+  left_join(df_never_observed_plants, by = "node_from")
+
+# Plot the average proportion correct vs. the average degree for each plant species
+
+# correlation
+correlation <- cor.test(df_summary2$count_never_observed_plants, df_summary2$degree, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+poll_degree <- ggplot(df_summary2, aes(x = degree, y = count_never_observed_plants)) +
+  geom_point(alpha = 0.6, size = 2, color = "palegreen3") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Degree",
+    y = "Number of predicted, non-observed interactions",
+    title = "Plants"
+  ) +
+  theme_minimal() + tme +
+  annotate("text",
+           x = 130, y = 26,   # Adjust depending on your data range
+           label = label_text,
+           size = 5,
+           color = "black")
+
+
 
