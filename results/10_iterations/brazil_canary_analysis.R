@@ -579,6 +579,43 @@ ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
     y = "Average f1 score"
   ) +
   theme_minimal()
+## ---- some basic stats ----
+df <- read.csv("working_df_all_itr_60_binary_names.csv")
+
+df_summary <- df %>%
+  summarise(
+    mean_specificity = mean(specificity),
+    se_specificity = sd(specificity) / sqrt(n()),
+    max_specificity = max(specificity),
+    median_specificity = median(specificity),
+    
+    mean_precision = mean(precision),
+    se_precision = sd(precision) / sqrt(n()),
+    max_precision = max(precision),
+    median_precision = median(precision),
+    
+    mean_recall = mean(recall),
+    se_recall = sd(recall) / sqrt(n()),
+    max_recall = max(recall),
+    median_recall = median(recall),
+    
+    mean_f1_score = mean(f1_score),
+    se_f1_score = sd(f1_score) / sqrt(n()),
+    max_f1_score = max(f1_score),
+    median_f1_score = median(f1_score),
+    
+    mean_balanced_accuracy = mean(balanced_accuracy),
+    se_balanced_accuracy = sd(balanced_accuracy) / sqrt(n()),
+    max_balanced_accuracy = max(balanced_accuracy),
+    median_balanced_accuracy = median(balanced_accuracy),
+    
+    mean_mcc = mean(mcc),
+    se_mcc = sd(mcc) / sqrt(n()),
+    max_mcc = max(mcc),
+    median_mcc = median(mcc)
+  )
+
+view(df_summary)
 
 ## ---- correlate evaluators with distance ----------
 # Load the pairwise distance matrix
