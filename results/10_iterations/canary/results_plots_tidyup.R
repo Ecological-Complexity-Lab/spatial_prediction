@@ -214,11 +214,39 @@ final_plot <- grid.arrange(
 )
 
 ## ---- distribution ----
+site_specificity <- ggplot(result_summary_site, aes(x = specificity)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Specificity",
+       y = "Count of instances") +
+  tme
+
+site_ba <- ggplot(result_summary_site, aes(x = balanced_accuracy)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Balanced accuracy",
+       y = "Count of instances") +
+  tme
+
+site_f1 <- ggplot(result_summary_site, aes(x = f1_score)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "F1 score",
+       y = "Count of instances") +
+  tme
+
 site_precision <- ggplot(result_summary_site, aes(x = precision)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   labs(x = "Precision",
-       y = "Count") +
+       y = "Count of instances") +
+  tme
+
+site_recall <- ggplot(result_summary_site, aes(x = recall)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Recall",
+       y = "Count of instances") +
   tme
 
 isl_distrib <- ggplot(result_summary_isl, aes(x = f1_score)) +
@@ -249,9 +277,14 @@ p4 <- site_precision +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p5 <- site_specificity +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4,
-  ncol = 2, 
+  p1, p2, p3, p4, p5,
+  ncol = 3, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
@@ -262,8 +295,8 @@ combined_with_axes <- arrangeGrob(
 
 final_plot <- grid.arrange(
   combined_with_axes,
-  ncol = 2,
-  widths = c(2, 0.3)
+  ncol = 3,
+  widths = c(2, 0.3, 0.3)
 )
 
 # ---- diagonal and offs comparison ----

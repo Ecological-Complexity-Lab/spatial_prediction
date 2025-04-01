@@ -79,7 +79,7 @@ df_combined <- bind_rows(df1_labeled, df2_labeled)
 
 df_long <- df_combined %>%
   pivot_longer(
-    cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc"),
+    cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
     names_to = "metric",
     values_to = "value"
   )
@@ -99,13 +99,14 @@ ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
     "recall" = "Recall",
     "precision" = "Precision",
     "mcc" = "MCC",
-    "balanced_accuracy" = "Balanced \naccuracy"
+    "balanced_accuracy" = "Balanced \naccuracy",
+    "specificity" = "Specificity"
   )) +
   tme
 
 ## ---- test for significance ----
 
-metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc")
+metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
 
 results <- lapply(metrics, function(metric) {
   test_normality_site <- shapiro.test(site_scale[[metric]])$p.value
@@ -137,7 +138,7 @@ df2_labeled <- island_scale %>% mutate(scale = "Island")
 df_combined <- bind_rows(df1_labeled, df2_labeled)
 
 df_long <- df_combined %>%
-  pivot_longer(cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc"),
+  pivot_longer(cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
                names_to = "metric",
                values_to = "value")
 
@@ -150,7 +151,7 @@ get_pvalue_asterisks <- function(p) {
 }
 
 # Perform statistical tests and collect results
-metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc")
+metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
 
 stat_results <- lapply(metrics, function(metric) {
   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
@@ -184,7 +185,8 @@ ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
     "recall" = "Recall",
     "precision" = "Precision",
     "balanced_accuracy" = "Balanced \naccuracy",
-    "mcc" = "MCC"
+    "mcc" = "MCC",
+    "specificity" = "Specificity"
   )) +  # Properly formatted labels
   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
                      label.y = max(df_long$value, na.rm = TRUE) + 0.05,
