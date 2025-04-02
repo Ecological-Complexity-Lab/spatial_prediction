@@ -215,6 +215,7 @@ d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv')
 
 d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv') # brazil
 d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # canary islands
+d <- read.csv('binary_equal_0_1_removal_scaling_60_1.csv') # scaled
 
 d <- d %>%
   filter(removed == 1) %>% 
@@ -223,6 +224,14 @@ d <- d %>%
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>%
   #write_csv('working_df_all_itr_25_binary.csv')
+
+# lambdas=unique(d$lambda)
+
+# for the scaled version
+d <- d %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0))
 
 #d <- read_csv('working_df_all_itr_25_binary.csv')
 
@@ -256,6 +265,8 @@ result_summary <- d %>%
   ) %>%
   ungroup()
 
+result_summary %>% write_csv('working_df_all_itr_60_binary_scaled.csv')
+
 # Get layer names
 net <- emln::load_emln(25) # brazil
 net <- emln::load_emln(60) # canary islands
@@ -277,7 +288,7 @@ result_summary <- result_summary %>%
   left_join(net_name, by = c("test_layer" = "layer_id")) %>%  
   rename(test_layer_name = name)                               # Use a different name for clarity
 
-#result_summary <- result_summary %>% write_csv('summary_df_all_itr_1_25_binary.csv')
+# result_summary <- result_summary %>% write_csv('working_df_all_itr_60_binary_scaled_names.csv')
 
 # Set factor levels for training and predicting layers
 #layer_levels <- as.character(1:7) # for Brazil
@@ -581,8 +592,9 @@ ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
   theme_minimal()
 ## ---- some basic stats ----
 df <- read.csv("working_df_all_itr_60_binary_names.csv")
+df <- read.csv('working_df_all_itr_60_binary_scaled.csv') # scaled (centered) version
 
-df_summary <- df %>%
+df_summary_stats <- df %>%
   summarise(
     mean_specificity = mean(specificity),
     se_specificity = sd(specificity) / sqrt(n()),
@@ -615,7 +627,7 @@ df_summary <- df %>%
     median_mcc = median(mcc)
   )
 
-view(df_summary)
+view(df_summary_stats)
 
 ## ---- correlate evaluators with distance ----------
 # Load the pairwise distance matrix
@@ -685,40 +697,51 @@ print(cor_plot)
 # result_summary %>% 
 #   write_csv('result_summary_canary_with_distance.csv') # summary of all iterations
 # 
-# # Load the pairwise distance matrix
-# distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
-# 
-# # For each row's train_layer ID, find which row in net_name has the same layer_id,
-# # and pull out the corresponding 'name'.
-# result_summary$train_name <- net_name$name[ match(result_summary$train_layer, net_name$layer_id) ]
-# 
-# # Same for test_layer
-# result_summary$test_name <- net_name$name[ match(result_summary$test_layer, net_name$layer_id) ]
-# 
-# distance_table_sym <- distance_table %>%
-#   bind_rows(
-#     distance_table %>%
-#       rename(to = from, from = to)  # swap columns
-#   ) %>%
-#   distinct(from, to, distance_km)
-# 
-# # result_summary has train_name, test_name, 
-# # plus an old "distance_km" you want to replace
-# 
-# result_summary <- result_summary %>%
-#   select(-distance_km) %>%                # remove old distance_km if it exists
-#   left_join(
-#     distance_table_sym,
-#     by = c("train_name" = "from", "test_name" = "to")
-#   ) %>%
-#   mutate(distance_km = if_else(train_name == test_name,
-#                                0,              # distance = 0 if same site
-#                                distance_km))   # otherwise, keep joined distance
-# 
-# 
-# 
-# result_summary %>%
-#   anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
+# Load the pairwise distance matrix
+distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL) # we need to match the layer names to the numbering in the results table
+
+# For each row's train_layer ID, find which row in net_name has the same layer_id,
+# and pull out the corresponding 'name'.
+result_summary$train_name <- net_name$name[ match(result_summary$train_layer, net_name$layer_id) ]
+
+# Same for test_layer
+result_summary$test_name <- net_name$name[ match(result_summary$test_layer, net_name$layer_id) ]
+
+distance_table_sym <- distance_table %>%
+  bind_rows(
+    distance_table %>%
+      rename(to = from, from = to)  # swap columns
+  ) %>%
+  distinct(from, to, distance_km)
+
+# correct layer name format
+distance_table_sym$from <- gsub("_", " ", distance_table_sym$from)
+distance_table_sym$to   <- gsub("_", " ", distance_table_sym$to)
+
+# add to the results
+result_summary <- result_summary %>%
+  left_join(distance_table_sym %>% select(from, to, distance_km),
+            by = c("train_layer_name" = "from", "test_layer_name" = "to"))
+
+# result_summary has train_name, test_name,
+# plus an old "distance_km" you want to replace
+
+result_summary <- result_summary %>%
+  select(-distance_km) %>%                # remove old distance_km if it exists
+  left_join(
+    distance_table_sym,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_name == test_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
+
+
+result_summary %>%
+  write_csv('result_summary_canary_scaled_with_distance.csv')
+
+result_summary %>%
+  anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
 
 result_summary <- read_csv('result_summary_canary_with_distance.csv')
 

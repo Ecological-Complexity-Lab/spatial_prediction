@@ -60,7 +60,11 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 
 implement_impute <- function(C, k, lambda) {
   # Apply softImpute
+  
   fit <- softImpute(C, rank.max = k, lambda = lambda, type = "svd", maxit = 600)
+  
+  # Debias the fit to remove regularization effects
+  # fit <- deBias(C, fit)
   
   # Reconstruct the matrix
   C_reconstructed <- softImpute::complete(C, fit)
@@ -141,24 +145,35 @@ implement_impute <- function(C, k, lambda) {
 }
 
 ## ---- parameters ----
-#emln_id <- 25
-#layers_to_train <- 1
-#layer_to_predict <- 7
+emln_id <- 60
+layers_to_train <- 1
+layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
-prop_zeros_to_remove <- 0.2
+# prop_zeros_to_remove <- 0.2
 n_sim <- 10
+is_binary <- 1
 
 ## ---- run ----
 ### ---- load matrices ----
-# Initialize a data frame to store combined results for all layer combinations
-combined_results <- data.frame()
 
 # Load matrices
 d <- load_emln(emln_id)
 graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
+
+# aggregate to island scale
+# Extract numeric layer numbers
+A_l <- A_l %>%
+  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
+  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
+                                   paste0("layer_", layer_num, "_", layer_num + 1),
+                                   paste0("layer_", layer_num - 1, "_", layer_num)))
+
 # Total number of layers
-num_layers <- length(graph_list)
+num_layers <- length(unique(A_l$layer_from))
+
+# Initialize a data frame to store combined results for all layer combinations
+combined_results <- data.frame()
 
 # Loop through all combinations of layers_to_train and layer_to_predict
 for (layers_to_train in 1:num_layers) {
@@ -174,7 +189,6 @@ for (layers_to_train in 1:num_layers) {
     # # # crop to make toy example matrices
     #A <- A[1:8, 1:7]
     #P <- P[1:8, 1:7]
-    
     
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
@@ -232,16 +246,24 @@ for (layers_to_train in 1:num_layers) {
                                             C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
       
       if (is_binary == 1) {
-        C[C>0] <- 1 # Make binary 
+        C[C>0] <- 1 # Make binary
       }
+      
+      # Apply biScale to center matrices
+      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
       
       sum(is.na(C))
       # might need to convert C into a binary matrix
       
       ### ---- transfer learning with SVD ----
       # Define the grid of k and lambda values to search over
-      k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
-      lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
+      # k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
+      # lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
+      
+      k_values <- c(2)
+      
+      lam0 <- lambda0(C)
+      lambda_values <- c(lam0)
       
       # Initialize variables to store the best results
       results <- data.frame(k = integer(),
@@ -249,7 +271,6 @@ for (layers_to_train in 1:num_layers) {
                             original_links = numeric(),
                             predicted_values = numeric())
       not_removed_all <- NULL
-      
       
       # Loop over all combinations of k and lambda
       for (k in k_values) {
@@ -296,6 +317,6 @@ for (layers_to_train in 1:num_layers) {
 print(combined_results)
 
 # Save the combined results dataframe to a CSV file
-output_name <- paste0("nonbinary_equal_0_1_removal_",emln_id,"_",is_binary,".csv")
+output_name <- paste0("binary_equal_0_1_removal_scaling_site_",emln_id,"_",is_binary,".csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

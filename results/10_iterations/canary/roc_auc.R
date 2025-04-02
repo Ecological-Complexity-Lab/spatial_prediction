@@ -38,12 +38,16 @@ clip_transform <- function(x){
 df <- read.csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # binary version, filtered k and lambda
 df <- read.csv('aggregated_equal_0_1_removal_60_1.csv') # binary version, no filtering
 df <- read.csv('nonbinary_equal_0_1_removal_60_0.csv') # weighted version
-
+df
+df <- read.csv('binary_equal_0_1_removal_scaling_60_1.csv') # scaled
+# df <- read.csv('binary_equal_0_1_removal_scaling_lambda_5_60_1.csv') # test
 # ---- analysis ----
 
-df <- df %>% filter(k == 2 & lambda == 0.01) # if we want specific k and lambda
-df <- df %>% filter(k == 2)
-df <- df %>% filter(itr == 1) # if we want to look at 1 zero removal iteration
+# lambdas=unique(df$lambda)
+#0.01
+# df <- df %>% filter(k == 2 & lambda == lambdas[1]) # if we want specific k and lambda
+# df <- df %>% filter(k == 2)
+# df <- df %>% filter(itr == 1) # if we want to look at 1 zero removal iteration
 
 df <- df %>%
   filter(removed == 1) %>%
@@ -54,35 +58,35 @@ df <- df %>%
   mutate(predicted_tanh = tanh_transform(predicted_values)) %>% 
   mutate(predicted_clip = clip_transform(predicted_values))
 
-# ---- roc pr ----
-# ROC curve
-roc_obj <- roc(response = df$original_links, predictor = df$predicted_prob_sigm)
-auc_roc <- auc(roc_obj)
-
-# Plot the ROC curve with the AUC in the title
-plot(roc_obj, main = paste("ROC Curve (AUC =", round(auc_roc, 2), ")"))
-
-# pr curve
-# For the PR curve, we separate the scores for the positive class (original_links==1) and the negative class (original_links==0)
-pr_obj <- pr.curve(
-  scores.class0 = df$predicted_prob_sigm[df$original_links == 1],
-  scores.class1 = df$predicted_prob_sigm[df$original_links == 0],
-  curve = TRUE
-)
-
-# Calculate the positive class ratio
-pos_ratio <- sum(df$original_links == 1) / nrow(df)
-
-# Plot the PR curve with the AUC (integral) in the title
-plot(pr_obj, main = paste("PR Curve (AUC =", round(pr_obj$auc.integral, 2), ")"))
-
-# Add the random guess line (horizontal line at the positive ratio)
-abline(h = pos_ratio, col = "red", lty = 2)
-
-
-df %>% group_by(original_links) %>% summarise(n=n()) %>% arrange(desc(n))
-
-# ---- test different transformations ----
+# # ---- roc pr ----
+# # ROC curve
+# roc_obj <- roc(response = df$original_links, predictor = df$predicted_prob_sigm)
+# auc_roc <- auc(roc_obj)
+# 
+# # Plot the ROC curve with the AUC in the title
+# plot(roc_obj, main = paste("ROC Curve (AUC =", round(auc_roc, 2), ")"))
+# 
+# # pr curve
+# # For the PR curve, we separate the scores for the positive class (original_links==1) and the negative class (original_links==0)
+# pr_obj <- pr.curve(
+#   scores.class0 = df$predicted_prob_sigm[df$original_links == 1],
+#   scores.class1 = df$predicted_prob_sigm[df$original_links == 0],
+#   curve = TRUE
+# )
+# 
+# # Calculate the positive class ratio
+# pos_ratio <- sum(df$original_links == 1) / nrow(df)
+# 
+# # Plot the PR curve with the AUC (integral) in the title
+# plot(pr_obj, main = paste("PR Curve (AUC =", round(pr_obj$auc.integral, 2), ")"))
+# 
+# # Add the random guess line (horizontal line at the positive ratio)
+# abline(h = pos_ratio, col = "red", lty = 2)
+# 
+# 
+# df %>% group_by(original_links) %>% summarise(n=n()) %>% arrange(desc(n))
+# 
+# # ---- test different transformations ----
 
 # Function to plot ROC curve with ggplot2
 plot_roc_curve <- function(true_labels, predicted_scores) {
@@ -134,11 +138,18 @@ plot_pr_curve <- function(true_labels, predicted_scores) {
   print(p)
 }
 
+# mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
+#   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>% 
+#   mutate(predicted_prob_robust_sigm = robust_sigmoid(predicted_values)) %>% 
+#   mutate(predicted_minmax = normalize_min_max(predicted_values)) %>% 
+#   mutate(predicted_tanh = tanh_transform(predicted_values)) %>% 
+#   mutate(predicted_clip = clip_transform(predicted_values))
+
 # For the ROC curve:
-plot_roc_curve(df$original_links, df$predicted_prob_sigm)
+plot_roc_curve(df$original_links, df$predicted_values)
 
 # For the PR curve:
-plot_pr_curve(df$original_links, df$predicted_prob_sigm)
+plot_pr_curve(df$original_links, df$predicted_values)
 
 
 # ---- distribution of predictions by true class ---- 
