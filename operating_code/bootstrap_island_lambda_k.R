@@ -151,7 +151,7 @@ layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
 n_sim <- 10
-is_binary <- 1
+is_binary <- 0
 
 ## ---- run ----
 ### ---- load matrices ----
@@ -343,6 +343,7 @@ for (layers_to_train in 1:num_layers) {
 print(combined_results)
 
 # Save the combined results dataframe to a CSV file
-output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
+#output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
+output_name <- paste0("weighted_equal_0_1_removal_scaled_island_",emln_id,"_",is_binary,".csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

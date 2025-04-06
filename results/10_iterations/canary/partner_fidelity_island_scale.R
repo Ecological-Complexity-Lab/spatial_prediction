@@ -2,10 +2,12 @@
 # here we calculate the "partner fidelity" (measured by Sorensen similarity between the partner composition of each plant and pollinator) and compare it to the accuracy of predictions
 
 # themes
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank())
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
 theme_set(theme_bw())
 
 ## ---- functions ----
@@ -25,6 +27,8 @@ library(scales)
 df <- read_csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # island scale
 #df <- read_csv('test_df_itr_1_60_binary.csv') # test on 1 iteration
 df <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # site scale
+df <- read_csv('binary_equal_0_1_removal_scaling_island_60_1.csv') # scaled version
+
 df <- df %>% filter(k == 2 & lambda == 0.1) # for site scale
 
 # filter out cases in which train = test layer
@@ -204,12 +208,14 @@ summary_df <- df_merged %>%
 
 # Join the summarized data with working_df based on train_layer and test_layer
 working_df <- read.csv("working_df_islands_evaluators_distance.csv")
+working_df <- read.csv("result_canaries_distance_names_jaccard_island_scaled.csv") # scaled version
+
 working_df <- working_df %>%
   left_join(summary_df, by = c("train_layer", "test_layer"))
 
 # View the updated working_df
 view(working_df)
-write.csv(working_df, "working_df_island_distance_fidelity.csv")
+write.csv(working_df, "working_df_island_distance_fidelity_jaccard.csv")
 
 working_df_offs <- working_df %>% filter (train_layer != test_layer)
 correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")

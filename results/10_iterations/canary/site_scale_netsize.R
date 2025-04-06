@@ -6,10 +6,12 @@ library(gridExtra)
 library(dplyr)
 
 ## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank())
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
 theme_set(theme_bw())
 ## ---- parameters ----
 emln_id <- 60
@@ -129,9 +131,12 @@ results %>% write_csv('result_netsize_canaries_site_scale.csv')
 
 # add to main results
 result_summary <- read_csv('working_df_all_itr_60_binary_names.csv')
+result_summary <- read_csv('working_df_site_scaled_evaluators_distance.csv') # scaled
 
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+result_summary %>% write_csv('result_netsize_canaries_distance_names_site_scaled.csv')
 
 ## ---- checking correlations ----
 ### ---- 1 off-diagonal no diagonal ----
@@ -141,6 +146,7 @@ canary_results_1off_no_diag <- result_summary %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer < test_layer)
 
+# if we want to consider all data points, replace canary_results_1off_no_diag with result_summary hereafter
 df_long_1off <- canary_results_1off_no_diag %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
@@ -148,7 +154,7 @@ df_long_1off <- canary_results_1off_no_diag %>%
     values_to = "measure_value"
   )
 
-# For each jaccard_type, compute correlation with f1_score:
+# For each variable, compute correlation with f1_score:
 cor_table <- df_long_1off %>%
   group_by(measure_type) %>%
   summarise(

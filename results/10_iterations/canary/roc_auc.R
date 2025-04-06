@@ -39,7 +39,10 @@ df <- read.csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # binary versio
 df <- read.csv('aggregated_equal_0_1_removal_60_1.csv') # binary version, no filtering
 df <- read.csv('nonbinary_equal_0_1_removal_60_0.csv') # weighted version
 df
-df <- read.csv('binary_equal_0_1_removal_scaling_60_1.csv') # scaled
+df <- read.csv('binary_equal_0_1_removal_scaling_60_1.csv') # scaled, island
+df <- read.csv('binary_equal_0_1_removal_scaling_site_60_1.csv') # scaled, site
+df <- read.csv('canary_weighted_scaled_site_60_0.csv') # scaled, site
+
 # df <- read.csv('binary_equal_0_1_removal_scaling_lambda_5_60_1.csv') # test
 # ---- analysis ----
 
@@ -151,9 +154,15 @@ plot_roc_curve(df$original_links, df$predicted_values)
 # For the PR curve:
 plot_pr_curve(df$original_links, df$predicted_values)
 
+# weighted version 
+# For the ROC curve:
+plot_roc_curve(df$original_links_binary, df$predicted_values)
+
+# For the PR curve:
+plot_pr_curve(df$original_links_binary, df$predicted_values)
 
 # ---- distribution of predictions by true class ---- 
-ggplot(df, aes(x = predicted_prob_sigm, fill = factor(original_links))) +
+ggplot(df, aes(x = predicted_prob_sigm, fill = factor(original_links_binary))) +
   geom_density(alpha = 0.5) +
   labs(title = "Distribution of predicted probabilities \nby true class",
        x = "Predicted probability", y = "Density",

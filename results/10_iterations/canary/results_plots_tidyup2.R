@@ -24,17 +24,19 @@ theme_set(theme_bw())
 ## ---- heatmaps ----
 result_summary_isl <- read.csv('working_df_island_distance_fidelity_jaccard_netsize.csv')
 result_summary_isl <- read.csv('result_summary_canary_scaled_with_distance.csv') # scaled
+result_summary_site <- read.csv('working_df_all_itr_60_binary_scaled_site_names.csv') # scaled, site
+result_summary_site <- read.csv('working_df_all_itr_60_weighted_scaled_site.csv') # weighted scaled site
 
 layer_to_layer_plot_all_itr_isl <- 
-  ggplot(result_summary_isl, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
   # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "white", linewidth = 0.1) +  
+  geom_tile(color = "black", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_isl[result_summary_isl$train_layer == result_summary_isl$test_layer, ],
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training layer", y = "Predicted layer", fill = "balanced accuracy") +
+  labs(x = "Added layer", y = "Predicted layer", fill = "Recall") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -43,11 +45,11 @@ layer_to_layer_plot_all_itr_isl <-
     panel.grid.minor = element_blank(),  # Remove minor grid lines
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
   ) +
-  coord_fixed()
+  coord_fixed() + tme
 
 print(layer_to_layer_plot_all_itr_isl)
 
-result_summary_site <- read.csv('working_df_all_itr_60_binary_names.csv')
+result_summary_site <- read.csv('working_df_all_itr_60_weighted_scaled_site_names.csv')
 
 layer_to_layer_plot_all_itr_site <- 
   ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
@@ -69,13 +71,13 @@ layer_to_layer_plot_all_itr_site <-
   coord_fixed()
 
 layer_to_layer_plot_all_itr_site_pr <- 
-  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = precision)) +
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
   geom_tile(color = "black", linewidth = 0.1) +  
   geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
             color = "black", linewidth = 1.2) +
   scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +
-  labs(x = "Added layer", y = "Predicted layer", fill = "Precision") +
+  labs(x = "Added layer", y = "Predicted layer", fill = "Balanced \naccuracy") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),
@@ -149,13 +151,16 @@ ggpairs(selected_vars) + tme
 
 # ---- distance ----
 distance_site <- read.csv('result_summary_canary_with_distance.csv')
-correlation_site <- cor.test(distance_site$f1_score, distance_site$distance_km, use = "complete.obs", method = "pearson")
+distance_site <- read.csv('working_df_site_scaled_evaluators_distance.csv') # scaled
+result_summary_isl <- read.csv('working_df_islands_scaled_evaluators_distance.csv') # scaled
+
+correlation_site <- cor.test(distance_site$balanced_accuracy, distance_site$distance_km, use = "complete.obs", method = "pearson")
 correlation_site
 # Extract correlation coefficient and p-value
 r_value_site <- round(correlation_site$estimate, 3)
-p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 5)
+p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 3)
 
-correlation_island <- cor.test(result_summary_isl$f1_score, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
+correlation_island <- cor.test(result_summary_isl$balanced_accuracy, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
 correlation_island
 # Extract correlation coefficient and p-value
 r_value_island <- round(correlation_island$estimate, 3)
@@ -165,26 +170,26 @@ label_text_site <- paste0("r = ", r_value_site, ", p = ", p_value_site)
 label_text_isl <- paste0("r = ", r_value_island, ", p = ", p_value_island)
 
 cor_plot_site <- 
-  ggplot(distance_site, aes(x = distance_km, y = f1_score)) +
+  ggplot(distance_site, aes(x = distance_km, y = recall)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographical distance (km)",
-       y = "F1 score") +
+       y = "Recall") +
   annotate("text",
-           x = 370, y = 0.7,   # Adjust depending on your data range
+           x = 370, y = 1.05,   # Adjust depending on your data range
            label = label_text_site,
            size = 3,
            color = "black") +
   tme
 
 cor_plot_isl <- 
-  ggplot(result_summary_isl, aes(x = distance_km, y = f1_score)) +
+  ggplot(result_summary_isl, aes(x = distance_km, y = recall)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographical distance (km)",
-       y = "F1_score") +
+       y = "Recall") +
   annotate("text",
-           x = 370, y = 0.7,   # Adjust depending on your data range
+           x = 370, y = 1.05,   # Adjust depending on your data range
            label = label_text_isl,
            size = 3,
            color = "black") +
@@ -208,7 +213,7 @@ combined_plots <- arrangeGrob(
 combined_with_axes <- arrangeGrob(
   combined_plots,
   bottom = textGrob("Geographical distance (km)", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+  left   = textGrob("Recall", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
 )
 
 final_plot <- grid.arrange(
@@ -227,10 +232,38 @@ isl_distrib <- ggplot(result_summary_isl, aes(x = f1_score)) +
        y = "Count") +
   tme
 
-site_specificity <- ggplot(result_summary_isl, aes(x = specificity)) +
+site_specificity <- ggplot(result_summary_site, aes(x = specificity)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   labs(x = "Specificity",
+       y = "Count") +
+  tme
+
+site_f1 <- ggplot(result_summary_site, aes(x = f1_score)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "F1 score",
+       y = "Count") +
+  tme
+
+site_ba <- ggplot(result_summary_site, aes(x = balanced_accuracy)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Balanced accuracy",
+       y = "Count") +
+  tme
+
+site_precision <- ggplot(result_summary_site, aes(x = precision)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Precision",
+       y = "Count") +
+  tme
+
+site_recall <- ggplot(result_summary_site, aes(x = recall)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Recall",
        y = "Count") +
   tme
 
@@ -254,9 +287,14 @@ p4 <- site_precision +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p5 <- site_specificity +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4,
-  ncol = 2, 
+  p1, p2, p3, p4, p5,
+  ncol = 3, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
@@ -267,12 +305,13 @@ combined_with_axes <- arrangeGrob(
 
 final_plot <- grid.arrange(
   combined_with_axes,
-  ncol = 2,
-  widths = c(2, 0.3)
+  ncol = 3,
+  widths = c(2, 0.3, 0.3)
 )
 
 # ---- diagonal and offs comparison ----
 result_table_site <- read.csv('working_df_all_itr_60_binary_names.csv') # site scale
+result_table_site <- read.csv('working_df_all_itr_60_binary_scaled_site_names.csv') #scaled, site
 
 result_table_site <- result_table_site %>%
   mutate(layer_comparison = case_when(
@@ -300,7 +339,7 @@ plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy",
                        comparisons = list(c("Diagonal", "Off-diagonals")),
                        label.y = stat_label_y,  # Adjust vertical position here
                        size = stat_size) +
-    scale_y_continuous(limits = c (0.1, 0.8))
+    scale_y_continuous(limits = c (0.3, 0.9))
     
 }
 
@@ -309,7 +348,7 @@ plot_hist <- function(data, metric,
                                         y_axis_label = "Count") {
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
-    geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -341,9 +380,9 @@ plot_hist_density <- function(data, metric,
 
 # boxplots:
 site_ba <- plot_boxplot(result_table_site, metric = "balanced_accuracy", 
-                           y_axis_label = "Balanced accuracy", stat_label_y = 0.7, stat_size = 4)
+                           y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
 site_f1 <- plot_boxplot(result_table_site, metric = "f1_score", 
-                           y_axis_label = "F1 score", stat_label_y = 0.7, stat_size = 6)
+                           y_axis_label = "F1 score", stat_label_y = 0.85, stat_size = 6)
 
 combined_plots <- arrangeGrob(
   site_ba, site_f1, 

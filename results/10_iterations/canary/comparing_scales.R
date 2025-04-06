@@ -21,10 +21,21 @@ tme <-  theme(axis.text = element_text(size = 14, color = "black"),
 site_scale <- read_csv('result_summary_canary_with_distance.csv') # site scale
 d <- read.csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # prepare evaluators for island scale
 
+# scaled versions
+site_scale <- read_csv('working_df_all_itr_60_binary_scaled_site_names.csv') # site scale
+island_scale <- read.csv('working_df_all_itr_60_binary_scaled_island.csv') # prepare evaluators for island scale
+
+# weighted scaled version
+site_scale <- read_csv('result_summary_canary_scaled_site_weighted_with_distance.csv') # site scale
+d <- read.csv('weighted_equal_0_1_removal_scaled_island_60_0.csv') # if need to prepare evaluators for island scale
+island_scale <- read_csv('working_df_all_itr_60_weighted_scaled_island.csv') # if not
+
+# use this only for raw data (not working df)
 d <- d %>%
   filter(removed == 1) %>% 
-  filter(k == 2) %>% 
-  filter(lambda == 0.1) %>% 
+  #filter(k == 2) %>% 
+  #filter(lambda == 0.1) %>% 
+  mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% # for weighted
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0))
 
@@ -54,8 +65,6 @@ island_scale <- d %>%
   ) %>%
   ungroup() %>% 
   write_csv('evaluation_df_all_itr_60_binary_island.csv')
-
-# add distances
 
 
 ## ---- summarize predictive performance ----
@@ -273,6 +282,7 @@ print(layer_to_layer_plot_islands)
 ## ---- correlate performance with distance ----
 # first convert distances to distances between islands
 island_scale <- read.csv('working_df_evaluators_island_names.csv')
+island_scale <- read.csv('working_df_all_itr_60_binary_scaled_island.csv') # scaled version
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
 # Function to extract island names (removes "_site_X")
@@ -306,15 +316,58 @@ distance_island_table <- distance_island_table %>%
   mutate(from = gsub("_", " ", from),
          to = gsub("_", " ", to))
 
-# Perform the left join
+# Add names and distances to the main table
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# Step 1: Create a new grouped tibble
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
+# Add to main table
+island_scale <- island_scale %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+# Add distances
 island_scale <- island_scale %>%
   left_join(distance_island_table, by = c("train_layer_name" = "from", "test_layer_name" = "to")) %>%
   mutate(distance_km = avg_distance_km)
 
 island_scale <- island_scale %>% select(-avg_distance_km)
 
-write.csv(island_scale, 'working_df_islands_evaluators_distance.csv')
+write.csv(island_scale, 'working_df_islands_scaled_evaluators_distance.csv')
 
+# for site scale
+site_scale <- read.csv('working_df_all_itr_60_binary_scaled_site_names.csv') # scaled version
+
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_table <- distance_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Add to main table
+
+site_scale <- site_scale %>%
+  left_join(
+    distance_table,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
+
+write.csv(site_scale, 'working_df_site_scaled_evaluators_distance.csv')
+
+# correlation
 correlation <- cor.test(island_scale$f1_score, island_scale$distance_km, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
@@ -334,7 +387,7 @@ cor_plot_canary <-
   labs(x = "Geographical distance (km)",
        y = "F1 score") +
   annotate("text",
-           x = 370, y = 0.7,   # Adjust depending on your data range
+           x = 370, y = 0.75,   # Adjust depending on your data range
            label = label_text,
            size = 3,
            color = "black") +

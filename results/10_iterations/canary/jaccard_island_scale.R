@@ -38,10 +38,12 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 }
 
 ## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank())
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
 theme_set(theme_bw())
 
 emln_id <- 60
@@ -89,6 +91,9 @@ print(aggregated_df)
 
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
+
+# if we want Jaccard for site scale:
+#num_layers <- length(unique(A_l$layer_from))
   
   for (layers_to_train in 1:num_layers) {
     for (layer_to_predict in 1:num_layers) {
@@ -142,15 +147,27 @@ num_layers <- length(unique(aggregated_df$layer_from))
 
 head(results_jaccard)
 
-#results_jaccard %>% write_csv('result_jaccard_canaries_island_scale.csv')
+#results_jaccard %>% write_csv('result_jaccard_canaries_island_scaled.csv')
 
 results_jaccard <- read.csv('result_jaccard_canaries_island_scale.csv')
+results_jaccard <- read.csv('result_jaccard_canaries_site_scaled.csv')
 
 result_summary <- read_csv('working_df_island_distance_fidelity.csv')
+result_summary <- read_csv('working_df_all_itr_60_binary_scaled_site_names.csv') # site scale, centered version
+result_summary <- read.csv('working_df_islands_scaled_evaluators_distance.csv') # island scale, centered
 
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
+# 
+# result_summary <- read_csv('result_netsize_canaries_distance_names_site_scaled.csv') # site scale, centered version
+# result_summary <- result_summary %>%
+#   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
+# result_summary %>% write_csv('result_netsize_canaries_distance_names_jaccard_site_scaled.csv')
 
+# result_summary <- read_csv('working_df_islands_scaled_evaluators_distance.csv') # island scale, centered version
+# result_summary <- result_summary %>%
+#   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
+# result_summary %>% write_csv('result_canaries_distance_names_jaccard_island_scaled.csv')
 ## ---- plot ----
 ### ---- only 1 off-diagonal and diagonal ----
 # use half the matrix ('cause 1 <- 2 same as 2 <- 1)
@@ -259,8 +276,77 @@ ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
   geom_smooth(method = "lm", se = FALSE, color = "thistle") +
   facet_wrap(
     ~ jaccard_type,
-    scales   = "free_x",             # or "free" if you want x & y free
-    labeller = as_labeller(type_labels)  # rename facets
+    scales   = "free_x"
+    #,             # or "free" if you want x & y free
+    #labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 1.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard measures - 1 off-diagonal"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.ticks = element_line(color = "black")
+  )
+
+### ---- 2 off-diagonals no diagonal ----
+
+canary_results_diags <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer != test_layer)
+
+df_long_1off <- canary_results_diags %>%
+  pivot_longer(
+    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
+    names_to = "jaccard_type",
+    values_to = "jaccard_value"
+  )
+
+# For each jaccard_type, compute correlation with f1_score:
+cor_table <- df_long_1off %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 2),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "f", digits = 2),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x"
+    #,             # or "free" if you want x & y free
+    #labeller = as_labeller(type_labels)  # rename facets
   ) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
   # Annotation: place correlation in top-right corner of each facet

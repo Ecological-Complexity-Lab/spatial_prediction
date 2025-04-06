@@ -20,10 +20,12 @@ library(emln)
 library(reshape2)
 library(ggpubr)
 
-tme <-  theme(axis.text = element_text(size = 10, color = "black"),
-              axis.title = element_text(size = 12, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
               panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank())
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
 theme_set(theme_bw())
 
 ## ---- functions ----
@@ -215,7 +217,9 @@ d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv')
 
 d <- read_csv('nonbinary_equal_0_1_removal_25_1.csv') # brazil
 d <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # canary islands
-d <- read.csv('binary_equal_0_1_removal_scaling_60_1.csv') # scaled
+d <- read.csv('binary_equal_0_1_removal_scaling_island_60_1.csv') # scaled island
+d <- read.csv('binary_equal_0_1_removal_scaling_site_60_1.csv') # scaled site
+d <- read_csv('canary_weighted_scaled_site_60_0.csv') # weighted, scaled
 
 d <- d %>%
   filter(removed == 1) %>% 
@@ -233,8 +237,18 @@ d <- d %>%
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0))
 
-#d <- read_csv('working_df_all_itr_25_binary.csv')
+# for the weighted scaled version
+d <- read.csv('weighted_equal_0_1_removal_scaled_island_60_0.csv')
 
+d <- d %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+
+#d <- read_csv('working_df_all_itr_25_binary.csv')
+# binary version
 result_summary <- d %>%
   group_by(emln_id, train_layer, test_layer, itr) %>%
   summarise(
@@ -265,7 +279,39 @@ result_summary <- d %>%
   ) %>%
   ungroup()
 
-result_summary %>% write_csv('working_df_all_itr_60_binary_scaled.csv')
+# for the weighted version
+
+result_summary <- d %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island.csv')
 
 # Get layer names
 net <- emln::load_emln(25) # brazil
@@ -288,7 +334,9 @@ result_summary <- result_summary %>%
   left_join(net_name, by = c("test_layer" = "layer_id")) %>%  
   rename(test_layer_name = name)                               # Use a different name for clarity
 
-# result_summary <- result_summary %>% write_csv('working_df_all_itr_60_binary_scaled_names.csv')
+result_summary <- result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_site_names.csv')
+
+# for the island scale
 
 # Set factor levels for training and predicting layers
 #layer_levels <- as.character(1:7) # for Brazil
@@ -592,7 +640,7 @@ ggplot(result_summary, aes(x = factor(lambda), y = avg_f1_score)) +
   theme_minimal()
 ## ---- some basic stats ----
 df <- read.csv("working_df_all_itr_60_binary_names.csv")
-df <- read.csv('working_df_all_itr_60_binary_scaled.csv') # scaled (centered) version
+df <- read.csv('working_df_all_itr_60_binary_scaled.csv') # scaled (centered) version, island
 
 df_summary_stats <- df %>%
   summarise(
@@ -738,14 +786,14 @@ result_summary <- result_summary %>%
 
 
 result_summary %>%
-  write_csv('result_summary_canary_scaled_with_distance.csv')
+  write_csv('result_summary_canary_scaled_site_weighted_with_distance.csv')
 
 result_summary %>%
   anti_join(distance_table_sym, by = c("train_name" = "from", "test_name" = "to"))
 
 result_summary <- read_csv('result_summary_canary_with_distance.csv')
 
-correlation <- cor.test(result_summary$f1_score, result_summary$distance_km, use = "complete.obs", method = "pearson")
+correlation <- cor.test(result_summary$recall, result_summary$distance_km, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
 r_value <- round(correlation$estimate, 3)
@@ -758,11 +806,11 @@ label_text <- paste0("r = ", r_value, ", p = ", p_value)
 # Plot the correlation between balanced accuracy and geographic distance
 
 cor_plot_canary <- 
-  ggplot(result_summary, aes(x = distance_km, y = f1_score)) +
+  ggplot(result_summary, aes(x = distance_km, y = recall)) +
   geom_point(color = "salmon2", size = 2) +  # Points representing pairs of layers
   geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +  # Linear regression line
   labs(x = "Geographical distance (km)",
-       y = "F1 score") +
+       y = "Recall") +
   annotate("text",
            x = 370, y = 0.7,   # Adjust depending on your data range
            label = label_text,
