@@ -155,6 +155,7 @@ results_jaccard <- read.csv('result_jaccard_canaries_site_scaled.csv')
 result_summary <- read_csv('working_df_island_distance_fidelity.csv')
 result_summary <- read_csv('working_df_all_itr_60_binary_scaled_site_names.csv') # site scale, centered version
 result_summary <- read.csv('working_df_islands_scaled_evaluators_distance.csv') # island scale, centered
+result_summary <- read_csv('result_netsize_canaries_distance_names_site_weighted_scaled.csv') # site scale, weightet centered version
 
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
@@ -167,7 +168,7 @@ result_summary <- result_summary %>%
 # result_summary <- read_csv('working_df_islands_scaled_evaluators_distance.csv') # island scale, centered version
 # result_summary <- result_summary %>%
 #   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
-# result_summary %>% write_csv('result_canaries_distance_names_jaccard_island_scaled.csv')
+result_summary %>% write_csv('result_canaries_distance_netsize_jaccard_site_weighted_scaled.csv')
 ## ---- plot ----
 ### ---- only 1 off-diagonal and diagonal ----
 # use half the matrix ('cause 1 <- 2 same as 2 <- 1)
@@ -363,7 +364,7 @@ ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
   labs(
     x = "Jaccard similarity",
     y = "F1 score",
-    title = "F1 vs. Jaccard measures - 1 off-diagonal"
+    #title = "F1 vs. Jaccard measures - 1 off-diagonal"
   ) +
   theme_minimal() +
   tme +

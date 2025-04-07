@@ -128,15 +128,17 @@ for (layers_to_train in 1:num_layers) {
 View(results)
 
 results %>% write_csv('result_netsize_canaries_site_scale.csv')
+results <- read_csv('result_netsize_canaries_site_scale.csv')
 
 # add to main results
 result_summary <- read_csv('working_df_all_itr_60_binary_names.csv')
-result_summary <- read_csv('working_df_site_scaled_evaluators_distance.csv') # scaled
+result_summary <- read_csv('working_df_site_scaled_evaluators_distance.csv') # scaled, binary
+result_summary <- read_csv('result_summary_canary_scaled_site_weighted_with_distance.csv') # scaled, weighted
 
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-result_summary %>% write_csv('result_netsize_canaries_distance_names_site_scaled.csv')
+result_summary %>% write_csv('result_netsize_canaries_distance_names_site_weighted_scaled.csv')
 
 ## ---- checking correlations ----
 ### ---- 1 off-diagonal no diagonal ----
@@ -148,6 +150,14 @@ canary_results_1off_no_diag <- result_summary %>%
 
 # if we want to consider all data points, replace canary_results_1off_no_diag with result_summary hereafter
 df_long_1off <- canary_results_1off_no_diag %>%
+  pivot_longer(
+    cols = c(size_P, density_P, size_C, density_C),
+    names_to = "measure_type",
+    values_to = "measure_value"
+  )
+
+# if we want to use all of the results
+df_long_1off <- result_summary %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",

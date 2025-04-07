@@ -150,21 +150,114 @@ selected_vars <- result_summary_isl[, c("f1_score", "distance_km", "avg_sorensen
 ggpairs(selected_vars) + tme
 
 # ---- distance ----
-distance_site <- read.csv('result_summary_canary_with_distance.csv')
-distance_site <- read.csv('working_df_site_scaled_evaluators_distance.csv') # scaled
-result_summary_isl <- read.csv('working_df_islands_scaled_evaluators_distance.csv') # scaled
+### ---- calculate distance between islands ----
+# first convert distances to distances between islands
+island_scale <- read.csv('working_df_evaluators_island_names.csv')
+island_scale <- read.csv('working_df_all_itr_60_binary_scaled_island.csv') # scaled version
+island_scale <- read.csv('working_df_all_itr_60_weighted_scaled_island.csv') # weighted, scaled version
 
-correlation_site <- cor.test(distance_site$balanced_accuracy, distance_site$distance_km, use = "complete.obs", method = "pearson")
+distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
+
+# Function to extract island names (removes "_site_X")
+extract_island <- function(name) {
+  gsub("_site_[12]", "", name)
+}
+
+# Create new table with averaged distances at the island level
+distance_island_table <- distance_table %>%
+  mutate(
+    from_island = extract_island(from),
+    to_island = extract_island(to)
+  ) %>%
+  group_by(from_island, to_island) %>%
+  summarise(
+    avg_distance_m = mean(distance_m),
+    avg_distance_km = mean(distance_km),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    avg_distance_m = ifelse(from_island == to_island, 0, avg_distance_m),
+    avg_distance_km = ifelse(from_island == to_island, 0, avg_distance_km)
+  ) %>%
+  rename(from = from_island, to = to_island)  # Rename after calculation
+
+# Print result
+print(distance_island_table)
+
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_island_table <- distance_island_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Add names and distances to the main table
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# Step 1: Create a new grouped tibble
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
+# Add to main table
+island_scale <- island_scale %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+# Add distances
+island_scale <- island_scale %>%
+  left_join(distance_island_table, by = c("train_layer_name" = "from", "test_layer_name" = "to")) %>%
+  mutate(distance_km = avg_distance_km)
+
+island_scale <- island_scale %>% select(-avg_distance_km)
+
+write.csv(island_scale, 'working_df_island_weighted_scaled_evaluators_distance.csv')
+
+# for site scale
+site_scale <- read.csv('working_df_all_itr_60_binary_scaled_site_names.csv') # scaled version
+
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_table <- distance_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Add to main table
+
+site_scale <- site_scale %>%
+  left_join(
+    distance_table,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
+
+write.csv(site_scale, 'working_df_site_scaled_evaluators_distance.csv')
+
+### ---- correlate with distance ----
+distance_site <- read.csv('result_summary_canary_with_distance.csv')
+distance_site <- read.csv('working_df_site_scaled_evaluators_distance.csv') # scaled, binary
+result_summary_isl <- read.csv('working_df_islands_scaled_evaluators_distance.csv') # scaled, binary
+distance_site <- read.csv('result_netsize_canaries_distance_names_site_weighted_scaled.csv') # scaled, weighted
+result_summary_isl <- read.csv('working_df_island_weighted_scaled_evaluators_distance.csv') # scaled, weighted
+
+correlation_site <- cor.test(distance_site$recall, distance_site$distance_km, use = "complete.obs", method = "pearson")
 correlation_site
 # Extract correlation coefficient and p-value
 r_value_site <- round(correlation_site$estimate, 3)
-p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 3)
+p_value_site <- formatC(correlation_site$p.value, format = "f", digits = 2)
 
-correlation_island <- cor.test(result_summary_isl$balanced_accuracy, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
+correlation_island <- cor.test(result_summary_isl$recall, result_summary_isl$distance_km, use = "complete.obs", method = "pearson")
 correlation_island
 # Extract correlation coefficient and p-value
 r_value_island <- round(correlation_island$estimate, 3)
-p_value_island <- formatC(correlation_island$p.value, format = "f", digits = 3)
+p_value_island <- formatC(correlation_island$p.value, format = "f", digits = 2)
 
 label_text_site <- paste0("r = ", r_value_site, ", p = ", p_value_site)
 label_text_isl <- paste0("r = ", r_value_island, ", p = ", p_value_island)
@@ -176,7 +269,7 @@ cor_plot_site <-
   labs(x = "Geographical distance (km)",
        y = "Recall") +
   annotate("text",
-           x = 370, y = 1.05,   # Adjust depending on your data range
+           x = 365, y = 1.05,   # Adjust depending on your data range
            label = label_text_site,
            size = 3,
            color = "black") +
@@ -189,7 +282,7 @@ cor_plot_isl <-
   labs(x = "Geographical distance (km)",
        y = "Recall") +
   annotate("text",
-           x = 370, y = 1.05,   # Adjust depending on your data range
+           x = 362, y = 1.05,   # Adjust depending on your data range
            label = label_text_isl,
            size = 3,
            color = "black") +

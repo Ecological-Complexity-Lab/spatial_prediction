@@ -156,7 +156,7 @@ p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you pr
 label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
 plant_degree1 <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "thistle") +
+  geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",

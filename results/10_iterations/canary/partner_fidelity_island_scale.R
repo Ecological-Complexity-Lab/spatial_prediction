@@ -27,7 +27,9 @@ library(scales)
 df <- read_csv('aggregated_equal_0_1_removal_60_1_filtered.csv') # island scale
 #df <- read_csv('test_df_itr_1_60_binary.csv') # test on 1 iteration
 df <- read_csv('nonbinary_equal_0_1_removal_60_1.csv') # site scale
-df <- read_csv('binary_equal_0_1_removal_scaling_island_60_1.csv') # scaled version
+df <- read_csv('binary_equal_0_1_removal_scaling_island_60_1.csv') # scaled binary version
+df <- read_csv('weighted_equal_0_1_removal_scaled_island_60_0.csv') # scaled weighted version
+
 
 df <- df %>% filter(k == 2 & lambda == 0.1) # for site scale
 
@@ -115,6 +117,8 @@ df_merged <- df_merged %>% mutate(predicted_value_sigm = sigmoid(predicted_value
 df_merged <- df_merged %>% mutate(predicted_sigm_obs = predicted_value_sigm - original_links)
 df_merged <- df_merged %>% mutate(pred_obs_abs = abs(predicted_sigm_obs))
 
+# weighted version
+df_merged <- df_merged %>% mutate(pred_obs_abs = abs(predicted_values - original_links))
 df_merged_removed <- df_merged %>% filter(removed == 1)
 
 # here you can separate diagonals and off-diagonals
@@ -124,44 +128,44 @@ df_merged_removed_diag <- df_merged_removed %>% filter(train_layer == test_layer
 
 ## ---- correlation pollinators ----
 #nonbinary_fidelity_merged_removed_itr_1 <- nonbinary_fidelity_merged %>% filter(itr == 1) # try 1 itr
-correlation <- cor.test(df_merged_removed_diag$pred_obs_abs, df_merged_removed_diag$mean_sorensen_pollinators, use = "complete.obs", method = "pearson")
+correlation <- cor.test(df_merged_removed$pred_obs_abs, df_merged_removed$mean_sorensen_pollinators, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
 r_value <- round(correlation$estimate, 3)
 p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
 label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
-pollinator_fidelity_cor <- ggplot(df_merged_removed_diag, aes(x = mean_sorensen_pollinators, y = pred_obs_abs)) +
+pollinator_fidelity_cor <- ggplot(df_merged_removed, aes(x = mean_sorensen_pollinators, y = pred_obs_abs)) +
   geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
   labs(x = "Mean Sorensen similarity",
-       y = "Predicted - observed",
-       title = "Island scale (pollinators) - diag all itr") +
+       y = "Predicted - observed") +
+       #title = "Island scale (pollinators) - diag all itr") +
   tme +
   annotate("text",
-           x = 0.77, y = 1.05,   # Adjust depending on your data range
+           x = 0.77, y = 75,   # Adjust depending on your data range
            label = label_text,
            size = 3.5,
            color = "black")
 
 ## ---- correlation plants ----
 #nonbinary_fidelity_merged_removed_itr_1 <- nonbinary_fidelity_merged %>% filter(itr == 1) # try 1 itr
-correlation <- cor.test(df_merged_removed_diag$pred_obs_abs, df_merged_removed_diag$mean_sorensen_plants, use = "complete.obs", method = "pearson")
+correlation <- cor.test(df_merged_removed$pred_obs_abs, df_merged_removed$mean_sorensen_plants, use = "complete.obs", method = "pearson")
 correlation
 # Extract correlation coefficient and p-value
 r_value <- round(correlation$estimate, 3)
 p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
 label_text <- paste0("r = ", r_value, ", p = ", p_value)
 
-plant_fidelity_cor <- ggplot(df_merged_removed_diag, aes(x = mean_sorensen_plants, y = pred_obs_abs)) +
+plant_fidelity_cor <- ggplot(df_merged_removed, aes(x = mean_sorensen_plants, y = pred_obs_abs)) +
   geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
   labs(x = "Mean Sorensen similarity",
-       y = "Predicted - observed",
-       title = "Island scale (plants) - diag all itr") +
+       y = "Predicted - observed") +
+       #title = "Island scale (plants) - diag all itr") +
   tme +
   annotate("text",
-           x = 0.32, y = 1.05,   # Adjust depending on your data range
+           x = 0.12, y = 75,   # Adjust depending on your data range
            label = label_text,
            size = 3.5,
            color = "black") +
@@ -208,14 +212,15 @@ summary_df <- df_merged %>%
 
 # Join the summarized data with working_df based on train_layer and test_layer
 working_df <- read.csv("working_df_islands_evaluators_distance.csv")
-working_df <- read.csv("result_canaries_distance_names_jaccard_island_scaled.csv") # scaled version
+working_df <- read.csv("result_canaries_distance_names_jaccard_island_scaled.csv") # scaled binary version
+working_df <- read.csv("working_df_island_weighted_scaled_evaluators_distance.csv") # scaled weighted version
 
 working_df <- working_df %>%
   left_join(summary_df, by = c("train_layer", "test_layer"))
 
 # View the updated working_df
 view(working_df)
-write.csv(working_df, "working_df_island_distance_fidelity_jaccard.csv")
+write.csv(working_df, "working_df_weighted_scaled_island_distance_fidelity.csv")
 
 working_df_offs <- working_df %>% filter (train_layer != test_layer)
 correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")

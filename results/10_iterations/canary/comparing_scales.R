@@ -283,6 +283,8 @@ print(layer_to_layer_plot_islands)
 # first convert distances to distances between islands
 island_scale <- read.csv('working_df_evaluators_island_names.csv')
 island_scale <- read.csv('working_df_all_itr_60_binary_scaled_island.csv') # scaled version
+island_scale <- read.csv('working_df_all_itr_60_weighted_scaled_island.csv') # weighted, scaled version
+
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
 # Function to extract island names (removes "_site_X")
@@ -344,7 +346,7 @@ island_scale <- island_scale %>%
 
 island_scale <- island_scale %>% select(-avg_distance_km)
 
-write.csv(island_scale, 'working_df_islands_scaled_evaluators_distance.csv')
+write.csv(island_scale, 'working_df_island_weighted_scaled_evaluators_distance.csv')
 
 # for site scale
 site_scale <- read.csv('working_df_all_itr_60_binary_scaled_site_names.csv') # scaled version
