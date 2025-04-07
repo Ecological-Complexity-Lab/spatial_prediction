@@ -152,6 +152,7 @@ prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
 n_sim <- 10
 is_binary <- 0
+set.seed(42)
 
 ## ---- run ----
 ### ---- load matrices ----
@@ -215,18 +216,17 @@ for (layers_to_train in 1:num_layers) {
     print(paste("all zeros   :", nrow(zeros_in_P)))
     print(paste("prop of zeros removed   : ", prop_0_removed))
     
-    # remove 1s
-    remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
-    P[remove_indices] <- NA  # Set removed links to NA
-    P_no_1 <- P # save it for later
-    
     bootstrapping_results <- NULL
+    P_fresh <- P # save it for later
+    
     # Randomly select zeros to remove - bootstrapping
     for (i in 1:n_sim) {
-      # sample zeros once
-      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
+      # remove 1s
+      remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+      P[remove_indices] <- NA  # Set removed links to NA
       
-      # Set the selected zeros to NA
+      # sample 0s
+      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
       P[zeros_to_remove_indices] <- NA
       
       ### ---- creating a combined matrix C ----
@@ -291,7 +291,7 @@ for (layers_to_train in 1:num_layers) {
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
       
       # reset P
-      P <- P_no_1
+      P <- P_fresh
     }
     
     combined_results <- rbind(

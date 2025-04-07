@@ -1,0 +1,943 @@
+# ---- softImpute analysis pipeline ----
+# this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
+
+## ---- load libraries ----
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(pROC)
+library(emln)
+library(reshape2)
+library(ggpubr)
+library(gridExtra)
+library(grid)
+library(scales)
+library(cowplot)  # for get_legend()
+library(patchwork)
+
+## ---- themes ----
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
+theme_set(theme_bw())
+
+## ---- parameters ----
+emln_id <- 60
+
+## ---- functions ----
+# transformations
+
+sigmoid <- function(x) {
+  1 / (1 + exp(-x))
+}
+
+robust_sigmoid <- function(x, center = median(x), scale = mad(x)) {
+  1 / (1 + exp(-(x - center) / scale))
+}
+
+normalize_min_max <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+tanh_transform <- function(x){
+  (tanh(x)+1)/2
+}
+
+clip_transform <- function(x){
+  case_when(x<0~0,
+            x>1~1,
+            TRUE~x)
+}
+
+# Function to plot ROC curve with ggplot2
+plot_roc_curve <- function(true_labels, predicted_scores) {
+  # Create the ROC object and compute AUC
+  roc_obj <- roc(response = true_labels, predictor = predicted_scores)
+  auc_val <- auc(roc_obj)
+  
+  # Build a data frame from the ROC object for ggplot2
+  df_roc <- data.frame(
+    specificity = roc_obj$specificities,
+    sensitivity = roc_obj$sensitivities
+  )
+  
+  # Generate the ROC plot
+  p <- ggplot(df_roc, aes(x = 1 - specificity, y = sensitivity)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # ROC curve line
+    geom_abline(intercept = 0, slope = 1,                       # Diagonal line (random classifier)
+                linetype = "dashed", color = "salmon") +
+    labs(title = paste("ROC curve (AUC =", round(auc_val, 2), ")"),
+         x = "False positive rate", y = "True positive rate") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
+}
+
+# Function to plot PR curve with ggplot2
+plot_pr_curve <- function(true_labels, predicted_scores) {
+  # Separate scores by class: positive (true label==1) and negative (true label==0)
+  scores_pos <- predicted_scores[true_labels == 1]
+  scores_neg <- predicted_scores[true_labels == 0]
+  
+  # Create the PR curve object; curve=TRUE returns the full curve data
+  pr_obj <- pr.curve(scores.class0 = scores_pos, scores.class1 = scores_neg, curve = TRUE)
+  
+  # Calculate the positive class ratio for the random baseline line
+  pos_ratio <- sum(true_labels == 1) / length(true_labels)
+  
+  # Convert the curve matrix to a data frame and set column names
+  df_pr <- as.data.frame(pr_obj$curve)
+  colnames(df_pr) <- c("recall", "precision", "threshold")
+  
+  # Generate the PR plot
+  p <- ggplot(df_pr, aes(x = recall, y = precision)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # PR curve line
+    geom_hline(yintercept = pos_ratio,                          # Baseline: random classifier performance
+               linetype = "dashed", color = "salmon") +
+    labs(title = paste("PR curve (AUC =", round(pr_obj$auc.integral, 2), ")"),
+         x = "Recall", y = "Precision") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
+}
+
+# functions for diagonal and off-diagonal comparison
+lot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
+                        stat_label_y = NULL, stat_size = 3) {
+  ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
+    theme_minimal() +
+    labs(y = y_axis_label) +   # y-axis title is set via the function argument
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    tme + 
+    scale_fill_manual(values = custom_colors) +
+    stat_compare_means(method = "t.test", label = "p.signif", hide.ns = FALSE, 
+                       comparisons = list(c("Diagonal", "Off-diagonals")),
+                       label.y = stat_label_y,  # Adjust vertical position here
+                       size = stat_size) +
+    scale_y_continuous(limits = c (0.3, 0.9))
+  
+}
+
+plot_hist <- function(data, metric, 
+                      x_axis_label = "Balanced accuracy", 
+                      y_axis_label = "Count") {
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+    geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    theme_minimal() +
+    labs(x = x_axis_label,
+         y = y_axis_label,
+         fill = "Layer comparison") +
+    theme(
+      axis.text.x = element_text(hjust = 1),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    scale_fill_manual(values = custom_colors) + tme
+}
+
+# if you prefer density over counts:
+plot_hist_density <- function(data, metric, 
+                              x_axis_label = "Balanced accuracy", 
+                              y_axis_label = "Density") {  
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+    geom_histogram(aes(y = after_stat(density)), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
+    #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    theme_minimal() +
+    labs(x = x_axis_label,
+         y = y_axis_label,
+         fill = "Layer comparison") +
+    theme(
+      axis.text.x = element_text(hjust = 1),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    scale_fill_manual(values = custom_colors) + tme
+}
+
+# building matrices for calculating network size and density
+# site scale
+build_interaction_matrix <- function(data, layers_to_filter) {
+  # Step 1: Filter rows based on specified layers
+  layers <- paste0("layer_", layers_to_filter)
+  filtered_data <- subset(data, layer_from %in% layers)
+  
+  # Step 2: Aggregate weights for identical species pairs
+  
+  aggregated_data <- filtered_data %>%
+    group_by(node_from, node_to) %>%
+    summarise(weight = sum(weight), .groups = 'drop')
+  
+  # Step 3: Create the matrix with specific row and column species
+  species_from <- unique(aggregated_data$node_from)  # Columns
+  species_to <- unique(aggregated_data$node_to)      # Rows
+  
+  # Initialize an empty matrix
+  interaction_matrix <- matrix(0, nrow = length(species_to), ncol = length(species_from),
+                               dimnames = list(species_to, species_from))
+  
+  # Populate the matrix with aggregated weights
+  for (i in 1:nrow(aggregated_data)) {
+    row <- aggregated_data$node_to[i]    # Rows represent 'node_to' species
+    col <- aggregated_data$node_from[i]  # Columns represent 'node_from' species
+    interaction_matrix[row, col] <- aggregated_data$weight[i]
+  }
+  
+  return(interaction_matrix)
+}
+## ---- load data ----
+df <- read_csv('canary_weighted_scaled_site_60_0.csv') # weighted, scaled
+
+## ---- pr and roc curves ----
+df <- df %>%
+  filter(removed == 1) %>%
+  mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>% 
+  mutate(predicted_prob_robust_sigm = robust_sigmoid(predicted_values)) %>% 
+  mutate(predicted_minmax = normalize_min_max(predicted_values)) %>% 
+  mutate(predicted_tanh = tanh_transform(predicted_values)) %>% 
+  mutate(predicted_clip = clip_transform(predicted_values))
+
+# binary version
+# For the ROC curve:
+plot_roc_curve(df$original_links, df$predicted_values)
+
+# For the PR curve:
+plot_pr_curve(df$original_links, df$predicted_values)
+
+# weighted version 
+# For the ROC curve:
+plot_roc_curve(df$original_links_binary, df$predicted_values)
+
+# For the PR curve:
+plot_pr_curve(df$original_links_binary, df$predicted_values)
+
+## ---- evaluation ----
+### ---- plot distribution of predictions by true class ---- 
+ggplot(df, aes(x = predicted_prob_sigm, fill = factor(original_links_binary))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribution of predicted probabilities \nby true class",
+       x = "Predicted probability", y = "Density",
+       fill = "Original Link") +
+  theme_minimal() + tme
+
+### ---- binary version ----
+df <- df %>%
+  filter(removed == 1) %>% 
+  filter(k == 2) %>% 
+  filter(lambda == 0.1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>%
+#write_csv('working_df_all_itr_25_binary.csv')
+
+result_summary <- df %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+### ---- weighted version ----
+
+df <- df %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+result_summary <- df %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island.csv')
+head(result_summary)
+
+### ---- distribution of evaluators ----
+site_specificity <- ggplot(result_summary, aes(x = specificity)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Specificity",
+       y = "Count") +
+  tme
+
+site_f1 <- ggplot(result_summary, aes(x = f1_score)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "F1 score",
+       y = "Count") +
+  tme
+
+site_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Balanced accuracy",
+       y = "Count") +
+  tme
+
+site_precision <- ggplot(result_summary, aes(x = precision)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Precision",
+       y = "Count") +
+  tme
+
+site_recall <- ggplot(result_summary, aes(x = recall)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "Recall",
+       y = "Count") +
+  tme
+
+p1 <- site_f1 +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p2 <- site_recall +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p3 <- site_ba +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p4 <- site_precision +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p5 <- site_specificity +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+combined_plots <- arrangeGrob(
+  p1, p2, p3, p4, p5,
+  ncol = 3, 
+  nrow = 2
+)
+combined_with_axes <- arrangeGrob(
+  combined_plots,
+  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  left   = textGrob("Count of instances", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+final_plot <- grid.arrange(
+  combined_with_axes,
+  ncol = 3,
+  widths = c(2, 0.3, 0.3)
+)
+
+## ---- diagonal vs. off-diagonals ----
+# this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
+
+result_summary <- result_summary %>%
+  mutate(layer_comparison = case_when(
+    train_layer == test_layer ~ "Diagonal",
+    train_layer != test_layer ~ "Off-diagonals"
+  ))
+
+custom_colors <- c("Diagonal" = "steelblue",
+                   "Off-diagonals" = "thistle")
+
+# boxplots:
+site_ba <- plot_boxplot(result_summary, metric = "balanced_accuracy", 
+                        y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
+site_f1 <- plot_boxplot(result_summary, metric = "f1_score", 
+                        y_axis_label = "F1 score", stat_label_y = 0.85, stat_size = 6)
+
+combined_plots <- arrangeGrob(
+  site_ba, site_f1, 
+  ncol = 2, 
+  widths = c(1, 1)
+)
+
+final_plot <- grid.arrange(
+  combined_plots,
+  ncol = 2,
+  widths = c(2, 0.3)
+)
+
+# histograms: 
+hist_ba <- plot_hist(result_summary, metric = "balanced_accuracy", 
+                     y_axis_label = "Count")
+hist_f1 <- plot_hist(result_summary, metric = "f1_score", 
+                     y_axis_label = "Count",
+                     x_axis_label = "F1 score")
+
+hist_f1 <- hist_f1 + theme(axis.title.y = element_blank())
+
+combined_plot <- hist_ba + hist_f1 + 
+  plot_layout(guides = "collect") +
+  # Optionally, set the legend position (e.g., to the right or bottom)
+  plot_annotation(theme = theme(legend.position = "right"))
+
+## ---- correlate network size and density with evaluators ----
+# first we need to calculate the size and density of our networks
+# Initialize a data frame to store combined results for all layer combinations
+results <- data.frame()
+
+# Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
+# Load matrices
+d <- load_emln(emln_id)
+graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
+A_l <- d$extended
+
+# Total number of layers
+num_layers <- length(graph_list)
+
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+    
+    # Build the aggregated matrix A for training
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    
+    # Build the layer to predict matrix P
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    
+    node_to <- rownames(P) # for the results
+    node_from <- colnames(P)
+    
+    ### ---- creating a combined matrix C ----
+    all_row_ids <- unique(c(rownames(A), rownames(P)))
+    all_col_ids <- unique(c(colnames(A), colnames(P)))
+    C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                dimnames = list(all_row_ids, all_col_ids))
+    
+    # Place A into C
+    C[rownames(A), colnames(A)] <- A
+    
+    # Place P into C
+    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                          NA, 
+                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    
+    # Compute matrix properties
+    nrow_A <- nrow(A)
+    nrow_P <- nrow(P)
+    nrow_C <- nrow(C)
+    ncol_A <- ncol(A)
+    ncol_P <- ncol(P)
+    ncol_C <- ncol(C)
+    size_A <- length(A)
+    size_P <- length(P)
+    size_C <- length(C)
+    
+    # Calculate density for A, P, and C
+    density_A <- sum(A > 0) / length(A)
+    density_P <- sum(P > 0) / length(P)
+    density_C <- sum(C > 0) / length(C)
+    
+    # Add these values to the results table
+    results <- rbind(results, data.frame(emln_id = emln_id,
+                                         train_layer = layers_to_train,
+                                         test_layer = layer_to_predict,
+                                         nrow_A = nrow_A,
+                                         ncol_A = ncol_A,
+                                         size_A = size_A,
+                                         density_A = density_A,   # Added density
+                                         nrow_P = nrow_P,
+                                         ncol_P = ncol_P,
+                                         size_P = size_P,
+                                         density_P = density_P,   # Added density
+                                         nrow_C = nrow_C,
+                                         ncol_C = ncol_C,
+                                         size_C = size_C,
+                                         density_C = density_C))  # Added density
+    
+    
+  }
+}
+
+# View results
+View(results)
+results %>% write_csv('result_netsize_canaries_site_scale.csv')
+
+# add to main results
+result_summary <- result_summary %>%
+  left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+## ---- correlate Jaccard with evaluators ----
+## ---- correlate partner fidelity with evaluators ----
+## ---- correlate degree with evaluators ----
+### ---- number of non-observed links relation to degree ----
+# here we examine if the algorithm assigns more links to species with higher degree.
+## ---- plot never-observed links ----
+### ---- heatmap related to island proportion ----
+# here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of islands in which these interactions were observed.
+### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
+## ---- add distances and location names ----
+distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
+
+# proceed differently for island scale and site scale
+### ---- island scale ----
+# Function to extract island names (removes "_site_X")
+extract_island <- function(name) {
+  gsub("_site_[12]", "", name)
+}
+
+# Create new table with averaged distances at the island level
+distance_island_table <- distance_table %>%
+  mutate(
+    from_island = extract_island(from),
+    to_island = extract_island(to)
+  ) %>%
+  group_by(from_island, to_island) %>%
+  summarise(
+    avg_distance_m = mean(distance_m),
+    avg_distance_km = mean(distance_km),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    avg_distance_m = ifelse(from_island == to_island, 0, avg_distance_m),
+    avg_distance_km = ifelse(from_island == to_island, 0, avg_distance_km)
+  ) %>%
+  rename(from = from_island, to = to_island)  # Rename after calculation
+
+# Print result
+print(distance_island_table)
+
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_island_table <- distance_island_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Add names and distances to the main table
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# Step 1: Create a new grouped tibble
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
+# Add to main table
+result_summary <- result_summary %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+result_summary_island <- result_summary
+
+### ---- site scale ----
+# Modify the 'from' and 'to' columns in distance_island_table
+distance_table <- distance_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+# Add to main table
+
+result_summary <- result_summary %>%
+  left_join(
+    distance_table,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
+
+write.csv(result_summary, 'working_df_site_scaled_evaluators_distance.csv')
+
+result_summary_site <- result_summary
+
+## ---- correlate evaluators with distance ----
+make_cor_plot <- function(data, evaluator, 
+                          distance_col = "distance_km", 
+                          x_lab = "Geographical distance (km)",
+                          y_lab = NULL,
+                          extra_theme = NULL) {
+  # Use evaluator as y_lab if no alternative is provided
+  if (is.null(y_lab)) {
+    y_lab <- evaluator
+  }
+  
+  # Compute correlation between evaluator and distance
+  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 3)
+  p_value <- formatC(correlation$p.value, format = "f", digits = 2)
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Create plot with label in the upper right corner using Inf coordinates
+  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+    geom_point(color = "salmon2", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+    labs(x = x_lab, y = y_lab) +
+    # The following places the label at the upper right of the plot area
+    annotate("text", x = Inf, y = Inf, label = label_text,
+             hjust = 1.1, vjust = 1.1, size = 3, color = "black")
+  
+  # Optionally add additional theme modifications
+  if (!is.null(extra_theme)) {
+    plot <- plot + extra_theme
+  }
+  
+  return(plot)
+}
+
+cor_plot_site <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
+cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "recall", extra_theme = tme)
+
+# To combine the plots as before:
+p1 <- cor_plot_site + 
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+p2 <- cor_plot_isl + 
+  theme(legend.position = "none",
+        axis.title = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+
+combined_plots <- arrangeGrob(
+  p1, p2,
+  ncol = 2,
+  widths = c(1, 1)
+)
+combined_with_axes <- arrangeGrob(
+  combined_plots,
+  bottom = textGrob("Geographical distance (km)", 
+                    gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  left   = textGrob("Recall", rot = 90, 
+                    gp = gpar(fontsize = 14, fontface = "bold"))
+)
+final_plot <- grid.arrange(
+  combined_with_axes,
+  ncol = 2,
+  widths = c(2, 0.3)
+)
+
+final_plot
+## ---- plot heatmaps ----
+site_heatmap_recall <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "Recall") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_recall)
+
+island_heatmap_recall <- 
+  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "Recall") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(island_heatmap_recall)
+
+make_heatmap_plot <- function(data,            # Main data frame for the heatmap
+                              eval_col,        # Evaluator column name (e.g., "recall")
+                              train_col = "train_layer_name",  # x-axis variable name
+                              test_col = "test_layer_name",    # y-axis variable name
+                              x_lab = "Added layer",           # x-axis label
+                              y_lab = "Predicted layer",       # y-axis label
+                              fill_lab = NULL,                 # Fill legend label; if NULL, defaults to eval_col
+                              low = "steelblue2", 
+                              mid = "white", 
+                              high = "salmon2", 
+                              midpoint = 0.5, 
+                              na_value = "gray", 
+                              extra_theme = NULL) {            # Additional theme modifications (e.g., tme)
+  
+  # If no fill legend label is provided, use the evaluator name
+  if (is.null(fill_lab)) {
+    fill_lab <- eval_col
+  }
+  
+  # If no diagonal data frame is provided, subset the main data where training and testing layers match.
+  if (is.null(diag_data)) {
+    diag_data <- data[data[[train_col]] == data[[test_col]], ]
+  }
+  
+  # Create the heatmap
+  p <- ggplot(data, aes_string(x = train_col, y = test_col, fill = eval_col)) +
+    # First draw all tiles with thin black borders
+    geom_tile(color = "black", linewidth = 0.1) +
+    # Overlay the diagonal tiles (using the provided or derived data) with thicker black borders
+    geom_tile(data = diag_data, aes_string(x = train_col, y = test_col, fill = eval_col),
+              color = "black", linewidth = 1.2) +
+    # Define the fill gradient and set NA color
+    scale_fill_gradient2(low = low, mid = mid, high = high,
+                         midpoint = midpoint, na.value = na_value) +
+    # Add axis and legend labels
+    labs(x = x_lab, y = y_lab, fill = fill_lab) +
+    theme_minimal() +
+    theme(
+      plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+      panel.background = element_blank(),       # Remove panel background
+      panel.grid.major = element_blank(),       # Remove major grid lines
+      panel.grid.minor = element_blank(),       # Remove minor grid lines
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels
+    ) +
+    coord_fixed() + tme
+  
+  return(p)
+}
+
+# For an evaluator "recall" on a data frame 'result_summary_island'
+# (assuming tme is a predefined ggplot theme you want to apply)
+island_heatmap_ba <- make_heatmap_plot(data = result_summary_island, 
+                                           eval_col = "balanced_accuracy", 
+                                           train_col = "train_layer_name", 
+                                           test_col = "test_layer_name",
+                                           x_lab = "Added layer",
+                                           y_lab = "Predicted layer",
+                                           fill_lab = "Balanced \naccuracy",
+                                           extra_theme = tme)
+
+island_heatmap_f1 <- make_heatmap_plot(data = result_summary_island, 
+                                       eval_col = "f1_score", 
+                                       train_col = "train_layer_name", 
+                                       test_col = "test_layer_name",
+                                       x_lab = "Added layer",
+                                       y_lab = "Predicted layer",
+                                       fill_lab = "F1 score",
+                                       extra_theme = tme)
+
+island_heatmap_recall <- make_heatmap_plot(data = result_summary_island, 
+                                           eval_col = "recall", 
+                                           train_col = "train_layer_name", 
+                                           test_col = "test_layer_name",
+                                           x_lab = "Added layer",
+                                           y_lab = "Predicted layer",
+                                           fill_lab = "Recall",
+                                           extra_theme = tme)
+
+island_heatmap_precision <- make_heatmap_plot(data = result_summary_island, 
+                                           eval_col = "precision", 
+                                           train_col = "train_layer_name", 
+                                           test_col = "test_layer_name",
+                                           x_lab = "Added layer",
+                                           y_lab = "Predicted layer",
+                                           fill_lab = "Precision",
+                                           extra_theme = tme)
+
+island_heatmap_specificity <- make_heatmap_plot(data = result_summary_island, 
+                                              eval_col = "specificity", 
+                                              train_col = "train_layer_name", 
+                                              test_col = "test_layer_name",
+                                              x_lab = "Added layer",
+                                              y_lab = "Predicted layer",
+                                              fill_lab = "Specificity",
+                                              extra_theme = tme)
+
+p1 <- island_heatmap_f1 +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p2 <- island_heatmap_ba +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p3 <- island_heatmap_recall +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p4 <- island_heatmap_precision +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p5 <- island_heatmap_specificity +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+combined_plots <- arrangeGrob(
+  p1, p2, p3, p4, p5,
+  ncol = 3, 
+  nrow = 2
+)
+combined_with_axes <- arrangeGrob(
+  combined_plots,
+  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+  left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+)
+
+final_plot <- grid.arrange(
+  combined_with_axes,
+  ncol = 3,
+  widths = c(2, 0.3, 0.3)
+)
+## ---- compare scales ----
+# make a long list
+df1_labeled <- result_summary_site %>%
+  mutate(scale = "Site")
+
+df2_labeled <- result_summary_island %>%
+  mutate(scale = "Island")
+
+df_combined <- bind_rows(df1_labeled, df2_labeled)
+
+df_long <- df_combined %>%
+  pivot_longer(
+    cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
+    names_to = "metric",
+    values_to = "value"
+  )
+
+metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
+
+results <- lapply(metrics, function(metric) {
+  test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
+  test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
+  
+  if (test_normality_site > 0.05 & test_normality_island > 0.05) {
+    test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
+  } else {
+    test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
+  }
+  
+  data.frame(
+    Metric = metric,
+    Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
+    P_value = test$p.value
+  )
+})
+
+results_df <- do.call(rbind, results)
+print(results_df)
+
+# Define significance function
+get_pvalue_asterisks <- function(p) {
+  if (p < 0.001) return("***")  # Highly significant
+  else if (p < 0.01) return("**")  # Very significant
+  else if (p < 0.05) return("*")  # Significant
+  else return("ns")  # Not significant
+}
+
+stat_results <- lapply(metrics, function(metric) {
+  data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
+  
+  test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
+  
+  p_value <- test$p.value
+  significance <- get_pvalue_asterisks(p_value)
+  
+  data.frame(
+    metric = metric,
+    p_value = p_value,
+    significance = significance
+  )
+})
+
+stat_results_df <- do.call(rbind, stat_results)
+
+# Merge significance levels with the dataset
+df_long <- df_long %>%
+  left_join(stat_results_df, by = "metric")
+
+# Create the boxplot with significance annotations
+ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
+  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
+  theme_minimal() +
+  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
+  scale_x_discrete(labels = c(
+    "f1_score" = "F1 score",
+    "recall" = "Recall",
+    "precision" = "Precision",
+    "balanced_accuracy" = "Balanced \naccuracy",
+    "mcc" = "MCC",
+    "specificity" = "Specificity"
+  )) +  # Properly formatted labels
+  stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
+                     label.y = max(df_long$value, na.rm = TRUE) + 0.05,
+                     size = 5)  + 
+  theme(legend.text = element_text(size = 14),
+        legend.title = element_text(size = 14), ) + tme
+
+## ---- variable importance ----
