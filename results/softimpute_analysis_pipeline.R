@@ -14,6 +14,7 @@ library(grid)
 library(scales)
 library(cowplot)  # for get_legend()
 library(patchwork)
+library(vegan)
 
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
@@ -427,13 +428,14 @@ combined_plot <- hist_ba + hist_f1 +
   # Optionally, set the legend position (e.g., to the right or bottom)
   plot_annotation(theme = theme(legend.position = "right"))
 
-## ---- correlate network size and density with evaluators ----
+## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
 
 # Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
-# Load matrices
+# Load matrices. this is done differently for site scale and island scale.
+### ---- site scale ----
 d <- load_emln(emln_id)
 graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
@@ -508,18 +510,454 @@ for (layers_to_train in 1:num_layers) {
 
 # View results
 View(results)
-results %>% write_csv('result_netsize_canaries_site_scale.csv')
+results %>% write_csv('result_netsize_canaries_site_scaled_weighted_50_itr.csv')
 
 # add to main results
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-## ---- correlate Jaccard with evaluators ----
-## ---- correlate partner fidelity with evaluators ----
-## ---- correlate degree with evaluators ----
+### ---- island scale ----
+# Initialize a data frame to store combined results for all layer combinations
+results <- data.frame()
+
+# Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
+# Load matrices
+d <- load_emln(emln_id)
+graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
+A_l <- d$extended
+
+# aggregate to island scale
+# Extract numeric layer numbers
+A_l <- A_l %>%
+  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
+  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
+                                   paste0("layer_", layer_num, "_", layer_num + 1),
+                                   paste0("layer_", layer_num - 1, "_", layer_num)))
+
+# Aggregate data
+aggregated_df <- A_l %>%
+  group_by(aggregated_layer, node_from, node_to, type) %>%
+  summarise(weight = sum(weight), .groups = "drop") %>%
+  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# Generate new layer names
+unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
+new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
+
+# Create a mapping table
+layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
+
+# Apply renaming in aggregated_df
+aggregated_df <- aggregated_df %>%
+  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
+  mutate(layer_from = new_layer, layer_to = new_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# View updated aggregated_df
+print(aggregated_df)
+
+# Total number of layers
+num_layers <- length(unique(aggregated_df$layer_from))
+
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+    
+    # Build the aggregated matrix A for training
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    
+    # Build the layer to predict matrix P
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    
+    node_to <- rownames(P) # for the results
+    node_from <- colnames(P)
+    
+    ### ---- creating a combined matrix C ----
+    all_row_ids <- unique(c(rownames(A), rownames(P)))
+    all_col_ids <- unique(c(colnames(A), colnames(P)))
+    C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                dimnames = list(all_row_ids, all_col_ids))
+    
+    # Place A into C
+    C[rownames(A), colnames(A)] <- A
+    
+    # Place P into C
+    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                          NA, 
+                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    
+    # Compute matrix properties
+    nrow_A <- nrow(A)
+    nrow_P <- nrow(P)
+    nrow_C <- nrow(C)
+    ncol_A <- ncol(A)
+    ncol_P <- ncol(P)
+    ncol_C <- ncol(C)
+    size_A <- length(A)
+    size_P <- length(P)
+    size_C <- length(C)
+    
+    # Calculate density for A, P, and C
+    density_A <- sum(A > 0) / length(A)
+    density_P <- sum(P > 0) / length(P)
+    density_C <- sum(C > 0) / length(C)
+    
+    # Add these values to the results table
+    results <- rbind(results, data.frame(emln_id = emln_id,
+                                         train_layer = layers_to_train,
+                                         test_layer = layer_to_predict,
+                                         nrow_A = nrow_A,
+                                         ncol_A = ncol_A,
+                                         size_A = size_A,
+                                         density_A = density_A,   # Added density
+                                         nrow_P = nrow_P,
+                                         ncol_P = ncol_P,
+                                         size_P = size_P,
+                                         density_P = density_P,   # Added density
+                                         nrow_C = nrow_C,
+                                         ncol_C = ncol_C,
+                                         size_C = size_C,
+                                         density_C = density_C))  # Added density
+    
+    
+  }
+}
+
+# View results
+View(results)
+
+results %>% write_csv('result_netsize_canaries_island_scale.csv')
+
+result_summary <- result_summary %>%
+  left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+### ---- correlate netsize with evaluators ----
+
+# if we want to use all of the results
+df_long_1off <- result_summary %>%
+  pivot_longer(
+    cols = c(size_P, density_P, size_C, density_C),
+    names_to = "measure_type",
+    values_to = "measure_value"
+  )
+
+# For each variable, compute correlation with f1_score:
+cor_table <- df_long_1off %>%
+  group_by(measure_type) %>%
+  summarise(
+    cor_value = cor(f1_score, measure_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, measure_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 2),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "f", digits = 4),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+# Create a named vector for renaming facets
+facet_labels <- c(
+  "size_C" = "Size of matrix C",
+  "density_C" = "Density of matrix C",
+  "size_P" = "Size of matrix P",
+  "density_P" = "Density of matrix P"
+)
+
+netsize_site <- ggplot(df_long_1off, aes(x = measure_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+  facet_wrap(
+    ~ measure_type,
+    scales   = "free_x",
+    labeller = as_labeller(facet_labels)  # Use the named vector
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,
+    vjust   = 1.2,
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Network feature",
+    y = "F1 score",
+    title = "F1 vs. network measures - 1 off-diagonal"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.ticks = element_line(color = "black")
+  )
+print(netsize_site)
+
+## ---- Jaccard correlation with evaluators ----
+
+# Initialize a data frame to store combined results for all layer combinations
+results_jaccard <- data.frame()
+
+### ---- site scale ----
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    
+    # 1) Jaccard pollinators
+    poll_train <- rownames(A)[ rowSums(A) > 0 ]
+    poll_test  <- rownames(P)[ rowSums(P) > 0 ]
+    intersection_poll <- length(intersect(poll_train, poll_test))
+    union_poll        <- length(union(poll_train, poll_test))
+    jaccard_poll <- if (union_poll == 0) NA else intersection_poll / union_poll
+    
+    # 2) Jaccard plants
+    plants_train <- colnames(A)[ colSums(A) > 0 ]
+    plants_test  <- colnames(P)[ colSums(P) > 0 ]
+    intersection_plants <- length(intersect(plants_train, plants_test))
+    union_plants        <- length(union(plants_train, plants_test))
+    jaccard_plants <- if (union_plants == 0) NA else intersection_plants / union_plants
+    
+    # 3) Jaccard edges
+    pairs_train <- which(A > 0, arr.ind = TRUE)
+    pairs_train_strings <- apply(pairs_train, 1, function(rc) {
+      paste(rownames(A)[rc[1]], colnames(A)[rc[2]], sep = "_")
+    })
+    
+    pairs_test <- which(P > 0, arr.ind = TRUE)
+    pairs_test_strings <- apply(pairs_test, 1, function(rc) {
+      paste(rownames(P)[rc[1]], colnames(P)[rc[2]], sep = "_")
+    })
+    intersection_edges <- length(intersect(pairs_train_strings, pairs_test_strings))
+    union_edges        <- length(union(pairs_train_strings, pairs_test_strings))
+    jaccard_edges <- if (union_edges == 0) NA else intersection_edges / union_edges
+    
+    # store the result
+    results_jaccard <- rbind(
+      results_jaccard,
+      data.frame(
+        emln_id = emln_id,
+        train_layer = layers_to_train,
+        test_layer  = layer_to_predict,
+        jaccard_pollinators = jaccard_poll,
+        jaccard_plants      = jaccard_plants,
+        jaccard_edges       = jaccard_edges
+      )
+    )
+  }
+}
+
+
+head(results_jaccard)
+result_summary <- result_summary %>%
+  left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
+
+#### ---- all data points ----
+
+df_long_1off <- result_summary %>%
+  pivot_longer(
+    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
+    names_to = "jaccard_type",
+    values_to = "jaccard_value"
+  )
+
+# For each jaccard_type, compute correlation with f1_score:
+cor_table <- df_long_1off %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 2),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "f", digits = 2),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x"
+    #,             # or "free" if you want x & y free
+    #labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 1.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard - All data (site)"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.ticks = element_line(color = "black")
+  )
+
+#### ---- 2 off-diagonals no diagonal ----
+
+canary_results_diags <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer != test_layer)
+
+df_long_1off <- canary_results_diags %>%
+  pivot_longer(
+    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
+    names_to = "jaccard_type",
+    values_to = "jaccard_value"
+  )
+
+# For each jaccard_type, compute correlation with f1_score:
+cor_table <- df_long_1off %>%
+  group_by(jaccard_type) %>%
+  summarise(
+    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
+    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
+  ) %>%
+  ungroup()
+
+cor_table
+
+cor_table_annot <- cor_table %>%
+  mutate(
+    # round correlation to 3 decimals, no scientific notation
+    r_fmt  = formatC(cor_value, format = "f", digits = 2),
+    # round p-value to 4 decimals, no scientific notation
+    p_fmt  = formatC(p_value,  format = "f", digits = 2),
+    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+  )
+
+ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
+  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+  facet_wrap(
+    ~ jaccard_type,
+    scales   = "free_x"
+    #,             # or "free" if you want x & y free
+    #labeller = as_labeller(type_labels)  # rename facets
+  ) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
+  # Annotation: place correlation in top-right corner of each facet
+  geom_text(
+    data    = cor_table_annot,
+    aes(label = label_text),
+    x       = Inf,
+    y       = Inf,
+    hjust   = 1.1,  # move left from right edge
+    vjust   = 1.2,  # move down from top edge
+    size    = 3.2,
+    color   = "black"
+  ) +
+  labs(
+    x = "Jaccard similarity",
+    y = "F1 score",
+    title = "F1 vs. Jaccard - off-diagonals (site)"
+  ) +
+  theme_minimal() +
+  tme +
+  theme(
+    # Add a black frame around facet labels with thickness
+    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.ticks = element_line(color = "black")
+  )
+
+### ---- island scale ----
+# Total number of layers
+num_layers <- length(unique(aggregated_df$layer_from)) # we have it from netsize calculation
+
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
+    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
+    
+    # 1) Jaccard pollinators
+    poll_train <- rownames(A)[ rowSums(A) > 0 ]
+    poll_test  <- rownames(P)[ rowSums(P) > 0 ]
+    intersection_poll <- length(intersect(poll_train, poll_test))
+    union_poll        <- length(union(poll_train, poll_test))
+    jaccard_poll <- if (union_poll == 0) NA else intersection_poll / union_poll
+    
+    # 2) Jaccard plants
+    plants_train <- colnames(A)[ colSums(A) > 0 ]
+    plants_test  <- colnames(P)[ colSums(P) > 0 ]
+    intersection_plants <- length(intersect(plants_train, plants_test))
+    union_plants        <- length(union(plants_train, plants_test))
+    jaccard_plants <- if (union_plants == 0) NA else intersection_plants / union_plants
+    
+    # 3) Jaccard edges
+    pairs_train <- which(A > 0, arr.ind = TRUE)
+    pairs_train_strings <- apply(pairs_train, 1, function(rc) {
+      paste(rownames(A)[rc[1]], colnames(A)[rc[2]], sep = "_")
+    })
+    
+    pairs_test <- which(P > 0, arr.ind = TRUE)
+    pairs_test_strings <- apply(pairs_test, 1, function(rc) {
+      paste(rownames(P)[rc[1]], colnames(P)[rc[2]], sep = "_")
+    })
+    intersection_edges <- length(intersect(pairs_train_strings, pairs_test_strings))
+    union_edges        <- length(union(pairs_train_strings, pairs_test_strings))
+    jaccard_edges <- if (union_edges == 0) NA else intersection_edges / union_edges
+    
+    # store the result
+    results_jaccard <- rbind(
+      results_jaccard,
+      data.frame(
+        emln_id = emln_id,
+        train_layer = layers_to_train,
+        test_layer  = layer_to_predict,
+        jaccard_pollinators = jaccard_poll,
+        jaccard_plants      = jaccard_plants,
+        jaccard_edges       = jaccard_edges
+      )
+    )
+  }
+}
+
+
+head(results_jaccard)
+result_summary <- result_summary %>%
+  left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
+
+## ---- partner fidelity correlation with evaluators ----
+## ---- degree correlation with evaluators ----
 ### ---- number of non-observed links relation to degree ----
 # here we examine if the algorithm assigns more links to species with higher degree.
-## ---- plot never-observed links ----
+## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of islands in which these interactions were observed.
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
@@ -603,7 +1041,7 @@ write.csv(result_summary, 'working_df_site_scaled_evaluators_distance.csv')
 
 result_summary_site <- result_summary
 
-## ---- correlate evaluators with distance ----
+## ---- distance correlation with evaluators ----
 make_cor_plot <- function(data, evaluator, 
                           distance_col = "distance_km", 
                           x_lab = "Geographical distance (km)",

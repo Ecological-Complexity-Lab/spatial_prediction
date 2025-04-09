@@ -98,8 +98,8 @@ num_layers <- length(unique(aggregated_df$layer_from))
   for (layers_to_train in 1:num_layers) {
     for (layer_to_predict in 1:num_layers) {
       
-      A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
-      P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+      A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
+      P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
       
       # 1) Jaccard pollinators
       poll_train <- rownames(A)[ rowSums(A) > 0 ]
