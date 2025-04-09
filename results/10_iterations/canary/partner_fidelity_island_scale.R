@@ -112,12 +112,13 @@ df_merged <- df_merged %>%
 
 write.csv(df_sorensen_pollinators, "sorensen_pollinators_island.csv")
 write.csv(df_sorensen, "sorensen_plants_island.csv")
+
+# weighted version
 ## ---- add distance between predicted and observed values ----
 df_merged <- df_merged %>% mutate(predicted_value_sigm = sigmoid(predicted_values))
 df_merged <- df_merged %>% mutate(predicted_sigm_obs = predicted_value_sigm - original_links)
 df_merged <- df_merged %>% mutate(pred_obs_abs = abs(predicted_sigm_obs))
 
-# weighted version
 df_merged <- df_merged %>% mutate(pred_obs_abs = abs(predicted_values - original_links))
 df_merged_removed <- df_merged %>% filter(removed == 1)
 

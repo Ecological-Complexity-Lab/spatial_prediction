@@ -16,6 +16,7 @@ library(cowplot)  # for get_legend()
 library(patchwork)
 library(vegan)
 
+source("~/Documents/github/softimpute/results/useful_for_plotting.R")
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
               axis.title = element_text(size = 14, face = "bold"),
@@ -194,7 +195,7 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 df <- read_csv('canary_weighted_scaled_site_60_0.csv') # weighted, scaled
 
 ## ---- pr and roc curves ----
-df <- df %>%
+df_removed <- df %>%
   filter(removed == 1) %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>% 
@@ -205,21 +206,21 @@ df <- df %>%
 
 # binary version
 # For the ROC curve:
-plot_roc_curve(df$original_links, df$predicted_values)
+plot_roc_curve(df_removed$original_links, df_removed$predicted_values)
 
 # For the PR curve:
-plot_pr_curve(df$original_links, df$predicted_values)
+plot_pr_curve(df_removed$original_links, df_removed$predicted_values)
 
 # weighted version 
 # For the ROC curve:
-plot_roc_curve(df$original_links_binary, df$predicted_values)
+plot_roc_curve(df_removed$original_links_binary, df_removed$predicted_values)
 
 # For the PR curve:
-plot_pr_curve(df$original_links_binary, df$predicted_values)
+plot_pr_curve(df_removed$original_links_binary, df_removed$predicted_values)
 
 ## ---- evaluation ----
 ### ---- plot distribution of predictions by true class ---- 
-ggplot(df, aes(x = predicted_prob_sigm, fill = factor(original_links_binary))) +
+ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_binary))) +
   geom_density(alpha = 0.5) +
   labs(title = "Distribution of predicted probabilities \nby true class",
        x = "Predicted probability", y = "Density",
@@ -227,7 +228,7 @@ ggplot(df, aes(x = predicted_prob_sigm, fill = factor(original_links_binary))) +
   theme_minimal() + tme
 
 ### ---- binary version ----
-df <- df %>%
+df_removed <- df %>%
   filter(removed == 1) %>% 
   filter(k == 2) %>% 
   filter(lambda == 0.1) %>% 
@@ -235,7 +236,7 @@ df <- df %>%
   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>%
 #write_csv('working_df_all_itr_25_binary.csv')
 
-result_summary <- df %>%
+result_summary <- df_removed %>%
   group_by(emln_id, train_layer, test_layer, itr) %>%
   summarise(
     TP = sum(original_links == 1 & predicted_bin_sigm == 1),
@@ -267,13 +268,13 @@ result_summary <- df %>%
 
 ### ---- weighted version ----
 
-df <- df %>%
+df_removed <- df %>%
   filter(removed == 1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
   mutate(original_binary = if_else(original_links > 0, 1, 0))
 
-result_summary <- df %>%
+result_summary <- df_removed %>%
   group_by(emln_id, train_layer, test_layer, itr) %>%
   summarise(
     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
@@ -763,69 +764,80 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
+#### ---- plot ----
+make_facet_scatter_plot <- function(data,
+                                    evaluator = "f1_score", 
+                                    pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                    names_to = "jaccard_type", 
+                                    values_to = "jaccard_value",
+                                    x_lab = "Jaccard similarity",
+                                    y_lab = "F1 score",
+                                    plot_title = "F1 vs. Jaccard - All data (site)",
+                                    facet_scales = "free_x") {
+  
+  # Reshape data from wide to long format for the specified pivot columns
+  df_long <- data %>% 
+    pivot_longer(cols = all_of(pivot_cols), 
+                 names_to = names_to, 
+                 values_to = values_to)
+  
+  # For each facet (jaccard_type), compute correlation between the evaluator and jaccard_value
+  cor_table <- df_long %>%
+    group_by(!!sym(names_to)) %>%
+    summarise(
+      cor_value = cor(.data[[evaluator]], .data[[values_to]], use = "complete.obs", method = "pearson"),
+      p_value   = cor.test(.data[[evaluator]], .data[[values_to]], method = "pearson")$p.value
+    ) %>%
+    ungroup()
+  
+  # Create annotations with formatted correlation coefficients and p-values
+  cor_table_annot <- cor_table %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = formatC(p_value, format = "f", digits = 2),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  # Construct the faceted scatter plot
+  plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+    facet_wrap(as.formula(paste("~", names_to)), scales = facet_scales) +
+    scale_x_continuous(labels = number_format(accuracy = 0.1)) +
+    # Place the correlation annotation in the upper-right corner of each facet
+    geom_text(data = cor_table_annot,
+              aes(label = label_text),
+              x = Inf,
+              y = Inf,
+              hjust = 1.1,
+              vjust = 1.2,
+              size = 3.2,
+              color = "black") +
+    labs(x = x_lab, y = y_lab, title = plot_title) +
+    theme_minimal() +
+    tme +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 1),
+      axis.ticks = element_line(color = "black")
+    )
+  
+  return(plot)
+}
+
 #### ---- all data points ----
+# Example usage:
+# Assume that 'result_summary' is your data frame, 'f1_score' is the evaluator,
+# and tme is your custom ggplot theme. You can call the function as follows:
+all_site <- make_facet_scatter_plot(data = result_summary, 
+                                   evaluator = "f1_score",
+                                   pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                   x_lab = "Jaccard similarity",
+                                   y_lab = "F1 score",
+                                   plot_title = "F1 vs. Jaccard - All data (site)",
+                                   facet_scales = "free_x")
 
-df_long_1off <- result_summary %>%
-  pivot_longer(
-    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
-    names_to = "jaccard_type",
-    values_to = "jaccard_value"
-  )
-
-# For each jaccard_type, compute correlation with f1_score:
-cor_table <- df_long_1off %>%
-  group_by(jaccard_type) %>%
-  summarise(
-    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
-    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
-  ) %>%
-  ungroup()
-
-cor_table
-
-cor_table_annot <- cor_table %>%
-  mutate(
-    # round correlation to 3 decimals, no scientific notation
-    r_fmt  = formatC(cor_value, format = "f", digits = 2),
-    # round p-value to 4 decimals, no scientific notation
-    p_fmt  = formatC(p_value,  format = "f", digits = 2),
-    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-  )
-
-ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
-  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
-  facet_wrap(
-    ~ jaccard_type,
-    scales   = "free_x"
-    #,             # or "free" if you want x & y free
-    #labeller = as_labeller(type_labels)  # rename facets
-  ) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
-  # Annotation: place correlation in top-right corner of each facet
-  geom_text(
-    data    = cor_table_annot,
-    aes(label = label_text),
-    x       = Inf,
-    y       = Inf,
-    hjust   = 1.1,  # move left from right edge
-    vjust   = 1.2,  # move down from top edge
-    size    = 3.2,
-    color   = "black"
-  ) +
-  labs(
-    x = "Jaccard similarity",
-    y = "F1 score",
-    title = "F1 vs. Jaccard - All data (site)"
-  ) +
-  theme_minimal() +
-  tme +
-  theme(
-    # Add a black frame around facet labels with thickness
-    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
-    panel.border = element_rect(color = "black", fill = NA, size = 1),
-    axis.ticks = element_line(color = "black")
-  )
+# To display the plot
+print(all_site)
 
 #### ---- 2 off-diagonals no diagonal ----
 
@@ -833,67 +845,14 @@ canary_results_diags <- result_summary %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer != test_layer)
 
-df_long_1off <- canary_results_diags %>%
-  pivot_longer(
-    cols = c(jaccard_pollinators, jaccard_plants, jaccard_edges),
-    names_to = "jaccard_type",
-    values_to = "jaccard_value"
-  )
-
-# For each jaccard_type, compute correlation with f1_score:
-cor_table <- df_long_1off %>%
-  group_by(jaccard_type) %>%
-  summarise(
-    cor_value = cor(f1_score, jaccard_value, use = "complete.obs", method = "pearson"),
-    p_value   = cor.test(f1_score, jaccard_value, method = "pearson")$p.value
-  ) %>%
-  ungroup()
-
-cor_table
-
-cor_table_annot <- cor_table %>%
-  mutate(
-    # round correlation to 3 decimals, no scientific notation
-    r_fmt  = formatC(cor_value, format = "f", digits = 2),
-    # round p-value to 4 decimals, no scientific notation
-    p_fmt  = formatC(p_value,  format = "f", digits = 2),
-    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-  )
-
-ggplot(df_long_1off, aes(x = jaccard_value, y = f1_score)) +
-  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "thistle") +
-  facet_wrap(
-    ~ jaccard_type,
-    scales   = "free_x"
-    #,             # or "free" if you want x & y free
-    #labeller = as_labeller(type_labels)  # rename facets
-  ) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.1), ) +
-  # Annotation: place correlation in top-right corner of each facet
-  geom_text(
-    data    = cor_table_annot,
-    aes(label = label_text),
-    x       = Inf,
-    y       = Inf,
-    hjust   = 1.1,  # move left from right edge
-    vjust   = 1.2,  # move down from top edge
-    size    = 3.2,
-    color   = "black"
-  ) +
-  labs(
-    x = "Jaccard similarity",
-    y = "F1 score",
-    title = "F1 vs. Jaccard - off-diagonals (site)"
-  ) +
-  theme_minimal() +
-  tme +
-  theme(
-    # Add a black frame around facet labels with thickness
-    #strip.background = element_rect(color = "black", fill = "white", size = 1.2),
-    panel.border = element_rect(color = "black", fill = NA, size = 1),
-    axis.ticks = element_line(color = "black")
-  )
+offs_site <- make_facet_scatter_plot(data = canary_results_diags, 
+                                    evaluator = "f1_score",
+                                    pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                    x_lab = "Jaccard similarity",
+                                    y_lab = "F1 score",
+                                    plot_title = "F1 vs. Jaccard - off-diagonals (site)",
+                                    facet_scales = "free_x")
+offs_site
 
 ### ---- island scale ----
 # Total number of layers
@@ -953,9 +912,327 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
+#### ---- plot ----
+all_island <- make_facet_scatter_plot(data = result_summary, 
+                                       evaluator = "f1_score",
+                                       pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                       x_lab = "Jaccard similarity",
+                                       y_lab = "F1 score",
+                                       plot_title = "F1 vs. Jaccard - all data (island)",
+                                       facet_scales = "free_x")
+
+all_island
+
+canary_results_diags_isl <- result_summary %>%
+  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+  filter(train_layer != test_layer)
+
+offs_island <- make_facet_scatter_plot(data = canary_results_diags_isl, 
+                                     evaluator = "f1_score",
+                                     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                     x_lab = "Jaccard similarity",
+                                     y_lab = "F1 score",
+                                     plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                     facet_scales = "free_x")
+
+offs_island
+
 ## ---- partner fidelity correlation with evaluators ----
-## ---- degree correlation with evaluators ----
-### ---- number of non-observed links relation to degree ----
+
+# filter out cases in which train = test layer
+df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
+  filter(original_links == 1) %>% filter(itr == 1)
+
+### ---- plants fidelity ----
+# 1. For each plant (node_from) and layer, gather the pollinators (node_to).
+#    (Assuming 'train_layer' is the relevant layer ID—adapt as needed.)
+df_plant_partners <- df_fidelity %>%
+  distinct(node_from, train_layer, node_to) %>%
+  group_by(node_from, train_layer) %>%
+  summarise(partners = list(unique(node_to)), .groups = "drop")
+
+# 2. For each plant, compute mean Sorensen similarity across all pairs of layers.
+df_sorensen <- df_plant_partners %>%
+  group_by(node_from) %>%
+  summarise(
+    mean_sorensen_plants = {
+      n_layers <- n()
+      # If the plant is only in one layer, there are no pairs, so return NA
+      if (n_layers < 2) {
+        NA_real_
+      } else {
+        # Get all pairwise combinations of rows in this group
+        idx_pairs <- combn(n_layers, 2)
+        # Compute Sorensen for each pair
+        sims <- apply(idx_pairs, 2, function(idx) {
+          p1 <- partners[[idx[1]]]
+          p2 <- partners[[idx[2]]]
+          a  <- length(intersect(p1, p2))          # shared partners
+          b  <- length(setdiff(p1, p2))            # unique to first layer
+          c  <- length(setdiff(p2, p1))            # unique to second layer
+          2 * a / (2 * a + b + c)
+        })
+        mean(sims)  # average Sorensen for that plant
+      }
+    }
+  )
+
+df_merged <- df %>%
+  left_join(df_sorensen, by = "node_from")
+
+### ---- pollinators fidelity ----
+
+df_pollinators <- df_fidelity %>%
+  distinct(node_to, train_layer, node_from) %>%
+  group_by(node_to, train_layer) %>%
+  summarise(partners = list(unique(node_from)), .groups = "drop")
+
+# 2. For each plant, compute mean Sorensen similarity across all pairs of layers.
+df_sorensen_pollinators <- df_pollinators %>%
+  group_by(node_to) %>%
+  summarise(
+    mean_sorensen_pollinators = {
+      n_layers <- n()
+      # If the plant is only in one layer, there are no pairs, so return NA
+      if (n_layers < 2) {
+        NA_real_
+      } else {
+        # Get all pairwise combinations of rows in this group
+        idx_pairs <- combn(n_layers, 2)
+        # Compute Sorensen for each pair
+        sims <- apply(idx_pairs, 2, function(idx) {
+          p1 <- partners[[idx[1]]]
+          p2 <- partners[[idx[2]]]
+          a  <- length(intersect(p1, p2))          # shared partners
+          b  <- length(setdiff(p1, p2))            # unique to first layer
+          c  <- length(setdiff(p2, p1))            # unique to second layer
+          2 * a / (2 * a + b + c)
+        })
+        mean(sims)  # average Sorensen for that plant
+      }
+    }
+  )
+
+df_merged <- df_merged %>%
+  left_join(df_sorensen_pollinators, by = "node_to")
+
+### --- correlation with evaluators ----
+summary_df <- df_merged %>%
+  group_by(train_layer, test_layer) %>%
+  summarise(
+    avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
+    avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+df <- df %>% 
+  left_join(summary_df, by = c("train_layer", "test_layer"))
+  
+working_df_offs <- df %>% filter (train_layer != test_layer)
+
+correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
+  geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+  labs(x = "Mean Sorensen similarity",
+       y = "F1 score",
+       title = "Island scale (pollinators)") +
+  tme +
+  annotate("text",
+           x = 0.31, y = 0.7,   # Adjust depending on your data range
+           label = label_text,
+           size = 3.5,
+           color = "black")+
+  theme(axis.title.y = element_blank()) # for the unified plot
+
+correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
+correlation
+# Extract correlation coefficient and p-value
+r_value <- round(correlation$estimate, 3)
+p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value, ", p = ", p_value)
+
+plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
+  geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+  labs(x = "Mean Sorensen similarity",
+       y = "F1 score",
+       title = "Island scale (plants)") +
+  tme +
+  annotate("text", x = Inf, y = Inf, label = label_text,
+            hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
+  theme(axis.title.y = element_blank()) # for the unified plot
+
+
+grid.arrange(
+  arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
+  left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
+)
+  
+## ---- degree impact and correlation with evaluators ----
+### ---- calculate overall degree ----
+# Step 1: Filter the data
+df_filtered <- df %>%
+  filter(itr == 1, original_links == 1)
+
+# Step 2a: Calculate degree for each plant species (node_from)
+plant_degree <- df_filtered %>%
+  group_by(train_layer, test_layer, node_from) %>%
+  summarise(plant_degree = n(), .groups = "drop")
+
+# Average plant degree by train_layer and test_layer
+avg_plant_degree <- plant_degree %>%
+  group_by(node_from) %>%
+  summarise(avg_plant_degree = mean(plant_degree), .groups = "drop")
+
+overall_plant_degree <- df_filtered %>% 
+  group_by(node_from) %>% 
+  summarise(overall_plant_degree = length(unique(node_to)), .groups = "drop")
+
+overall_poll_degree <- df_filtered %>% 
+  group_by(node_to) %>% 
+  summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
+
+# Step 2b: Calculate degree for each pollinator species (node_to)
+pollinator_degree <- df_filtered %>%
+  group_by(train_layer, test_layer, node_to) %>%
+  summarise(poll_degree = n(), .groups = "drop")
+
+# Average pollinator degree by train_layer and test_layer
+avg_pollinator_degree <- pollinator_degree %>%
+  group_by(node_to) %>%
+  summarise(avg_pollinator_degree = mean(poll_degree), .groups = "drop")
+
+### ---- plot degree vs. number of never observed interactions ----
+df <- df %>%
+  mutate(sigm_predicted = sigmoid(predicted_values)) %>% 
+  mutate(island_id = paste(train_layer, test_layer, sep = "_"))
+
+# Step 1: For each island and interaction, determine if the interaction was observed.
+# Here we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
+df_island <- df %>%
+  group_by(node_from, node_to, island_id) %>%
+  summarise(
+    observed = as.integer(any(original_links == 1)),
+    # For sigm_predicted, you might take the average across iterations per island.
+    island_sigm_predicted = mean(sigm_predicted, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+table(df_island$observed)
+
+# Step 2: Now, for each unique interaction, compute:
+# - The proportion of islands where it was observed.
+# - The average predicted probability (averaged over islands).
+df_summary <- df_island %>%
+  group_by(node_from, node_to) %>%
+  summarise(
+    avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+    n_islands = n(),  # number of islands contributing
+    .groups = "drop"
+  )
+
+# 3. Remove interactions that were never observed and predicted as zero.
+df_summary <- df_summary %>% 
+  filter(!(avg_prop == 0 & avg_sigm_predicted < 0.5))
+
+df_never_observed <- df_summary %>%
+  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  group_by(node_from) %>%
+  summarise(count_never_observed = n(), .groups = "drop")
+
+df_never_observed_poll <- df_summary %>%
+  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  group_by(node_to) %>%
+  summarise(count_never_observed = n(), .groups = "drop")
+
+never_plants_degree <- df_never_observed %>% left_join(avg_plant_degree, by="node_from")
+
+# for overall degree
+
+never_plants_degree_overall <- df_never_observed %>% left_join(overall_plant_degree, by="node_from")
+
+never_poll_degree_overall <- df_never_observed_poll %>% left_join(overall_poll_degree, by="node_to")
+
+df_to_correlate <- never_plants_degree_overall
+df_to_correlate$x <- df_to_correlate$overall_plant_degree
+df_to_correlate$y <- df_to_correlate$count_never_observed
+
+df_to_correlate <- never_poll_degree_overall
+df_to_correlate$x <- df_to_correlate$overall_poll_degree
+df_to_correlate$y <- df_to_correlate$count_never_observed
+
+# correlation
+correlation_plants <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
+correlation_plants
+# Extract correlation coefficient and p-value
+r_value <- round(correlation_plants$estimate, 3)
+p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
+label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
+
+plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
+  geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Overall degree",
+    y = "Number of predicted, non-observed interactions",
+    title = "Pollinators"
+  ) +
+  theme_minimal() + tme +
+  annotate("text",
+           x = 19, y = 27,   # Adjust depending on your data range
+           label = label_text_plants,
+           size = 5,
+           color = "black")
+plant_degree1
+
+# for pollinators
+df_never_observed_poll <- df_summary %>%
+  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  group_by(node_to) %>%
+  summarise(count_never_observed = n(), .groups = "drop")
+
+df_summary <- df_never_observed %>%
+  left_join(df_summary, by = "node_to")
+
+# Plot the average proportion correct vs. the average degree for each plant species
+
+# correlation
+correlation_poll <- cor.test(df_pollinator_summary$count_never_observed, df_pollinator_summary$avg_degree, use = "complete.obs", method = "pearson")
+correlation_poll
+# Extract correlation coefficient and p-value
+r_value_poll <- round(correlation_poll$estimate, 3)
+p_value_poll <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
+label_text <- paste0("r = ", r_value_poll, ", p = ", p_value_poll)
+
+poll_degree <- ggplot(df_pollinator_summary, aes(x = avg_degree, y = count_never_observed)) +
+  geom_point(alpha = 0.6, size = 2, color = "thistle") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Degree",
+    y = "Number of predicted, non-observed interactions",
+    title = "Pollinators"
+  ) +
+  theme_minimal() + tme +
+  annotate("text",
+           x = 130, y = 26,   # Adjust depending on your data range
+           label = label_text,
+           size = 5,
+           color = "black")
+
+final_plot <- combine_plots(plant_degree, poll_degree)
+
+
+# stopped here. 
+
+
 # here we examine if the algorithm assigns more links to species with higher degree.
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
@@ -1066,7 +1343,7 @@ make_cor_plot <- function(data, evaluator,
     labs(x = x_lab, y = y_lab) +
     # The following places the label at the upper right of the plot area
     annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3, color = "black")
+             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
   
   # Optionally add additional theme modifications
   if (!is.null(extra_theme)) {

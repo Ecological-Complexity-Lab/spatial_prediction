@@ -29,7 +29,7 @@ df_fidelity <- df %>% filter(train_layer == test_layer) %>%
 ## ---- plants ----
 # 1. For each plant (node_from) and layer, gather the pollinators (node_to).
 #    (Assuming 'train_layer' is the relevant layer ID—adapt as needed.)
-df_plant_partners <- df %>%
+df_plant_partners <- df_fidelity %>%
   distinct(node_from, train_layer, node_to) %>%
   group_by(node_from, train_layer) %>%
   summarise(partners = list(unique(node_to)), .groups = "drop")
@@ -65,7 +65,7 @@ df_merged <- df %>%
 
 # for pollinators
 
-df_pollinators <- df %>%
+df_pollinators <- df_fidelity %>%
   distinct(node_to, train_layer, node_from) %>%
   group_by(node_to, train_layer) %>%
   summarise(partners = list(unique(node_from)), .groups = "drop")
