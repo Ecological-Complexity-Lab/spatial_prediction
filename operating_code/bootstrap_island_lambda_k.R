@@ -150,8 +150,15 @@ layers_to_train <- 1
 layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
-n_sim <- 10
+n_sim <- 50
 is_binary <- 0
+
+## ---- create a folder for the results ----
+setwd("~/softimpute/results")
+
+if (!dir.exists("results_net_60_weighted_50_itr")) {
+  dir.create("results_net_60_weighted_50_itr", recursive = TRUE)
+}
 
 ## ---- run ----
 ### ---- load matrices ----
@@ -344,6 +351,6 @@ print(combined_results)
 
 # Save the combined results dataframe to a CSV file
 #output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
-output_name <- paste0("weighted_equal_0_1_removal_scaled_island_",emln_id,"_",is_binary,".csv")
+output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"itr.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

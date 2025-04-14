@@ -150,9 +150,16 @@ layers_to_train <- 1
 layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
-n_sim <- 10
+n_sim <- 50
 is_binary <- 0
 set.seed(42)
+
+## ---- create a folder for the results ----
+setwd("~/softimpute/results")
+
+if (!dir.exists("results_net_60_weighted_50_itr")) {
+  dir.create("results_net_60_weighted_50_itr", recursive = TRUE)
+}
 
 ## ---- run ----
 ### ---- load matrices ----
@@ -219,7 +226,7 @@ for (layers_to_train in 1:num_layers) {
     bootstrapping_results <- NULL
     P_fresh <- P # save it for later
     
-    # Randomly select zeros to remove - bootstrapping
+    # Randomly select zeros and ones to remove - bootstrapping
     for (i in 1:n_sim) {
       # remove 1s
       remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
@@ -318,6 +325,7 @@ for (layers_to_train in 1:num_layers) {
 
 # Save the combined results dataframe to a CSV file
 #output_name <- paste0("binary_equal_0_1_removal_scaling_site_",emln_id,"_",is_binary,".csv")
-output_name <- paste0("canary_weighted_scaled_site_",emln_id,"_",is_binary,".csv")
+
+output_name <- paste0("canary_weighted_scaled_site_net_",emln_id,"_",n_sim,"itr.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

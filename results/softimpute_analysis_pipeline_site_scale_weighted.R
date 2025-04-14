@@ -1,4 +1,4 @@
-# ---- softImpute analysis pipeline ----
+# ---- softImpute analysis pipeline for site scale (weighted prediction) ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 
 ## ---- load libraries ----
@@ -20,7 +20,6 @@ library(vegan)
 library(ggnewscale)
 library(randomForest)
 
-source("~/Documents/GitHub/softimpute/results/useful_for_plotting.R")
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
               axis.title = element_text(size = 14, face = "bold"),
@@ -249,7 +248,8 @@ combine_plots <- function(p1, p2,
 }
 
 ## ---- load data ----
-df <- read_csv('canary_weighted_scaled_site_60_0.csv') # weighted, scaled
+#setwd("~/softimpute/results/results_net_60_weighted_50_itr")
+df <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv') # weighted, scaled
 
 ## ---- pr and roc curves ----
 df_removed <- df %>%
@@ -260,13 +260,6 @@ df_removed <- df %>%
   mutate(predicted_minmax = normalize_min_max(predicted_values)) %>% 
   mutate(predicted_tanh = tanh_transform(predicted_values)) %>% 
   mutate(predicted_clip = clip_transform(predicted_values))
-
-# binary version
-# For the ROC curve:
-plot_roc_curve(df_removed$original_links, df_removed$predicted_values)
-
-# For the PR curve:
-plot_pr_curve(df_removed$original_links, df_removed$predicted_values)
 
 # weighted version 
 # For the ROC curve:
@@ -283,45 +276,6 @@ ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_bin
        x = "Predicted probability", y = "Density",
        fill = "Original Link") +
   theme_minimal() + tme
-
-### ---- binary version ----
-df_removed <- df %>%
-  filter(removed == 1) %>% 
-  filter(k == 2) %>% 
-  filter(lambda == 0.1) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) #%>%
-#write_csv('working_df_all_itr_25_binary.csv')
-
-result_summary <- df_removed %>%
-  group_by(emln_id, train_layer, test_layer, itr) %>%
-  summarise(
-    TP = sum(original_links == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_links == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_links == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_links == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
-  ) %>%
-  ungroup() %>%
-  group_by(emln_id, train_layer, test_layer) %>%
-  summarise(
-    TP = mean(TP, na.rm = TRUE),
-    FN = mean(FN, na.rm = TRUE),
-    TN = mean(TN, na.rm = TRUE),
-    FP = mean(FP, na.rm = TRUE),
-    specificity = mean(specificity, na.rm = TRUE),
-    precision = mean(precision, na.rm = TRUE),
-    recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
-    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    mcc = mean(mcc, na.rm = TRUE)
-  ) %>%
-  ungroup()
 
 ### ---- weighted version ----
 
@@ -365,7 +319,7 @@ result_summary <- df_removed %>%
   ) %>%
   ungroup()
 
-#result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island.csv')
+result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_site_50_itr.csv')
 head(result_summary)
 
 ### ---- distribution of evaluators ----
@@ -576,123 +530,6 @@ View(results)
 results %>% write_csv('result_netsize_canaries_site_scaled_weighted_50_itr.csv')
 
 # add to main results
-result_summary <- result_summary %>%
-  left_join(results, by = c("train_layer", "test_layer")) # add to results table
-
-### ---- island scale ----
-# Initialize a data frame to store combined results for all layer combinations
-results <- data.frame()
-
-# Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
-# Load matrices
-d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
-A_l <- d$extended
-
-# aggregate to island scale
-# Extract numeric layer numbers
-A_l <- A_l %>%
-  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
-                                   paste0("layer_", layer_num, "_", layer_num + 1),
-                                   paste0("layer_", layer_num - 1, "_", layer_num)))
-
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
-
-# Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from))
-
-for (layers_to_train in 1:num_layers) {
-  for (layer_to_predict in 1:num_layers) {
-    
-    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-    
-    # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
-    
-    # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
-    
-    node_to <- rownames(P) # for the results
-    node_from <- colnames(P)
-    
-    ### ---- creating a combined matrix C ----
-    all_row_ids <- unique(c(rownames(A), rownames(P)))
-    all_col_ids <- unique(c(colnames(A), colnames(P)))
-    C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
-                dimnames = list(all_row_ids, all_col_ids))
-    
-    # Place A into C
-    C[rownames(A), colnames(A)] <- A
-    
-    # Place P into C
-    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-                                          NA, 
-                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-    
-    # Compute matrix properties
-    nrow_A <- nrow(A)
-    nrow_P <- nrow(P)
-    nrow_C <- nrow(C)
-    ncol_A <- ncol(A)
-    ncol_P <- ncol(P)
-    ncol_C <- ncol(C)
-    size_A <- length(A)
-    size_P <- length(P)
-    size_C <- length(C)
-    
-    # Calculate density for A, P, and C
-    density_A <- sum(A > 0) / length(A)
-    density_P <- sum(P > 0) / length(P)
-    density_C <- sum(C > 0) / length(C)
-    
-    # Add these values to the results table
-    results <- rbind(results, data.frame(emln_id = emln_id,
-                                         train_layer = layers_to_train,
-                                         test_layer = layer_to_predict,
-                                         nrow_A = nrow_A,
-                                         ncol_A = ncol_A,
-                                         size_A = size_A,
-                                         density_A = density_A,   # Added density
-                                         nrow_P = nrow_P,
-                                         ncol_P = ncol_P,
-                                         size_P = size_P,
-                                         density_P = density_P,   # Added density
-                                         nrow_C = nrow_C,
-                                         ncol_C = ncol_C,
-                                         size_C = size_C,
-                                         density_C = density_C))  # Added density
-    
-    
-  }
-}
-
-# View results
-View(results)
-
-results %>% write_csv('result_netsize_canaries_island_scale_50.csv')
-
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
@@ -908,96 +745,13 @@ canary_results_diags <- result_summary %>%
   filter(train_layer != test_layer)
 
 offs_site <- make_facet_scatter_plot(data = canary_results_diags, 
-                                    evaluator = "mse",
+                                    evaluator = "f1_score",
                                     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                     x_lab = "Jaccard similarity",
                                     y_lab = "F1 score",
                                     plot_title = "F1 vs. Jaccard - off-diagonals (site)",
                                     facet_scales = "free_x")
 offs_site
-
-### ---- island scale ----
-# Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from)) # we have it from netsize calculation
-
-for (layers_to_train in 1:num_layers) {
-  for (layer_to_predict in 1:num_layers) {
-    
-    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
-    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
-    
-    # 1) Jaccard pollinators
-    poll_train <- rownames(A)[ rowSums(A) > 0 ]
-    poll_test  <- rownames(P)[ rowSums(P) > 0 ]
-    intersection_poll <- length(intersect(poll_train, poll_test))
-    union_poll        <- length(union(poll_train, poll_test))
-    jaccard_poll <- if (union_poll == 0) NA else intersection_poll / union_poll
-    
-    # 2) Jaccard plants
-    plants_train <- colnames(A)[ colSums(A) > 0 ]
-    plants_test  <- colnames(P)[ colSums(P) > 0 ]
-    intersection_plants <- length(intersect(plants_train, plants_test))
-    union_plants        <- length(union(plants_train, plants_test))
-    jaccard_plants <- if (union_plants == 0) NA else intersection_plants / union_plants
-    
-    # 3) Jaccard edges
-    pairs_train <- which(A > 0, arr.ind = TRUE)
-    pairs_train_strings <- apply(pairs_train, 1, function(rc) {
-      paste(rownames(A)[rc[1]], colnames(A)[rc[2]], sep = "_")
-    })
-    
-    pairs_test <- which(P > 0, arr.ind = TRUE)
-    pairs_test_strings <- apply(pairs_test, 1, function(rc) {
-      paste(rownames(P)[rc[1]], colnames(P)[rc[2]], sep = "_")
-    })
-    intersection_edges <- length(intersect(pairs_train_strings, pairs_test_strings))
-    union_edges        <- length(union(pairs_train_strings, pairs_test_strings))
-    jaccard_edges <- if (union_edges == 0) NA else intersection_edges / union_edges
-    
-    # store the result
-    results_jaccard <- rbind(
-      results_jaccard,
-      data.frame(
-        emln_id = emln_id,
-        train_layer = layers_to_train,
-        test_layer  = layer_to_predict,
-        jaccard_pollinators = jaccard_poll,
-        jaccard_plants      = jaccard_plants,
-        jaccard_edges       = jaccard_edges
-      )
-    )
-  }
-}
-
-
-head(results_jaccard)
-result_summary <- result_summary %>%
-  left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
-
-#### ---- plot ----
-all_island <- make_facet_scatter_plot(data = result_summary, 
-                                       evaluator = "f1_score",
-                                       pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                       x_lab = "Jaccard similarity",
-                                       y_lab = "F1 score",
-                                       plot_title = "F1 vs. Jaccard - all data (island)",
-                                       facet_scales = "free_x")
-
-all_island
-
-canary_results_diags_isl <- result_summary %>%
-  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
-  filter(train_layer != test_layer)
-
-offs_island <- make_facet_scatter_plot(data = canary_results_diags_isl, 
-                                     evaluator = "f1_score",
-                                     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                     x_lab = "Jaccard similarity",
-                                     y_lab = "F1 score",
-                                     plot_title = "F1 vs. Jaccard - off-diagonals (island)",
-                                     facet_scales = "free_x")
-
-offs_island
 
 ## ---- partner fidelity correlation with evaluators ----
 
@@ -1176,12 +930,13 @@ avg_pollinator_degree <- pollinator_degree %>%
 
 ### ---- plot degree vs. number of never observed interactions ----
 # here we examine if the algorithm assigns more links to species with higher degree.
+# "island" here refers to a layer pair
 
 df <- df %>%
   mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-# Step 1: For each island and interaction, determine if the interaction was observed.
+# Step 1: For each "island" and interaction, determine if the interaction was observed.
 # Here we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
 df_island <- df %>%
   group_by(node_from, node_to, island_id) %>%
@@ -1206,9 +961,7 @@ df_summary <- df_island %>%
     .groups = "drop"
   )
 
-# 3. Remove interactions that were never observed and predicted as zero.
-# df_summary <- df_summary %>% 
-#   filter(!(avg_prop == 0 & avg_sigm_predicted < 0.5))
+# 3. 
 
 df_never_observed <- df_summary %>%
   filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
@@ -1246,7 +999,7 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   labs(
     x = "Overall degree",
     y = "Number of predicted, non-observed interactions",
-    title = "Plants"
+    title = "Plants: site scale"
   ) +
   theme_minimal() + tme +
   annotate("text",
@@ -1265,6 +1018,7 @@ df_to_correlate$y <- df_to_correlate$count_never_observed
 
 correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
 correlation_poll
+
 # Extract correlation coefficient and p-value
 r_value <- round(correlation_poll$estimate, 3)
 p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
@@ -1276,7 +1030,7 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   labs(
     x = "Overall degree",
     y = "Number of predicted, non-observed interactions",
-    title = "Pollinators"
+    title = "Pollinators: site scale"
   ) +
   theme_minimal() + tme +
   annotate("text",
@@ -1430,7 +1184,7 @@ df_all_itr_zero <- df %>%
   ungroup()
 
 # Optionally, if you wish to retain only interactions that are represented several times,
-# for example with at least 3 observations:
+# for example with at least 5 observations:
 predicted_links <- df_all_itr_zero %>%
   group_by(node_from, node_to) %>%
   filter(n() >= 5) %>%
@@ -1486,7 +1240,7 @@ ggplot(df_top_10,
 ### ---- add distances and location names ----
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
-# proceed differently for island scale and site scale
+# proceed for both island scale and site scale and compare the trends
 ### ---- island scale ----
 # Function to extract island names (removes "_site_X")
 extract_island <- function(name) {
@@ -1534,13 +1288,23 @@ new_layer_names <- net_name %>%
   summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
 
 # Add to main table
-result_summary <- result_summary %>%
+result_summary_island <- read_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
+
+result_summary_island <- result_summary_island %>%
   left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
   rename(train_layer_name = name) %>%
   left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
   rename(test_layer_name = name)
 
-result_summary_island <- result_summary
+# Add to main table
+result_summary_island <- result_summary_island %>%
+  left_join(
+    distance_island_table,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               avg_distance_km))   # otherwise, keep joined distance
 
 ### ---- site scale ----
 # Add names and distances to the main table
@@ -1581,7 +1345,7 @@ result_summary <- result_summary %>%
                                0,              # distance = 0 if same site
                                distance_km))   # otherwise, keep joined distance
 
-write.csv(result_summary, 'working_df_site_scaled_evaluators_distance.csv')
+write.csv(result_summary, 'working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
 
 result_summary_site <- result_summary
 
@@ -1676,8 +1440,8 @@ site_heatmap_recall <-
 
 print(site_heatmap_recall)
 
-island_heatmap_recall <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
+site_heatmap_f1 <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "black", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
@@ -1685,7 +1449,7 @@ island_heatmap_recall <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "Recall") +
+  labs(x = "Added layer", y = "Predicted layer", fill = "F1 score") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -1696,125 +1460,191 @@ island_heatmap_recall <-
   ) +
   coord_fixed() + tme
 
-print(island_heatmap_recall)
+print(site_heatmap_f1)
 
-make_heatmap_plot <- function(data,            # Main data frame for the heatmap
-                              eval_col,        # Evaluator column name (e.g., "recall")
-                              train_col = "train_layer_name",  # x-axis variable name
-                              test_col = "test_layer_name",    # y-axis variable name
-                              x_lab = "Added layer",           # x-axis label
-                              y_lab = "Predicted layer",       # y-axis label
-                              fill_lab = NULL,                 # Fill legend label; if NULL, defaults to eval_col
-                              low = "steelblue2", 
-                              mid = "white", 
-                              high = "salmon2", 
-                              midpoint = 0.5, 
-                              na_value = "gray", 
-                              extra_theme = NULL) {            # Additional theme modifications (e.g., tme)
-  
-  # If no fill legend label is provided, use the evaluator name
-  if (is.null(fill_lab)) {
-    fill_lab <- eval_col
-  }
-  
-  # If no diagonal data frame is provided, subset the main data where training and testing layers match.
-  if (is.null(diag_data)) {
-    diag_data <- data[data[[train_col]] == data[[test_col]], ]
-  }
-  
-  # Create the heatmap
-  p <- ggplot(data, aes_string(x = train_col, y = test_col, fill = eval_col)) +
-    # First draw all tiles with thin black borders
-    geom_tile(color = "black", linewidth = 0.1) +
-    # Overlay the diagonal tiles (using the provided or derived data) with thicker black borders
-    geom_tile(data = diag_data, aes_string(x = train_col, y = test_col, fill = eval_col),
-              color = "black", linewidth = 1.2) +
-    # Define the fill gradient and set NA color
-    scale_fill_gradient2(low = low, mid = mid, high = high,
-                         midpoint = midpoint, na.value = na_value) +
-    # Add axis and legend labels
-    labs(x = x_lab, y = y_lab, fill = fill_lab) +
-    theme_minimal() +
-    theme(
-      plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-      panel.background = element_blank(),       # Remove panel background
-      panel.grid.major = element_blank(),       # Remove major grid lines
-      panel.grid.minor = element_blank(),       # Remove minor grid lines
-      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels
-    ) +
-    coord_fixed() + tme
-  
-  return(p)
-}
+site_heatmap_ba <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "Balanced \naccuracy") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_ba)
+
+site_heatmap_specificity <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = specificity)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "Specificity") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_specificity)
+
+site_heatmap_precision <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = precision)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "Precision") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_precision)
+
+# make_heatmap_plot <- function(data,            # Main data frame for the heatmap
+#                               eval_col,        # Evaluator column name (e.g., "recall")
+#                               train_col = "train_layer_name",  # x-axis variable name
+#                               test_col = "test_layer_name",    # y-axis variable name
+#                               x_lab = "Added layer",           # x-axis label
+#                               y_lab = "Predicted layer",       # y-axis label
+#                               fill_lab = NULL,                 # Fill legend label; if NULL, defaults to eval_col
+#                               low = "steelblue2", 
+#                               mid = "white", 
+#                               high = "salmon2", 
+#                               midpoint = 0.5, 
+#                               na_value = "gray", 
+#                               extra_theme = NULL) {            # Additional theme modifications (e.g., tme)
+#   
+#   # If no fill legend label is provided, use the evaluator name
+#   if (is.null(fill_lab)) {
+#     fill_lab <- eval_col
+#   }
+#   
+#   # # If no diagonal data frame is provided, subset the main data where training and testing layers match.
+#   # if (is.null(diag_data)) {
+#   #   diag_data <- data[data[[train_col]] == data[[test_col]], ]
+#   # }
+#   
+#   # Create the heatmap
+#   p <- ggplot(data, aes_string(x = train_col, y = test_col, fill = eval_col)) +
+#     # First draw all tiles with thin black borders
+#     geom_tile(color = "black", linewidth = 0.1) +
+#     # Overlay the diagonal tiles (using the provided or derived data) with thicker black borders
+#     geom_tile(data = diag_data, aes_string(x = train_col, y = test_col, fill = eval_col),
+#               color = "black", linewidth = 1.2) +
+#     # Define the fill gradient and set NA color
+#     scale_fill_gradient2(low = low, mid = mid, high = high,
+#                          midpoint = midpoint, na.value = na_value) +
+#     # Add axis and legend labels
+#     labs(x = x_lab, y = y_lab, fill = fill_lab) +
+#     theme_minimal() +
+#     theme(
+#       plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+#       panel.background = element_blank(),       # Remove panel background
+#       panel.grid.major = element_blank(),       # Remove major grid lines
+#       panel.grid.minor = element_blank(),       # Remove minor grid lines
+#       axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels
+#     ) +
+#     coord_fixed() + tme
+#   
+#   return(p)
+# }
 
 # For an evaluator "recall" on a data frame 'result_summary_island'
 # (assuming tme is a predefined ggplot theme you want to apply)
-island_heatmap_ba <- make_heatmap_plot(data = result_summary_island, 
-                                           eval_col = "balanced_accuracy", 
-                                           train_col = "train_layer_name", 
-                                           test_col = "test_layer_name",
-                                           x_lab = "Added layer",
-                                           y_lab = "Predicted layer",
-                                           fill_lab = "Balanced \naccuracy",
-                                           extra_theme = tme)
-
-island_heatmap_f1 <- make_heatmap_plot(data = result_summary_island, 
-                                       eval_col = "f1_score", 
-                                       train_col = "train_layer_name", 
-                                       test_col = "test_layer_name",
-                                       x_lab = "Added layer",
-                                       y_lab = "Predicted layer",
-                                       fill_lab = "F1 score",
-                                       extra_theme = tme)
-
-island_heatmap_recall <- make_heatmap_plot(data = result_summary_island, 
-                                           eval_col = "recall", 
-                                           train_col = "train_layer_name", 
-                                           test_col = "test_layer_name",
-                                           x_lab = "Added layer",
-                                           y_lab = "Predicted layer",
-                                           fill_lab = "Recall",
-                                           extra_theme = tme)
-
-island_heatmap_precision <- make_heatmap_plot(data = result_summary_island, 
-                                           eval_col = "precision", 
-                                           train_col = "train_layer_name", 
-                                           test_col = "test_layer_name",
-                                           x_lab = "Added layer",
-                                           y_lab = "Predicted layer",
-                                           fill_lab = "Precision",
-                                           extra_theme = tme)
-
-island_heatmap_specificity <- make_heatmap_plot(data = result_summary_island, 
-                                              eval_col = "specificity", 
-                                              train_col = "train_layer_name", 
-                                              test_col = "test_layer_name",
-                                              x_lab = "Added layer",
-                                              y_lab = "Predicted layer",
-                                              fill_lab = "Specificity",
-                                              extra_theme = tme)
-
-p1 <- island_heatmap_f1 +
+# site_heatmap_ba <- make_heatmap_plot(data = result_summary_site, 
+#                                            eval_col = "balanced_accuracy", 
+#                                            train_col = "train_layer_name", 
+#                                            test_col = "test_layer_name",
+#                                            x_lab = "Added layer",
+#                                            y_lab = "Predicted layer",
+#                                            fill_lab = "Balanced \naccuracy",
+#                                            extra_theme = tme)
+# 
+# site_heatmap_f1 <- make_heatmap_plot(data = result_summary_site, 
+#                                        eval_col = "f1_score", 
+#                                        train_col = "train_layer_name", 
+#                                        test_col = "test_layer_name",
+#                                        x_lab = "Added layer",
+#                                        y_lab = "Predicted layer",
+#                                        fill_lab = "F1 score",
+#                                        extra_theme = tme)
+# 
+# site_heatmap_recall <- make_heatmap_plot(data = result_summary_site, 
+#                                            eval_col = "recall", 
+#                                            train_col = "train_layer_name", 
+#                                            test_col = "test_layer_name",
+#                                            x_lab = "Added layer",
+#                                            y_lab = "Predicted layer",
+#                                            fill_lab = "Recall",
+#                                            extra_theme = tme)
+# 
+# site_heatmap_precision <- make_heatmap_plot(data = result_summary_site, 
+#                                            eval_col = "precision", 
+#                                            train_col = "train_layer_name", 
+#                                            test_col = "test_layer_name",
+#                                            x_lab = "Added layer",
+#                                            y_lab = "Predicted layer",
+#                                            fill_lab = "Precision",
+#                                            extra_theme = tme)
+# 
+# site_heatmap_specificity <- make_heatmap_plot(data = result_summary_site, 
+#                                               eval_col = "specificity", 
+#                                               train_col = "train_layer_name", 
+#                                               test_col = "test_layer_name",
+#                                               x_lab = "Added layer",
+#                                               y_lab = "Predicted layer",
+#                                               fill_lab = "Specificity",
+#                                               extra_theme = tme)
+# 
+p1 <- site_heatmap_f1 +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
-p2 <- island_heatmap_ba +
+p2 <- site_heatmap_ba +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
-p3 <- island_heatmap_recall +
+p3 <- site_heatmap_recall +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
-p4 <- island_heatmap_precision +
+p4 <- site_heatmap_precision +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
-p5 <- island_heatmap_specificity +
+p5 <- site_heatmap_specificity +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
@@ -1925,7 +1755,7 @@ ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
 
 ## ---- variable importance ----
 # analyze only one off-diagonal
-df_off <- result_summary %>%
+df_off <- result_summary_site %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer < test_layer)
 # subset relavant columns
