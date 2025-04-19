@@ -250,7 +250,7 @@ combine_plots <- function(p1, p2,
 
 ## ---- load data ----
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
-df <- read_csv('weighted__scaled_island_net_60_50_itr.csv') # weighted, scaled
+df <- read_csv('weighted_equal_0_1_removal_scaled_island_60_0.csv') # weighted, scaled
 
 ## ---- pr and roc curves ----
 df_removed <- df %>%
@@ -320,7 +320,7 @@ result_summary <- df_removed %>%
   ) %>%
   ungroup()
 
-result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
+#result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
 head(result_summary)
 
 ### ---- distribution of evaluators ----
@@ -562,9 +562,9 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # View results
-View(results)
+head(results)
 
-results %>% write_csv('result_netsize_canaries_island_scale_50_itr.csv')
+#results %>% write_csv('result_netsize_canaries_island_scale_50_itr.csv')
 
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
@@ -1290,7 +1290,7 @@ distance_table <- distance_table %>%
          to = gsub("_", " ", to))
 
 # Assuming your lookup tibble is called net_name and has columns layer_id and name
-result_summary_site <- read_csv('working_df_all_itr_60_weighted_scaled_site_50_itr.csv')
+result_summary_site <- read_csv('working_df_all_itr_60_weighted_scaled_site.csv')
 
 result_summary_site <- result_summary_site %>%
   # Join to add train_layer_name
@@ -1330,7 +1330,7 @@ make_cor_plot <- function(data, evaluator,
   correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
                           use = "complete.obs", method = "pearson")
   r_value <- round(correlation$estimate, 3)
-  p_value <- formatC(correlation$p.value, format = "f", digits = 2)
+  p_value <- formatC(correlation$p.value, format = "f", digits = 3)
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
   # Create plot with label in the upper right corner using Inf coordinates
@@ -1355,10 +1355,12 @@ cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "recall", extr
 
 # To combine the plots:
 p1 <- cor_plot_site + 
+  ggtitle("Site scale") +
   theme(legend.position = "none",
         axis.title = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
 p2 <- cor_plot_isl + 
+  ggtitle("Island scale") +
   theme(legend.position = "none",
         axis.title = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))

@@ -757,7 +757,7 @@ offs_site
 
 # filter out cases in which train = test layer
 df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
-  filter(original_links == 1) %>% filter(itr == 1)
+  filter(original_links != 0) %>% filter(itr == 1)
 
 ### ---- plants fidelity ----
 # 1. For each plant (node_from) and layer, gather the pollinators (node_to).
@@ -898,7 +898,7 @@ grid.arrange(
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
 df_filtered <- df %>%
-  filter(itr == 1, original_links == 1)
+  filter(itr == 1, original_links != 0)
 
 # Step 2a: Calculate degree for each plant species (node_from)
 plant_degree <- df_filtered %>%
@@ -941,7 +941,7 @@ df <- df %>%
 df_island <- df %>%
   group_by(node_from, node_to, island_id) %>%
   summarise(
-    observed = as.integer(any(original_links == 1)),
+    observed = as.integer(any(original_links != 0)),
     # For predicted_prob_sigm, you might take the average across iterations per island.
     island_sigm_predicted = mean(predicted_prob_sigm, na.rm = TRUE),
     .groups = "drop"
@@ -1166,74 +1166,6 @@ ggplot(df_top_10,
     x = "Link (pollinator - plant)",
     y = "Mean predicted value"
     #title = "Mean predicted value and significance"
-  )
-
-###
-
-# Filter interactions that were never observed (original_links == 0)
-# and have removed == 1 for every row in the interaction,
-# and where predicted values are consistently above 0.5.
-df_all_itr_zero <- df %>%
-  # First calculate the sigmoid-transformed predictions
-  mutate(sigm_predicted = sigmoid(predicted_values)) %>%
-  group_by(node_from, node_to) %>%
-  # Ensure that for every row in the group:
-  filter(all(original_links == 0),
-         (removed == 1),
-         (sigm_predicted > 0.5)) %>%
-  ungroup()
-
-# Optionally, if you wish to retain only interactions that are represented several times,
-# for example with at least 5 observations:
-predicted_links <- df_all_itr_zero %>%
-  group_by(node_from, node_to) %>%
-  filter(n() >= 5) %>%
-  summarise(
-    n         = n(),
-    mean_pred = mean(sigm_predicted, na.rm = TRUE),
-    sd_pred   = sd(sigm_predicted, na.rm = TRUE),
-    p_value   = if (sd_pred == 0) NA_real_ else t.test(sigm_predicted, mu = 0.5)$p.value,
-    .groups   = "drop"
-  )
-
-# View the top 10 interactions sorted by mean predicted probability
-top_links <- predicted_links %>%
-  arrange(desc(mean_pred)) %>%
-  head(10)
-print(top_links)
-
-# Optionally, if you want to write to CSV:
-# write.csv(predicted_links, 'links_probability_to_be_non_zeros.csv', row.names = FALSE)
-
-# Further filter to only significant interactions, for example those with p_value < 0.05
-df_summary_sign <- predicted_links %>% filter(p_value < 0.05)
-
-# Get the top 10 based on p-value (lowest first)
-df_top_10 <- predicted_links %>%
-  arrange(p_value) %>%
-  slice(1:10)
-
-# Plot the top interactions
-ggplot(df_top_10, 
-       aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
-           y = mean_pred,
-           fill = p_value < 0.05)) +
-  geom_col(fill = "steelblue") +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  tme +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      # Replace underscores with tilde (~) for spacing in plotmath
-      lbl_tilde <- gsub("_", "~", lbl)
-      # Wrap in italic() - the expression below ensures that underscores become spaces (via tilde)
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })) +
-  labs(
-    x = "Link (pollinator - plant)",
-    y = "Mean predicted value"
-    # Optionally, add a title: title = "Mean predicted value and significance"
   )
 
 ## ---- distance effect ----
