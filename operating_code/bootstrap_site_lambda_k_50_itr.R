@@ -224,7 +224,7 @@ for (layers_to_train in 1:num_layers) {
     print(paste("prop of zeros removed   : ", prop_0_removed))
     
     bootstrapping_results <- NULL
-    P_fresh <- P # save it for later
+    P_original <- P # save it for later
     
     # Randomly select zeros and ones to remove - bootstrapping
     for (i in 1:n_sim) {
@@ -264,10 +264,10 @@ for (layers_to_train in 1:num_layers) {
       
       ### ---- transfer learning with SVD ----
       # Define the grid of k and lambda values to search over
-      k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
+      #k_values <- c(2,10)#c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
       # lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
       
-      #k_values <- c(2)
+      k_values <- c(2)
       
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
@@ -298,7 +298,7 @@ for (layers_to_train in 1:num_layers) {
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
       
       # reset P
-      P <- P_fresh
+      P <- P_original
     }
     
     combined_results <- rbind(
@@ -326,6 +326,6 @@ for (layers_to_train in 1:num_layers) {
 # Save the combined results dataframe to a CSV file
 #output_name <- paste0("binary_equal_0_1_removal_scaling_site_",emln_id,"_",is_binary,".csv")
 
-output_name <- paste0("canary_weighted_scaled_site_net_",emln_id,"_",n_sim,"itr.csv")
+output_name <- paste0("canary_weighted_scaled_site_net_",emln_id,"_",n_sim,"_itr.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

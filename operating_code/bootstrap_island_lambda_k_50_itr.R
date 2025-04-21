@@ -295,10 +295,10 @@ for (layers_to_train in 1:num_layers) {
       
       ### ---- transfer learning with SVD ----
       # Define the grid of k and lambda values to search over
-      k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
+      #k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
       # lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
       
-      #k_values <- c(2)
+      k_values <- c(2)
       
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
@@ -356,6 +356,6 @@ print(combined_results)
 
 # Save the combined results dataframe to a CSV file
 #output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
-output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"itr.csv")
+output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"_itr.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)
