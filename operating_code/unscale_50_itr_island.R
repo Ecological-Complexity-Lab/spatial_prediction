@@ -67,7 +67,7 @@ implement_impute <- function(C, k, lambda) {
   # fit <- deBias(C, fit)
   
   # Reconstruct the matrix
-  C_reconstructed <- softImpute::complete(C, fit)
+  C_reconstructed <- softImpute::complete(C, fit, unscale = TRUE)
   
   # Extract the reconstructed P matrix from C_reconstructed
   P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
@@ -177,8 +177,34 @@ A_l <- A_l %>%
                                    paste0("layer_", layer_num, "_", layer_num + 1),
                                    paste0("layer_", layer_num - 1, "_", layer_num)))
 
+# Aggregate data
+aggregated_df <- A_l %>%
+  group_by(aggregated_layer, node_from, node_to, type) %>%
+  summarise(weight = sum(weight), .groups = "drop") %>%
+  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# Generate new layer names
+unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
+new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
+
+# Create a mapping table
+layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
+
+# Save the mapping to CSV
+# write_csv(layer_mapping, "layer_mapping.csv")
+
+# Apply renaming in aggregated_df
+aggregated_df <- aggregated_df %>%
+  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
+  mutate(layer_from = new_layer, layer_to = new_layer) %>%
+  select(layer_from, node_from, layer_to, node_to, weight, type)
+
+# View updated aggregated_df
+print(aggregated_df)
+
 # Total number of layers
-num_layers <- length(unique(A_l$layer_from))
+num_layers <- length(unique(aggregated_df$layer_from))
 
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
@@ -222,10 +248,15 @@ for (layers_to_train in 1:num_layers) {
     print(paste("all zeros   :", nrow(zeros_in_P)))
     print(paste("prop of zeros removed   : ", prop_0_removed))
     
+    # # remove 1s
+    # remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+    # P[remove_indices] <- NA  # Set removed links to NA
+    # P_no_1 <- P # save it for later
+    
     bootstrapping_results <- NULL
     P_original <- P # save it for later
     
-    # Randomly select zeros and ones to remove - bootstrapping
+    # Randomly select zeros to remove - bootstrapping
     for (i in 1:n_sim) {
       # remove 1s
       remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
@@ -263,7 +294,7 @@ for (layers_to_train in 1:num_layers) {
       
       ### ---- transfer learning with SVD ----
       # Define the grid of k and lambda values to search over
-      #k_values <- c(2,10)#c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
+      #k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
       # lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
       
       k_values <- c(2)
@@ -320,11 +351,10 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # View combined results
-#print(combined_results)
+summary(combined_results)
 
 # Save the combined results dataframe to a CSV file
-#output_name <- paste0("binary_equal_0_1_removal_scaling_site_",emln_id,"_",is_binary,".csv")
-
-output_name <- paste0("canary_weighted_scaled_site_net_",emln_id,"_",n_sim,"_itr.csv")
+#output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
+output_name <- paste0("_unscale_weighted__scaled_island_net_",emln_id,"_",n_sim,"_itr.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

@@ -233,7 +233,6 @@ for (layers_to_train in 1:num_layers) {
     
     ### ---- remove some links in P ----
     # map out the 0s and 1s in P
-    P_original <- P # save it for later
     num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
     ones_in_P <- which(P > 0, arr.ind = TRUE)
     
@@ -255,7 +254,7 @@ for (layers_to_train in 1:num_layers) {
     # P_no_1 <- P # save it for later
     
     bootstrapping_results <- NULL
-    P_fresh <- P # save it for later
+    P_original <- P # save it for later
     
     # Randomly select zeros to remove - bootstrapping
     for (i in 1:n_sim) {
@@ -329,7 +328,7 @@ for (layers_to_train in 1:num_layers) {
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
       
       # reset P
-      P <- P_fresh
+      P <- P_original
     }
     
     combined_results <- rbind(

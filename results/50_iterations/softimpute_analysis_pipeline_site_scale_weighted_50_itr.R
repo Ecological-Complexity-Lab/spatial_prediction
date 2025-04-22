@@ -251,6 +251,97 @@ combine_plots <- function(p1, p2,
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
 df <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv') # weighted, scaled
 
+## ---- selecting optimal threshold ----
+
+# 0) set thresholds
+thresholds <- seq(0, 1, by = 0.1)
+
+# 1) filter & prep
+df_prepped <- df %>%
+  filter(removed == 1) %>%
+  mutate(
+    predicted_prob   = sigmoid(predicted_values),
+    original_binary  = if_else(original_links > 0, 1, 0)
+  )
+
+# 2) expand to one row per threshold
+df_thresh <- df_prepped %>%
+  tidyr::expand_grid(threshold = thresholds) %>%  # <-- switch here
+  mutate(
+    predicted_bin = if_else(predicted_prob > threshold, 1, 0)
+  ) %>%
+  group_by(emln_id, train_layer, test_layer, itr, threshold) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin == 1),
+    FN = sum(original_binary == 1 & predicted_bin == 0),
+    TN = sum(original_binary == 0 & predicted_bin == 0),
+    FP = sum(original_binary == 0 & predicted_bin == 1),
+    specificity      = TN / (TN + FP),
+    precision        = TP / (TP + FP),
+    recall           = TP / (TP + FN),
+    f1_score         = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy= (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) /
+      sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN)),
+    mse  = mean((predicted_values - original_links)^2, na.rm = TRUE),
+    rmse = sqrt(mse)#,
+    #.groups = "drop"
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer, threshold) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE),
+    mse = mean(mse, na.rm = TRUE),
+    rmse = mean(rmse, na.rm = TRUE)
+  ) %>%
+  ungroup() 
+
+# 3) average across emln_id/layer combos and pivot long
+df_avg <- df_thresh %>%
+  group_by(threshold) %>%
+  summarise(across(
+    c(specificity, precision, recall,
+      f1_score, balanced_accuracy, mcc),
+    mean, na.rm = TRUE
+  )) %>%
+  pivot_longer(-threshold,
+               names_to  = "metric",
+               values_to = "value")
+
+# 4) plot
+ggplot(df_avg, aes(threshold, value, color = metric)) +
+  geom_line(size = 1) +
+  labs(
+    x     = "Probability threshold",
+    y     = "Average metric",
+    color = "Metric"
+  ) +
+  tme
+
+# 1) pivot to wide so F1 and balanced_accuracy are columns
+# we aim to find the optimal balance between ba and f1
+df_wide <- df_avg %>%
+  pivot_wider(names_from = metric, values_from = value) %>%
+  arrange(threshold)
+
+# 2) discrete approx: minimize abs difference
+best_discrete <- df_wide %>%
+  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
+  slice_min(absdiff, n = 1)
+
+# results:
+best_discrete_threshold <- best_discrete$threshold
+best_discrete_threshold
+
 ## ---- pr and roc curves ----
 df_removed <- df %>%
   filter(removed == 1) %>%
@@ -282,7 +373,7 @@ ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_bin
 df_removed <- df %>%
   filter(removed == 1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > 0.5, 1, 0)) %>% 
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
   mutate(original_binary = if_else(original_links > 0, 1, 0))
 
 result_summary <- df_removed %>%
@@ -693,7 +784,7 @@ make_facet_scatter_plot <- function(data,
   cor_table_annot <- cor_table %>%
     mutate(
       r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = formatC(p_value, format = "f", digits = 2),
+      p_fmt      = formatC(p_value, format = "f", digits = 3),
       label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
     )
   
@@ -858,7 +949,7 @@ pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinat
   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
   labs(x = "Mean Sorensen similarity",
        y = "F1 score",
-       title = "Island scale (pollinators)") +
+       title = "Site scale (pollinators)") +
   tme +
   annotate("text",
               x = Inf,
@@ -882,7 +973,7 @@ plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f
   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
   labs(x = "Mean Sorensen similarity",
        y = "F1 score",
-       title = "Island scale (plants)") +
+       title = "Site scale (plants)") +
   tme +
   annotate("text", x = Inf, y = Inf, label = label_text,
             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
@@ -964,12 +1055,12 @@ df_summary <- df_island %>%
 # 3. 
 
 df_never_observed <- df_summary %>%
-  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
   group_by(node_from) %>%
   summarise(count_never_observed = n(), .groups = "drop")
 
 df_never_observed_poll <- df_summary %>%
-  filter(avg_prop == 0, avg_sigm_predicted > 0.5) %>%
+  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
   group_by(node_to) %>%
   summarise(count_never_observed = n(), .groups = "drop")
 
@@ -1081,7 +1172,7 @@ ggplot(df_summary, aes(x = node_to, y = node_from)) +
   
   # Second layer: overlay only cells that were never observed but have high predicted value
   geom_tile(
-    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > 0.5),
+    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
     aes(fill = avg_sigm_predicted),
     alpha = 0.6
   ) +
@@ -1109,7 +1200,7 @@ df_all_itr_zero <- df %>%
   # Check if all rows for that interaction have original_links == 0
   filter(all(original_links == 0)) %>%
   filter(removed == 1) %>% 
-  filter(predicted_prob_sigm > 0.5) %>% 
+  filter(predicted_prob_sigm > best_discrete_threshold) %>% 
   ungroup()
 
 # filter only links that appear several times for the analysis
@@ -1124,7 +1215,7 @@ predicted_links <- df_all_itr_zero %>%
     p_value   = if (sd_pred == 0) {
       NA_real_  # can't run a t-test if there's no variance
     } else {
-      t.test(predicted_prob_sigm, mu = 0.5)$p.value
+      t.test(predicted_prob_sigm, mu = best_discrete_threshold)$p.value
     },
     .groups   = "drop"
   )
@@ -1296,7 +1387,7 @@ make_cor_plot <- function(data, evaluator,
   correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
                           use = "complete.obs", method = "pearson")
   r_value <- round(correlation$estimate, 3)
-  p_value <- formatC(correlation$p.value, format = "f", digits = 2)
+  p_value <- formatC(correlation$p.value, format = "f", digits = 3)
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
   # Create plot with label in the upper right corner using Inf coordinates
@@ -1316,15 +1407,17 @@ make_cor_plot <- function(data, evaluator,
   return(plot)
 }
 
-cor_plot_site <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
-cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "recall", extra_theme = tme)
+cor_plot_site <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
+cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
 
 # To combine the plots:
 p1 <- cor_plot_site + 
+  ggtitle("Site scale") +
   theme(legend.position = "none",
         axis.title = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
 p2 <- cor_plot_isl + 
+  ggtitle("Island scale") +
   theme(legend.position = "none",
         axis.title = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
