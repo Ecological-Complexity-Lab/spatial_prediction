@@ -1,6 +1,6 @@
 # ---- softImpute analysis pipeline for site scale (weighted prediction) ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
-
+# for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
 ## ---- load libraries ----
 library(tidyverse)
 library(ggplot2)
@@ -1431,7 +1431,7 @@ combined_with_axes <- arrangeGrob(
   combined_plots,
   bottom = textGrob("Geographical distance (km)", 
                     gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("Recall", rot = 90, 
+  left   = textGrob("F1 score", rot = 90, 
                     gp = gpar(fontsize = 14, fontface = "bold"))
 )
 final_plot <- grid.arrange(
