@@ -59,6 +59,15 @@ emln_id <- 60
 layers_to_train <- 1
 layer_to_predict <- 7
 
+## ---- themes ----
+tme <-  theme(axis.text = element_text(size = 14, color = "black"),
+              axis.title = element_text(size = 14, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
+theme_set(theme_bw())
+
 ## ---- run ----
 ### ---- load matrices ----
 
@@ -106,13 +115,7 @@ write.csv(plants_df, 'plant_taxonomy.csv')
 # if you just want it back as a character vector:
 plants <- plants_df %>% pull(plant_species)
 # initialize empty tibble to collect everything
-combined_results <- tibble(
-  species      = character(),
-  PC1          = double(),
-  PC2          = double(),
-  layer        = character(),
-  species_type = character()
-)
+combined_results <- NULL
 
 # loop
 
@@ -164,6 +167,7 @@ for (layer_to_predict in 1:num_layers) {
 #   family  = c("Fam1","Fam2","…")
 # )
 
+## ---- add taxonomy ----
 taxonomy_df <- read.csv('plant_taxonomy.csv')
 
 combined_results <- combined_results %>%
@@ -200,10 +204,12 @@ ggplot(filter(combined_results, species_type=="pollinator"),
   theme_minimal() +
   labs(title = "Pollinator PCA by layer", x="PC1", y="PC2")
 
+
+layer_1 <- combined_results %>% filter(layer == 1) # if we want to filter a certain layer
 ## plants only
-ggplot(filter(combined_results, species_type=="plant"),
+ggplot(filter(layer_1, species_type=="plant"),
        aes(PC1, PC2, color = family, label = species)) +
   geom_point() + geom_text_repel() +
   facet_wrap(~ layer) +
   theme_minimal() +
-  labs(title = "Plant PCA by layer", x="PC1", y="PC2")
+  labs(title = "Plant PCA by layer", x="PC1", y="PC2") + tme
