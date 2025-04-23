@@ -427,6 +427,7 @@ result_summary <- df_removed %>%
 
 result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
 head(result_summary)
+summary(result_summary)
 
 ### ---- distribution of evaluators ----
 island_specificity <- ggplot(result_summary, aes(x = specificity)) +
@@ -667,7 +668,7 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # View results
-View(results)
+summary(results)
 
 results %>% write_csv('result_netsize_canaries_island_scale_50_itr.csv')
 
@@ -1395,7 +1396,49 @@ distance_table <- distance_table %>%
          to = gsub("_", " ", to))
 
 # Assuming your lookup tibble is called net_name and has columns layer_id and name
-result_summary_site <- read_csv('working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
+#result_summary_site <- read_csv('working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
+result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
+
+df_removed_site <- result_site %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+result_summary_site <- df_removed_site %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
+    mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
+    rmse = sqrt(mse)
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE),
+    mse = mean(mse, na.rm = TRUE),
+    rmse = mean(rmse, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
 
 result_summary_site <- result_summary_site %>%
   # Join to add train_layer_name
@@ -1435,7 +1478,7 @@ make_cor_plot <- function(data, evaluator,
   correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
                           use = "complete.obs", method = "pearson")
   r_value <- round(correlation$estimate, 3)
-  p_value <- formatC(correlation$p.value, format = "f", digits = 3)
+  p_value <- formatC(correlation$p.value, format = "f", digits = 4)
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
   # Create plot with label in the upper right corner using Inf coordinates
@@ -1648,47 +1691,47 @@ print(island_heatmap_precision)
 #                                               fill_lab = "Specificity",
 #                                               extra_theme = tme)
 # 
-p1 <- island_heatmap_f1 +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p2 <- island_heatmap_ba +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p3 <- island_heatmap_recall +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p4 <- island_heatmap_precision +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p5 <- island_heatmap_specificity +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5,
-  ncol = 3, 
-  nrow = 2
-)
-combined_with_axes <- arrangeGrob(
-  combined_plots,
-  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
-)
-
-final_plot <- grid.arrange(
-  combined_with_axes,
-  ncol = 3,
-  widths = c(2, 0.3, 0.3)
-)
+# p1 <- island_heatmap_f1 +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p2 <- island_heatmap_ba +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p3 <- island_heatmap_recall +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p4 <- island_heatmap_precision +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p5 <- island_heatmap_specificity +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# combined_plots <- arrangeGrob(
+#   p1, p2, p3, p4, p5,
+#   ncol = 3, 
+#   nrow = 2
+# )
+# combined_with_axes <- arrangeGrob(
+#   combined_plots,
+#   #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+#   left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+# )
+# 
+# final_plot <- grid.arrange(
+#   combined_with_axes,
+#   ncol = 3,
+#   widths = c(2, 0.3, 0.3)
+# )
 ## ---- compare scales ----
 # make a long list
 df1_labeled <- result_summary_site %>%

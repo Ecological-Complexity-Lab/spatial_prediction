@@ -617,7 +617,7 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # View results
-View(results)
+summary(results)
 results %>% write_csv('result_netsize_canaries_site_scaled_weighted_50_itr.csv')
 
 # add to main results
@@ -1311,7 +1311,49 @@ new_layer_names <- net_name %>%
   summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
 
 # Add to main table
-result_summary_island <- read_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
+#result_summary_island <- read_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
+result_island <- read_csv('weighted__scaled_island_net_60_50_itr.csv')
+
+df_removed_island <- result_island %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+result_summary_island <- df_removed_island %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
+    mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
+    rmse = sqrt(mse)
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE),
+    mse = mean(mse, na.rm = TRUE),
+    rmse = mean(rmse, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
 
 result_summary_island <- result_summary_island %>%
   left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%

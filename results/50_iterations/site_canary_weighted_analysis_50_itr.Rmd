@@ -1441,7 +1441,7 @@ combined_with_axes <- arrangeGrob(
   combined_plots,
   bottom = textGrob("Geographical distance (km)", 
                     gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("Recall", rot = 90, 
+  left   = textGrob("F1 score", rot = 90, 
                     gp = gpar(fontsize = 14, fontface = "bold"))
 )
 final_plot <- grid.arrange(
