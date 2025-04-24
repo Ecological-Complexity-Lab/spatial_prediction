@@ -1,3 +1,15 @@
+---
+title: "latent_traits_check"
+author: "Kesem Abramov"
+date: "2025-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r all}
 # ---- latent traits check ----
 ## ---- load libraries ----
 library(ggplot2)
@@ -363,3 +375,5 @@ test_df_oth <- test_df_oth %>%
   )
 
 print(test_df_oth) 
+
+```
