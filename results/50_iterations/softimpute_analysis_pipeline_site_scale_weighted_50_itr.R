@@ -109,32 +109,40 @@ plot_pr_curve <- function(true_labels, predicted_scores) {
 
 # functions for diagonal and off-diagonal comparison
 plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
-                        stat_label_y = NULL, stat_size = 3) {
+                         stat_size = 3) {
+  
+  # Calculate max value for y-axis and position for stat label
+  max_y <- max(data[[metric]], na.rm = TRUE)
+  label_y_position <- max_y * 0.98  # 95% of the maximum (a bit below the top)
+  
   ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
     geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
     theme_minimal() +
-    labs(y = y_axis_label) +   # y-axis title is set via the function argument
+    labs(y = y_axis_label) +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
       legend.position = "none",
+              axis.title.x = element_blank(),
       panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
     ) +
     tme + 
     scale_fill_manual(values = custom_colors) +
-    stat_compare_means(method = "t.test", label = "p.signif", hide.ns = FALSE, 
-                       comparisons = list(c("Diagonal", "Off-diagonals")),
-                       label.y = stat_label_y,  # Adjust vertical position here
-                       size = stat_size) +
-    scale_y_continuous(limits = c (0.3, 0.9))
-  
+    stat_compare_means(
+      method = "t.test", label = "p.signif", hide.ns = FALSE, 
+      comparisons = list(c("Diagonal", "Off-diagonals")),
+      label.y = label_y_position * 1.1,  # Auto-set position
+      size = stat_size
+    ) +
+    scale_y_continuous(limits = c(0.4, max_y * 1.1), labels = scales::number_format(accuracy = 0.1))  # Extend slightly above max
 }
-
+  
 plot_hist <- function(data, metric, 
                       x_axis_label = "Balanced accuracy", 
                       y_axis_label = "Count") {
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -424,6 +432,7 @@ site_specificity <- ggplot(result_summary, aes(x = specificity)) +
 site_f1 <- ggplot(result_summary, aes(x = f1_score)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "F1 score",
        y = "Count") +
   tme
@@ -431,6 +440,7 @@ site_f1 <- ggplot(result_summary, aes(x = f1_score)) +
 site_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Balanced accuracy",
        y = "Count") +
   tme
@@ -438,6 +448,7 @@ site_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
 site_precision <- ggplot(result_summary, aes(x = precision)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Precision",
        y = "Count") +
   tme
@@ -446,6 +457,20 @@ site_recall <- ggplot(result_summary, aes(x = recall)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   labs(x = "Recall",
+       y = "Count") +
+  tme
+
+site_rmse <- ggplot(result_summary, aes(x = rmse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "RMSE",
+       y = "Count") +
+  tme
+
+site_mse <- ggplot(result_summary, aes(x = mse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "MSE",
        y = "Count") +
   tme
 
@@ -505,9 +530,9 @@ custom_colors <- c("Diagonal" = "steelblue",
 
 # boxplots:
 site_ba <- plot_boxplot(result_summary, metric = "balanced_accuracy", 
-                        y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
+                        y_axis_label = "Balanced accuracy", stat_size = 6)
 site_f1 <- plot_boxplot(result_summary, metric = "f1_score", 
-                        y_axis_label = "F1 score", stat_label_y = 0.85, stat_size = 6)
+                        y_axis_label = "F1 score", stat_size = 6)
 
 combined_plots <- arrangeGrob(
   site_ba, site_f1, 
@@ -521,16 +546,94 @@ final_plot <- grid.arrange(
   widths = c(2, 0.3)
 )
 
+plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
+                         stat_size = 3) {
+  
+  # Calculate max value for y-axis and position for stat label
+  max_y <- max(data[[metric]], na.rm = TRUE)
+  min_y <- min(data[[metric]], na.rm = TRUE)
+  label_y_position <- max_y * 0.92  # 95% of the maximum (a bit below the top)
+  
+  ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
+    theme_minimal() +
+    labs(y = y_axis_label) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank(),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    tme + 
+    scale_fill_manual(values = custom_colors) +
+    stat_compare_means(
+      method = "t.test", label = "p.signif", hide.ns = FALSE, 
+      comparisons = list(c("Diagonal", "Off-diagonals")),
+      label.y = label_y_position * 1.1,  # Auto-set position
+      size = stat_size
+    ) +
+    scale_y_continuous(limits = c(min_y, max_y * 1.2), labels = scales::number_format(accuracy = 0.1))  # Extend slightly above max
+}
+
+site_precision <- plot_boxplot(result_summary, metric = "precision", 
+                        y_axis_label = "Presicion", stat_size = 6)
+site_recall <- plot_boxplot(result_summary, metric = "recall", 
+                        y_axis_label = "Recall", stat_size = 6)
+
+site_specificity <- plot_boxplot(result_summary, metric = "specificity", 
+                            y_axis_label = "Specificity", stat_size = 6)
+
+site_mse <- plot_boxplot(result_summary, metric = "mse", 
+                            y_axis_label = "MSE", stat_size = 6)
+
+site_rmse <- plot_boxplot(result_summary, metric = "rmse", 
+                         y_axis_label = "RMSE", stat_size = 6)
+
+combined_plots <- arrangeGrob(
+  site_precision, site_recall, site_specificity, site_rmse, site_mse, 
+  ncol = 3, 
+  widths = c(1, 1, 1)
+)
+
+final_plot <- grid.arrange(
+  combined_plots,
+  ncol = 3,
+  widths = c(2, 0.3, 0.3)
+)
+
 # histograms: 
 hist_ba <- plot_hist(result_summary, metric = "balanced_accuracy", 
                      y_axis_label = "Count")
 hist_f1 <- plot_hist(result_summary, metric = "f1_score", 
                      y_axis_label = "Count",
-                     x_axis_label = "F1 score")
-
-hist_f1 <- hist_f1 + theme(axis.title.y = element_blank())
+                     x_axis_label = "F1 score") + theme(axis.title.y = element_blank())
 
 combined_plot <- hist_ba + hist_f1 + 
+  plot_layout(guides = "collect") +
+  # Optionally, set the legend position (e.g., to the right or bottom)
+  plot_annotation(theme = theme(legend.position = "right"))
+
+combined_plot
+
+hist_precision <- plot_hist(result_summary, metric = "precision", 
+                     y_axis_label = "Count")
+hist_recall <- plot_hist(result_summary, metric = "recall", 
+                     y_axis_label = "Count",
+                     x_axis_label = "Recall") + theme(axis.title.y = element_blank())
+
+hist_specificity <- plot_hist(result_summary, metric = "specificity", 
+                         y_axis_label = "Count",
+                         x_axis_label = "Specificity") + theme(axis.title.y = element_blank())
+
+hist_rmse <- plot_hist(result_summary, metric = "rmse", 
+                         y_axis_label = "Count",
+                         x_axis_label = "RMSE") + theme(axis.title.y = element_blank())
+
+hist_mse <- plot_hist(result_summary, metric = "mse", 
+                         y_axis_label = "Count",
+                         x_axis_label = "MSE") + theme(axis.title.y = element_blank())
+
+combined_plot <- hist_precision + hist_recall + hist_specificity + hist_rmse + hist_mse +
   plot_layout(guides = "collect") +
   # Optionally, set the legend position (e.g., to the right or bottom)
   plot_annotation(theme = theme(legend.position = "right"))
@@ -634,65 +737,229 @@ df_long_1off <- result_summary %>%
     values_to = "measure_value"
   )
 
-# For each variable, compute correlation with f1_score:
-cor_table <- df_long_1off %>%
-  group_by(measure_type) %>%
-  summarise(
-    cor_value = cor(f1_score, measure_value, use = "complete.obs", method = "pearson"),
-    p_value   = cor.test(f1_score, measure_value, method = "pearson")$p.value
-  ) %>%
-  ungroup()
-
-cor_table
-
-cor_table_annot <- cor_table %>%
-  mutate(
-    # round correlation to 3 decimals, no scientific notation
-    r_fmt  = formatC(cor_value, format = "f", digits = 2),
-    # round p-value to 4 decimals, no scientific notation
-    p_fmt  = formatC(p_value,  format = "f", digits = 4),
-    label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+df_long_1off <- result_summary %>%
+  select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, size_P, density_P, size_C, density_C) %>%
+  pivot_longer(
+    cols = c(size_P, density_P, size_C, density_C),
+    names_to = "measure_type",
+    values_to = "measure_value"
   )
 
-# Create a named vector for renaming facets
-facet_labels <- c(
-  "size_C" = "Size of matrix C",
-  "density_C" = "Density of matrix C",
-  "size_P" = "Size of matrix P",
-  "density_P" = "Density of matrix P"
+plot_netsize <- function(data, evaluator = "f1_score",
+                                      facet_labels = NULL,
+                                      evaluator_label = NULL,
+                                      title_text = NULL) {
+  
+  evaluator_sym <- rlang::sym(evaluator)  # Treat evaluator as a column
+  
+  # Calculate correlations
+  cor_table <- data %>%
+    group_by(measure_type) %>%
+    summarise(
+      cor_value = cor(!!evaluator_sym, measure_value, use = "complete.obs", method = "pearson"),
+      p_value   = cor.test(!!evaluator_sym, measure_value, method = "pearson")$p.value,
+      .groups = "drop"
+    )
+  
+  # Create annotation table
+  cor_table_annot <- cor_table %>%
+    mutate(
+      r_fmt = formatC(cor_value, format = "f", digits = 2),
+      p_fmt = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),  # Scientific notation for very small p-values
+        formatC(p_value, format = "f", digits = 3)   # Regular fixed format otherwise
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  
+  # Build the plot
+  plot <- ggplot(data, aes(x = measure_value, y = !!evaluator_sym)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    facet_wrap(
+      ~ measure_type,
+      scales   = "free_x",
+      labeller = as_labeller(facet_labels)
+    ) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    geom_text(
+      data    = cor_table_annot,
+      aes(label = label_text),
+      x       = Inf,
+      y       = Inf,
+      hjust   = 1.1,
+      vjust   = 1.2,
+      size    = 3.2,
+      inherit.aes = FALSE
+    ) +
+    labs(
+      x = "Network feature",
+      y = ifelse(is.null(evaluator_label), evaluator, evaluator_label),
+      title = ifelse(is.null(title_text), paste(evaluator, "vs. network measures"), title_text)
+    ) +
+    theme_minimal() +
+    tme +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks = element_line(color = "black"),
+      strip.text = element_text(size = 12)
+    )
+  
+  return(plot)
+}
+
+netsize_site_f1 <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "f1_score",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "F1 score"
 )
+netsize_site_f1
 
-netsize_site <- ggplot(df_long_1off, aes(x = measure_value, y = f1_score)) +
-  geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-  facet_wrap(
-    ~ measure_type,
-    scales   = "free_x",
-    labeller = as_labeller(facet_labels)  # Use the named vector
-  ) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
-  geom_text(
-    data    = cor_table_annot,
-    aes(label = label_text),
-    x       = Inf,
-    y       = Inf,
-    hjust   = 1.1,
-    vjust   = 1.2,
-    size    = 3.2,
-    color   = "black"
-  ) +
-  labs(
-    x = "Network feature",
-    y = "F1 score",
-    title = "F1 vs. network measures - all data points"
-  ) +
-  theme_minimal() +
-  tme +
-  theme(
-    panel.border = element_rect(color = "black", fill = NA, size = 1),
-    axis.ticks = element_line(color = "black")
-  )
-print(netsize_site)
+netsize_site_ba <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "balanced_accuracy",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "Balanced accuracy"
+)
+netsize_site_ba
+
+netsize_site_precision <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "precision",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "Precision"
+)
+netsize_site_precision
+
+
+netsize_site_recall <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "recall",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "Recall"
+)
+netsize_site_recall
+
+netsize_site_specificity <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "specificity",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "Specificity"
+)
+netsize_site_specificity
+
+netsize_site_rmse <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "rmse",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "RMSE"
+)
+netsize_site_rmse
+
+netsize_site_mse <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "mse",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "MSE"
+)
+netsize_site_mse
+
+# # For each variable, compute correlation with f1_score:
+# cor_table <- df_long_1off %>%
+#   group_by(measure_type) %>%
+#   summarise(
+#     cor_value = cor(f1_score, measure_value, use = "complete.obs", method = "pearson"),
+#     p_value   = cor.test(f1_score, measure_value, method = "pearson")$p.value
+#   ) %>%
+#   ungroup()
+# 
+# cor_table
+# 
+# cor_table_annot <- cor_table %>%
+#   mutate(
+#     # round correlation to 3 decimals, no scientific notation
+#     r_fmt  = formatC(cor_value, format = "f", digits = 2),
+#     # round p-value to 4 decimals, no scientific notation
+#     p_fmt  = formatC(p_value,  format = "f", digits = 4),
+#     label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+#   )
+# 
+# # Create a named vector for renaming facets
+# facet_labels <- c(
+#   "size_C" = "Size of matrix C",
+#   "density_C" = "Density of matrix C",
+#   "size_P" = "Size of matrix P",
+#   "density_P" = "Density of matrix P"
+# )
+# 
+# netsize_site <- ggplot(df_long_1off, aes(x = measure_value, y = f1_score)) +
+#   geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+#   geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+#   facet_wrap(
+#     ~ measure_type,
+#     scales   = "free_x",
+#     labeller = as_labeller(facet_labels)  # Use the named vector
+#   ) +
+#   scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+#   geom_text(
+#     data    = cor_table_annot,
+#     aes(label = label_text),
+#     x       = Inf,
+#     y       = Inf,
+#     hjust   = 1.1,
+#     vjust   = 1.2,
+#     size    = 3.2,
+#     color   = "black"
+#   ) +
+#   labs(
+#     x = "Network feature",
+#     y = "F1 score",
+#     title = "F1 vs. network measures - all data points"
+#   ) +
+#   theme_minimal() +
+#   tme +
+#   theme(
+#     panel.border = element_rect(color = "black", fill = NA, size = 1),
+#     axis.ticks = element_line(color = "black")
+#   )
 
 ## ---- Jaccard correlation with evaluators ----
 
@@ -765,13 +1032,13 @@ make_facet_scatter_plot <- function(data,
                                     plot_title = "F1 vs. Jaccard - All data (site)",
                                     facet_scales = "free_x") {
   
-  # Reshape data from wide to long format for the specified pivot columns
+  # Reshape data
   df_long <- data %>% 
     pivot_longer(cols = all_of(pivot_cols), 
                  names_to = names_to, 
                  values_to = values_to)
   
-  # For each facet (jaccard_type), compute correlation between the evaluator and jaccard_value
+  # Correlations
   cor_table <- df_long %>%
     group_by(!!sym(names_to)) %>%
     summarise(
@@ -780,21 +1047,33 @@ make_facet_scatter_plot <- function(data,
     ) %>%
     ungroup()
   
-  # Create annotations with formatted correlation coefficients and p-values
+  # Format correlation labels
   cor_table_annot <- cor_table %>%
     mutate(
-      r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = formatC(p_value, format = "f", digits = 3),
+      r_fmt = formatC(cor_value, format = "f", digits = 2),
+      p_fmt = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),  # Scientific notation
+        formatC(p_value, format = "f", digits = 3)   # Otherwise
+      ),
       label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
     )
   
-  # Construct the faceted scatter plot
+  # Facet labels (renaming)
+  facet_labels <- c(
+    jaccard_edges = "Interaction overlap",
+    jaccard_plants = "Plants overlap",
+    jaccard_pollinators = "Pollinators overlap"
+  )
+  
+  # Create plot
   plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
     geom_point(color = "steelblue", alpha = 0.6, size = 2) +
     geom_smooth(method = "lm", se = FALSE, color = "thistle") +
-    facet_wrap(as.formula(paste("~", names_to)), scales = facet_scales) +
+    facet_wrap(as.formula(paste("~", names_to)), 
+               scales = facet_scales,
+               labeller = as_labeller(facet_labels)) +
     scale_x_continuous(labels = number_format(accuracy = 0.1)) +
-    # Place the correlation annotation in the upper-right corner of each facet
     geom_text(data = cor_table_annot,
               aes(label = label_text),
               x = Inf,
@@ -807,6 +1086,7 @@ make_facet_scatter_plot <- function(data,
     theme_minimal() +
     tme +
     theme(
+      strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black")
     )
@@ -835,19 +1115,74 @@ canary_results_diags <- result_summary %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer != test_layer)
 
-offs_site <- make_facet_scatter_plot(data = canary_results_diags, 
+offs_site_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
                                     evaluator = "f1_score",
                                     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                     x_lab = "Jaccard similarity",
                                     y_lab = "F1 score",
                                     plot_title = "F1 vs. Jaccard - off-diagonals (site)",
                                     facet_scales = "free_x")
-offs_site
+offs_site_f1
+
+offs_site_ba <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "balanced_accuracy",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "Balanced accuracy",
+                                        plot_title = "BA vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_ba
+
+offs_site_presicion <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "precision",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "Precision",
+                                        plot_title = "precision vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_presicion
+
+
+offs_site_recall <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "recall",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "Recall",
+                                        plot_title = "Recall vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_recall
+
+offs_site_specificity <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "specificity",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "Specificity",
+                                        plot_title = "Specificity vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_specificity
+
+offs_site_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "rmse",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "RMSE",
+                                        plot_title = "RMSE vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_rmse
+
+offs_site_mse <- make_facet_scatter_plot(data = canary_results_diags, 
+                                        evaluator = "mse",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "MSE",
+                                        plot_title = "MSE vs. Jaccard - off-diagonals (site)",
+                                        facet_scales = "free_x")
+offs_site_mse
 
 ## ---- partner fidelity correlation with evaluators ----
 
 # filter out cases in which train = test layer
-df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
+df_fidelity <- df %>% filter(train_layer != test_layer) %>% 
   filter(original_links != 0) %>% filter(itr == 1)
 
 ### ---- plants fidelity ----
@@ -937,54 +1272,165 @@ result_summary <- result_summary %>%
   
 working_df_offs <- result_summary %>% filter (train_layer != test_layer)
 
-correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
-correlation
-# Extract correlation coefficient and p-value
-r_value <- round(correlation$estimate, 3)
-p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-label_text <- paste0("r = ", r_value, ", p = ", p_value)
+# correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
+# correlation
+# # Extract correlation coefficient and p-value
+# r_value <- round(correlation$estimate, 3)
+# p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+# label_text <- paste0("r = ", r_value, ", p = ", p_value)
+# 
+# pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
+#   geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
+#   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+#   labs(x = "Mean Sorensen similarity",
+#        y = "F1 score",
+#        title = "Site scale (pollinators)") +
+#   tme +
+#   annotate("text",
+#               x = Inf,
+#               y = Inf,
+#               hjust = 1.1,
+#               vjust = 1.2,   # Adjust depending on your data range
+#            label = label_text,
+#            size = 3.5,
+#            color = "black")+
+#   theme(axis.title.y = element_blank()) # for the unified plot
+# 
+# correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
+# correlation
+# # Extract correlation coefficient and p-value
+# r_value <- round(correlation$estimate, 3)
+# p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+# label_text <- paste0("r = ", r_value, ", p = ", p_value)
+# 
+# plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
+#   geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
+#   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+#   labs(x = "Mean Sorensen similarity",
+#        y = "F1 score",
+#        title = "Site scale (plants)") +
+#   tme +
+#   annotate("text", x = Inf, y = Inf, label = label_text,
+#             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
+#   theme(axis.title.y = element_blank()) # for the unified plot
+# 
+# 
+# grid.arrange(
+#   arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
+#   left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
+# )
 
-pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
-  geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
-  geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-  labs(x = "Mean Sorensen similarity",
-       y = "F1 score",
-       title = "Site scale (pollinators)") +
-  tme +
-  annotate("text",
-              x = Inf,
-              y = Inf,
-              hjust = 1.1,
-              vjust = 1.2,   # Adjust depending on your data range
-           label = label_text,
-           size = 3.5,
-           color = "black")+
-  theme(axis.title.y = element_blank()) # for the unified plot
-
-correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
-correlation
-# Extract correlation coefficient and p-value
-r_value <- round(correlation$estimate, 3)
-p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-label_text <- paste0("r = ", r_value, ", p = ", p_value)
-
-plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
-  geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
-  geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-  labs(x = "Mean Sorensen similarity",
-       y = "F1 score",
-       title = "Site scale (plants)") +
-  tme +
-  annotate("text", x = Inf, y = Inf, label = label_text,
-            hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
-  theme(axis.title.y = element_blank()) # for the unified plot
-
-
-grid.arrange(
-  arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
-  left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
-)
+# Simple function to make one correlation plot
+make_simple_correlation_plot <- function(data,
+                                         x_var,
+                                         evaluator,
+                                         x_lab = NULL,
+                                         plot_title,
+                                         point_color,
+                                         trend_color = "steelblue",
+                                         x_axis_blank = FALSE,
+                                         y_axis_blank = FALSE) {
   
+  # Perform correlation test
+  correlation <- cor.test(data[[evaluator]], data[[x_var]], use = "complete.obs", method = "pearson")
+  
+  # Extract correlation coefficient and p-value
+  r_value <- round(correlation$estimate, 3)
+  p_value <- formatC(correlation$p.value, digits = 2)
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Build the plot
+  p <- ggplot(data, aes_string(x = x_var, y = evaluator)) +
+    geom_point(color = point_color, alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = trend_color) +
+    labs(
+      x = x_lab,
+      y = NULL,
+      title = plot_title
+    ) +
+    tme +
+    annotate("text",
+             x = Inf, y = Inf,
+             hjust = 1.1, vjust = 1.2,
+             label = label_text,
+             size = 3.5,
+             color = "black")
+  
+  # Optionally remove axis titles
+  if (y_axis_blank) {
+    p <- p + theme(axis.title.y = element_blank())
+  }
+  if (x_axis_blank) {
+    p <- p + theme(axis.title.x = element_blank())
+  }
+  
+  return(p)
+}
+
+# Final master function to make the full double plot
+make_full_correlation_plot <- function(data,
+                                       evaluator = "f1_score",
+                                       pollinator_x = "avg_sorensen_pollinators",
+                                       plant_x = "avg_sorensen_plants",
+                                       shared_x_lab = "Mean Sorensen similarity",
+                                       shared_y_lab = NULL) {
+  
+  if (is.null(shared_y_lab)) {
+    # If user doesn't specify left y-axis label, use the evaluator name nicely formatted
+    shared_y_lab <- gsub("_", " ", evaluator)
+    shared_y_lab <- stringr::str_to_title(shared_y_lab)
+  }
+  
+  # Create plots (with no x-axis labels)
+  pollinator_plot <- make_simple_correlation_plot(
+    data = data,
+    x_var = pollinator_x,
+    evaluator = evaluator,
+    x_lab = NULL,  # No individual x-label
+    plot_title = "Site scale (pollinators)",
+    point_color = "thistle",
+    trend_color = "steelblue",
+    x_axis_blank = TRUE,
+    y_axis_blank = TRUE
+  )
+  
+  plant_plot <- make_simple_correlation_plot(
+    data = data,
+    x_var = plant_x,
+    evaluator = evaluator,
+    x_lab = NULL,  # No individual x-label
+    plot_title = "Site scale (plants)",
+    point_color = "darkseagreen3",
+    trend_color = "steelblue",
+    x_axis_blank = TRUE,
+    y_axis_blank = TRUE
+  )
+  
+  # Arrange plots without x labels
+  plots_side_by_side <- arrangeGrob(
+    plant_plot, pollinator_plot,
+    ncol = 2
+  )
+  
+  # Add shared axis labels
+  final_plot <- grid.arrange(
+    plots_side_by_side,
+    left = textGrob(shared_y_lab, rot = 90, gp = gpar(fontsize = 13, fontface = "bold")),
+    bottom = textGrob(shared_x_lab, gp = gpar(fontsize = 13, fontface = "bold"))
+  )
+  
+  return(final_plot)
+}
+
+# For F1 score
+make_full_correlation_plot(working_df_offs, evaluator = "f1_score")
+
+# For recall
+make_full_correlation_plot(working_df_offs, evaluator = "recall")
+
+# For precision
+make_full_correlation_plot(working_df_offs, evaluator = "precision")
+
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
@@ -1691,47 +2137,47 @@ print(site_heatmap_precision)
 #                                               fill_lab = "Specificity",
 #                                               extra_theme = tme)
 # 
-p1 <- site_heatmap_f1 +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p2 <- site_heatmap_ba +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p3 <- site_heatmap_recall +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p4 <- site_heatmap_precision +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p5 <- site_heatmap_specificity +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5,
-  ncol = 3, 
-  nrow = 2
-)
-combined_with_axes <- arrangeGrob(
-  combined_plots,
-  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
-)
-
-final_plot <- grid.arrange(
-  combined_with_axes,
-  ncol = 3,
-  widths = c(2, 0.3, 0.3)
-)
+# p1 <- site_heatmap_f1 +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p2 <- site_heatmap_ba +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p3 <- site_heatmap_recall +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p4 <- site_heatmap_precision +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p5 <- site_heatmap_specificity +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# combined_plots <- arrangeGrob(
+#   p1, p2, p3, p4, p5,
+#   ncol = 3, 
+#   nrow = 2
+# )
+# combined_with_axes <- arrangeGrob(
+#   combined_plots,
+#   #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+#   left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+# )
+# 
+# final_plot <- grid.arrange(
+#   combined_with_axes,
+#   ncol = 3,
+#   widths = c(2, 0.3, 0.3)
+# )
 ## ---- compare scales ----
 # make a long list
 df1_labeled <- result_summary_site %>%
