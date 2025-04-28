@@ -19,6 +19,7 @@ library(patchwork)
 library(vegan)
 library(ggnewscale)
 library(randomForest)
+library(stringr)
 
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
@@ -1320,11 +1321,12 @@ working_df_offs <- result_summary %>% filter (train_layer != test_layer)
 #   left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
 # )
 
-# Simple function to make one correlation plot
+# Function to make one correlation plot
 make_simple_correlation_plot <- function(data,
                                          x_var,
                                          evaluator,
                                          x_lab = NULL,
+                                         y_lab = NULL,
                                          plot_title,
                                          point_color,
                                          trend_color = "steelblue",
@@ -1336,7 +1338,12 @@ make_simple_correlation_plot <- function(data,
   
   # Extract correlation coefficient and p-value
   r_value <- round(correlation$estimate, 2)
-  p_value <- formatC(correlation$p.value, digits = 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  )  
+  
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
   # Build the plot
@@ -1345,7 +1352,7 @@ make_simple_correlation_plot <- function(data,
     geom_smooth(method = "lm", se = FALSE, color = trend_color) +
     labs(
       x = x_lab,
-      y = NULL,
+      y = y_lab,
       title = plot_title
     ) +
     tme +
@@ -1378,15 +1385,16 @@ make_full_correlation_plot <- function(data,
   if (is.null(shared_y_lab)) {
     # If user doesn't specify left y-axis label, use the evaluator name nicely formatted
     shared_y_lab <- gsub("_", " ", evaluator)
-    shared_y_lab <- stringr::str_to_title(shared_y_lab)
+    shared_y_lab <- str_to_title(shared_y_lab)
   }
   
-  # Create plots (with no x-axis labels)
+  # Create plots (with no x labels)
   pollinator_plot <- make_simple_correlation_plot(
     data = data,
     x_var = pollinator_x,
     evaluator = evaluator,
     x_lab = NULL,  # No individual x-label
+    y_lab = NULL,  # No individual y-label
     plot_title = "Site scale (pollinators)",
     point_color = "thistle",
     trend_color = "steelblue",
@@ -1399,6 +1407,7 @@ make_full_correlation_plot <- function(data,
     x_var = plant_x,
     evaluator = evaluator,
     x_lab = NULL,  # No individual x-label
+    y_lab = NULL,  # No individual y-label
     plot_title = "Site scale (plants)",
     point_color = "darkseagreen3",
     trend_color = "steelblue",
@@ -1406,7 +1415,7 @@ make_full_correlation_plot <- function(data,
     y_axis_blank = TRUE
   )
   
-  # Arrange plots without x labels
+  # Arrange plots side by side
   plots_side_by_side <- arrangeGrob(
     plant_plot, pollinator_plot,
     ncol = 2
@@ -1423,25 +1432,31 @@ make_full_correlation_plot <- function(data,
 }
 
 # For F1 score
-make_full_correlation_plot(working_df_offs, evaluator = "f1_score")
-
+make_full_correlation_plot(working_df_offs,
+                           evaluator = "f1_score",
+                           shared_y_lab = "F1 score")
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
 # For precision
 make_full_correlation_plot(working_df_offs, evaluator = "precision")
 
-make_full_correlation_plot(working_df_offs, evaluator = "balanced_accuracy")
+make_full_correlation_plot(working_df_offs,
+                           evaluator = "balanced_accuracy",
+                           shared_y_lab = "Balanced accuracy")
 
 make_full_correlation_plot(working_df_offs, evaluator = "specificity")
 
-make_full_correlation_plot(working_df_offs, evaluator = "rmse")
+make_full_correlation_plot(working_df_offs,
+                           evaluator = "rmse",
+                           shared_y_lab = "RMSE")
 
-make_full_correlation_plot(working_df_offs, evaluator = "mse")
-
+make_full_correlation_plot(working_df_offs,
+                           evaluator = "mse",
+                           shared_y_lab = "MSE")
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
-# Step 1: Filter the data
+# Step 1: Filter the data for existing interactions
 df_filtered <- df %>%
   filter(itr == 1, original_links != 0)
 
@@ -1534,7 +1549,7 @@ df_to_correlate$y <- df_to_correlate$count_never_observed
 correlation_plants <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
 correlation_plants
 # Extract correlation coefficient and p-value
-r_value <- round(correlation_plants$estimate, 3)
+r_value <- round(correlation_plants$estimate, 2)
 p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
 label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
@@ -1565,7 +1580,7 @@ correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "comple
 correlation_poll
 
 # Extract correlation coefficient and p-value
-r_value <- round(correlation_poll$estimate, 3)
+r_value <- round(correlation_poll$estimate, 2)
 p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
 label_text_polls <- paste0("r = ", r_value, ", p = ", p_value)
 
@@ -1692,7 +1707,7 @@ ggplot(df_top_10,
        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
            y = mean_pred,
            fill = p_value < 0.05)) +
-  geom_col(fill = "steelblue") +
+  geom_col(fill = "lightsteelblue") +
   geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
                 width = 0.2) +
   coord_flip() +
@@ -1871,7 +1886,7 @@ result_summary_site <- result_summary
 ## ---- distance correlation with evaluators ----
 make_cor_plot <- function(data, evaluator, 
                           distance_col = "distance_km", 
-                          x_lab = "Geographical distance (km)",
+                          x_lab = "Geographic distance (km)",
                           y_lab = NULL,
                           extra_theme = NULL) {
   # Use evaluator as y_lab if no alternative is provided
@@ -1882,8 +1897,12 @@ make_cor_plot <- function(data, evaluator,
   # Compute correlation between evaluator and distance
   correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
                           use = "complete.obs", method = "pearson")
-  r_value <- round(correlation$estimate, 3)
-  p_value <- formatC(correlation$p.value, format = "f", digits = 3)
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  ) 
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
   # Create plot with label in the upper right corner using Inf coordinates
@@ -1903,40 +1922,92 @@ make_cor_plot <- function(data, evaluator,
   return(plot)
 }
 
-cor_plot_site <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
-cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
+combine_two_plots <- function(p1, p2,
+                              x_axis_label = "Geographic distance (km)",
+                              y_axis_label = "F1 score",
+                              p1_title = "Site scale",
+                              p2_title = "Island scale",
+                              margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
+                              axis_title_fontsize = 14,
+                              axis_title_fontface = "bold") {
+  
+  # Adjust first plot
+  p1 <- p1 +
+    ggtitle(p1_title) +
+    theme(
+      legend.position = "none",
+      axis.title = element_blank(),
+      plot.margin = margins
+    )
+  
+  # Adjust second plot
+  p2 <- p2 +
+    ggtitle(p2_title) +
+    theme(
+      legend.position = "none",
+      axis.title = element_blank(),
+      plot.margin = margins
+    )
+  
+  # Combine p1 and p2 side by side
+  combined_plots <- arrangeGrob(
+    p1, p2,
+    ncol = 2,
+    widths = c(1, 1)
+  )
+  
+  # Add global x and y axis labels
+  combined_with_axes <- arrangeGrob(
+    combined_plots,
+    bottom = textGrob(
+      x_axis_label,
+      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface),
+      vjust = -1.5
+    ),
+    left = textGrob(
+      y_axis_label,
+      rot = 90,
+      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface)
+    )
+  )
+  
+  # Final arrangement
+  final_plot <- grid.arrange(
+    combined_with_axes,
+    ncol = 2,
+    widths = c(2, 0.3)
+  )
+  
+  return(final_plot)
+}
 
-# To combine the plots:
-p1 <- cor_plot_site + 
-  ggtitle("Site scale") +
-  theme(legend.position = "none",
-        axis.title = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
-p2 <- cor_plot_isl + 
-  ggtitle("Island scale") +
-  theme(legend.position = "none",
-        axis.title = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
+cor_plot_site_f1 <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
+cor_plot_isl_f1  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
+final_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
 
-combined_plots <- arrangeGrob(
-  p1, p2,
-  ncol = 2,
-  widths = c(1, 1)
-)
-combined_with_axes <- arrangeGrob(
-  combined_plots,
-  bottom = textGrob("Geographical distance (km)", 
-                    gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("F1 score", rot = 90, 
-                    gp = gpar(fontsize = 14, fontface = "bold"))
-)
-final_plot <- grid.arrange(
-  combined_with_axes,
-  ncol = 2,
-  widths = c(2, 0.3)
-)
+cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
+cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
+final_plot_ba <- combine_two_plots(cor_plot_site_ba, cor_plot_isl_ba, y_axis_label = "Balanced accuracy")
 
-final_plot
+cor_plot_site_precision <- make_cor_plot(result_summary_site, evaluator = "precision", extra_theme = tme)
+cor_plot_isl_precision  <- make_cor_plot(result_summary_island, evaluator = "precision", extra_theme = tme)
+final_plot_precision <- combine_two_plots(cor_plot_site_precision, cor_plot_isl_precision, y_axis_label = "Precision")
+
+cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
+cor_plot_isl_recall  <- make_cor_plot(result_summary_island, evaluator = "recall", extra_theme = tme)
+final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
+
+cor_plot_site_specificity <- make_cor_plot(result_summary_site, evaluator = "specificity", extra_theme = tme)
+cor_plot_isl_specificity  <- make_cor_plot(result_summary_island, evaluator = "specificity", extra_theme = tme)
+final_plot_specificity <- combine_two_plots(cor_plot_site_specificity, cor_plot_isl_specificity, y_axis_label = "Specificity")
+
+cor_plot_site_rmse <- make_cor_plot(result_summary_site, evaluator = "rmse", extra_theme = tme)
+cor_plot_isl_rmse  <- make_cor_plot(result_summary_island, evaluator = "rmse", extra_theme = tme)
+final_plot_rmse <- combine_two_plots(cor_plot_site_rmse, cor_plot_isl_rmse, y_axis_label = "RMSE")
+
+cor_plot_site_mse <- make_cor_plot(result_summary_site, evaluator = "mse", extra_theme = tme)
+cor_plot_isl_mse  <- make_cor_plot(result_summary_island, evaluator = "mse", extra_theme = tme)
+final_plot_mse <- combine_two_plots(cor_plot_site_mse, cor_plot_isl_mse, y_axis_label = "MSE")
 
 ## ---- plot heatmaps ----
 site_heatmap_recall <- 
@@ -2048,6 +2119,50 @@ site_heatmap_precision <-
   coord_fixed() + tme
 
 print(site_heatmap_precision)
+
+site_heatmap_rmse <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = rmse)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "RMSE") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_rmse)
+
+site_heatmap_mse <- 
+  ggplot(result_summary_site, aes(x = train_layer_name, y = test_layer_name, fill = mse)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = result_summary_site[result_summary_site$train_layer == result_summary_site$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added layer", y = "Predicted layer", fill = "MSE") +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(site_heatmap_mse)
 
 # make_heatmap_plot <- function(data,            # Main data frame for the heatmap
 #                               eval_col,        # Evaluator column name (e.g., "recall")
@@ -2267,6 +2382,81 @@ ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
     "balanced_accuracy" = "Balanced \naccuracy",
     "mcc" = "MCC",
     "specificity" = "Specificity"
+  )) +  # Properly formatted labels
+  stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
+                     label.y = max(df_long$value, na.rm = TRUE) + 0.05,
+                     size = 5)  + 
+  theme(legend.text = element_text(size = 14),
+        legend.title = element_text(size = 14), ) + tme
+
+## repeat seperately for rmse and mse
+df_long <- df_combined %>%
+  pivot_longer(
+    cols = c("rmse", "mse"),
+    names_to = "metric",
+    values_to = "value"
+  )
+
+metrics <- c("rmse", "mse")
+
+results <- lapply(metrics, function(metric) {
+  test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
+  test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
+  
+  if (test_normality_site > 0.05 & test_normality_island > 0.05) {
+    test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
+  } else {
+    test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
+  }
+  
+  data.frame(
+    Metric = metric,
+    Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
+    P_value = test$p.value
+  )
+})
+
+results_df <- do.call(rbind, results)
+print(results_df)
+
+# Define significance function
+get_pvalue_asterisks <- function(p) {
+  if (p < 0.001) return("***")  # Highly significant
+  else if (p < 0.01) return("**")  # Very significant
+  else if (p < 0.05) return("*")  # Significant
+  else return("ns")  # Not significant
+}
+
+stat_results <- lapply(metrics, function(metric) {
+  data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
+  
+  test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
+  
+  p_value <- test$p.value
+  significance <- get_pvalue_asterisks(p_value)
+  
+  data.frame(
+    metric = metric,
+    p_value = p_value,
+    significance = significance
+  )
+})
+
+stat_results_df <- do.call(rbind, stat_results)
+
+# Merge significance levels with the dataset
+df_long <- df_long %>%
+  left_join(stat_results_df, by = "metric")
+
+# Create the boxplot with significance annotations
+ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
+  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
+  theme_minimal() +
+  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
+  scale_x_discrete(labels = c(
+    "rmse" = "RMSE",
+    "mse" = "MSE"
   )) +  # Properly formatted labels
   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
                      label.y = max(df_long$value, na.rm = TRUE) + 0.05,
