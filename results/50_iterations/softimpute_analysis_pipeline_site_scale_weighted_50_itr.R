@@ -1181,8 +1181,8 @@ offs_site_mse
 
 ## ---- partner fidelity correlation with evaluators ----
 
-# filter out cases in which train = test layer
-df_fidelity <- df %>% filter(train_layer != test_layer) %>% 
+# filter existing interactions in cases where train = test layer (we want to calculate the average similarity in partner composition of each species in different sites)
+df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
   filter(original_links != 0) %>% filter(itr == 1)
 
 ### ---- plants fidelity ----
@@ -1335,7 +1335,7 @@ make_simple_correlation_plot <- function(data,
   correlation <- cor.test(data[[evaluator]], data[[x_var]], use = "complete.obs", method = "pearson")
   
   # Extract correlation coefficient and p-value
-  r_value <- round(correlation$estimate, 3)
+  r_value <- round(correlation$estimate, 2)
   p_value <- formatC(correlation$p.value, digits = 2)
   label_text <- paste0("r = ", r_value, ", p = ", p_value)
   
@@ -1430,6 +1430,14 @@ make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
 # For precision
 make_full_correlation_plot(working_df_offs, evaluator = "precision")
+
+make_full_correlation_plot(working_df_offs, evaluator = "balanced_accuracy")
+
+make_full_correlation_plot(working_df_offs, evaluator = "specificity")
+
+make_full_correlation_plot(working_df_offs, evaluator = "rmse")
+
+make_full_correlation_plot(working_df_offs, evaluator = "mse")
 
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
