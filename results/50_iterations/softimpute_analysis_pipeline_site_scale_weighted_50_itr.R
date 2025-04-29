@@ -2303,166 +2303,239 @@ print(site_heatmap_mse)
 # )
 ## ---- compare scales ----
 # make a long list
-df1_labeled <- result_summary_site %>%
-  mutate(scale = "Site")
+# df1_labeled <- result_summary_site %>%
+#   mutate(scale = "Site")
+# 
+# df2_labeled <- result_summary_island %>%
+#   mutate(scale = "Island")
+# 
+# df_combined <- bind_rows(df1_labeled, df2_labeled)
+# 
+# df_long <- df_combined %>%
+#   pivot_longer(
+#     cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
+#     names_to = "metric",
+#     values_to = "value"
+#   )
+# 
+# metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
+# 
+# results <- lapply(metrics, function(metric) {
+#   test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
+#   test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
+#   
+#   if (test_normality_site > 0.05 & test_normality_island > 0.05) {
+#     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
+#   } else {
+#     test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
+#   }
+#   
+#   data.frame(
+#     Metric = metric,
+#     Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
+#     P_value = test$p.value
+#   )
+# })
+# 
+# results_df <- do.call(rbind, results)
+# print(results_df)
+# 
+# # Define significance function
+# get_pvalue_asterisks <- function(p) {
+#   if (p < 0.001) return("***")  # Highly significant
+#   else if (p < 0.01) return("**")  # Very significant
+#   else if (p < 0.05) return("*")  # Significant
+#   else return("ns")  # Not significant
+# }
+# 
+# stat_results <- lapply(metrics, function(metric) {
+#   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
+#   
+#   test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
+#   
+#   p_value <- test$p.value
+#   significance <- get_pvalue_asterisks(p_value)
+#   
+#   data.frame(
+#     metric = metric,
+#     p_value = p_value,
+#     significance = significance
+#   )
+# })
+# 
+# stat_results_df <- do.call(rbind, stat_results)
+# 
+# # Merge significance levels with the dataset
+# df_long <- df_long %>%
+#   left_join(stat_results_df, by = "metric")
+# 
+# # Create the boxplot with significance annotations
+# ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
+#   geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
+#   theme_minimal() +
+#   labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+#   scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
+#   scale_x_discrete(labels = c(
+#     "f1_score" = "F1 score",
+#     "recall" = "Recall",
+#     "precision" = "Precision",
+#     "balanced_accuracy" = "Balanced \naccuracy",
+#     "mcc" = "MCC",
+#     "specificity" = "Specificity"
+#   )) +  # Properly formatted labels
+#   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
+#                      label.y = max(df_long$value, na.rm = TRUE) + 0.05,
+#                      size = 5)  + 
+#   theme(legend.text = element_text(size = 14),
+#         legend.title = element_text(size = 14), ) + tme
+# 
+# ## repeat seperately for rmse and mse
+# df_long <- df_combined %>%
+#   pivot_longer(
+#     cols = c("rmse", "mse"),
+#     names_to = "metric",
+#     values_to = "value"
+#   )
+# 
+# metrics <- c("rmse", "mse")
+# 
+# results <- lapply(metrics, function(metric) {
+#   test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
+#   test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
+#   
+#   if (test_normality_site > 0.05 & test_normality_island > 0.05) {
+#     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
+#   } else {
+#     test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
+#   }
+#   
+#   data.frame(
+#     Metric = metric,
+#     Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
+#     P_value = test$p.value
+#   )
+# })
+# 
+# results_df <- do.call(rbind, results)
+# print(results_df)
+# 
+# # Define significance function
+# get_pvalue_asterisks <- function(p) {
+#   if (p < 0.001) return("***")  # Highly significant
+#   else if (p < 0.01) return("**")  # Very significant
+#   else if (p < 0.05) return("*")  # Significant
+#   else return("ns")  # Not significant
+# }
+# 
+# stat_results <- lapply(metrics, function(metric) {
+#   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
+#   
+#   test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
+#   
+#   p_value <- test$p.value
+#   significance <- get_pvalue_asterisks(p_value)
+#   
+#   data.frame(
+#     metric = metric,
+#     p_value = p_value,
+#     significance = significance
+#   )
+# })
+# 
+# stat_results_df <- do.call(rbind, stat_results)
+# 
+# # Merge significance levels with the dataset
+# df_long <- df_long %>%
+#   left_join(stat_results_df, by = "metric")
+# 
+# # Create the boxplot with significance annotations
+# ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
+#   geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
+#   theme_minimal() +
+#   labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
+#   scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
+#   scale_x_discrete(labels = c(
+#     "rmse" = "RMSE",
+#     "mse" = "MSE"
+#   )) +  # Properly formatted labels
+#   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
+#                      label.y = max(df_long$value, na.rm = TRUE) + 0.05,
+#                      size = 5)  + 
+#   theme(legend.text = element_text(size = 14),
+#         legend.title = element_text(size = 14), ) + tme
 
-df2_labeled <- result_summary_island %>%
-  mutate(scale = "Island")
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggpubr)
 
-df_combined <- bind_rows(df1_labeled, df2_labeled)
-
-df_long <- df_combined %>%
+# 1. Combine + pivot (adding rmse & mse) and force the order you want:
+df_long <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island")
+) %>%
   pivot_longer(
-    cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
-    names_to = "metric",
+    cols      = c("f1_score","recall","precision",
+                  "balanced_accuracy","mcc","specificity",
+                  "rmse","mse"),
+    names_to  = "metric",
     values_to = "value"
-  )
+  ) %>%
+  mutate(metric = factor(metric, levels = c(
+    "f1_score","recall","precision","balanced_accuracy",
+    "mcc","specificity","rmse","mse"
+  )))
 
-metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
+# 2. Pretty facet titles with units:
+metric_labels <- c(
+  f1_score          = "F1 score",
+  recall            = "Recall",
+  precision         = "Precision",
+  balanced_accuracy = "Balanced accuracy",
+  mcc               = "MCC",
+  specificity       = "Specificity",
+  rmse              = "RMSE",
+  mse               = "MSE"
+)
 
-results <- lapply(metrics, function(metric) {
-  test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
-  test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
-  
-  if (test_normality_site > 0.05 & test_normality_island > 0.05) {
-    test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
-  } else {
-    test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
-  }
-  
-  data.frame(
-    Metric = metric,
-    Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
-    P_value = test$p.value
-  )
-})
-
-results_df <- do.call(rbind, results)
-print(results_df)
-
-# Define significance function
-get_pvalue_asterisks <- function(p) {
-  if (p < 0.001) return("***")  # Highly significant
-  else if (p < 0.01) return("**")  # Very significant
-  else if (p < 0.05) return("*")  # Significant
-  else return("ns")  # Not significant
-}
-
-stat_results <- lapply(metrics, function(metric) {
-  data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
-  
-  test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
-  
-  p_value <- test$p.value
-  significance <- get_pvalue_asterisks(p_value)
-  
-  data.frame(
-    metric = metric,
-    p_value = p_value,
-    significance = significance
-  )
-})
-
-stat_results_df <- do.call(rbind, stat_results)
-
-# Merge significance levels with the dataset
-df_long <- df_long %>%
-  left_join(stat_results_df, by = "metric")
-
-# Create the boxplot with significance annotations
-ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
-  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
-  theme_minimal() +
-  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
-  scale_x_discrete(labels = c(
-    "f1_score" = "F1 score",
-    "recall" = "Recall",
-    "precision" = "Precision",
-    "balanced_accuracy" = "Balanced \naccuracy",
-    "mcc" = "MCC",
-    "specificity" = "Specificity"
-  )) +  # Properly formatted labels
-  stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
-                     label.y = max(df_long$value, na.rm = TRUE) + 0.05,
-                     size = 5)  + 
-  theme(legend.text = element_text(size = 14),
-        legend.title = element_text(size = 14), ) + tme
-
-## repeat seperately for rmse and mse
-df_long <- df_combined %>%
-  pivot_longer(
-    cols = c("rmse", "mse"),
-    names_to = "metric",
-    values_to = "value"
-  )
-
-metrics <- c("rmse", "mse")
-
-results <- lapply(metrics, function(metric) {
-  test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
-  test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
-  
-  if (test_normality_site > 0.05 & test_normality_island > 0.05) {
-    test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
-  } else {
-    test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
-  }
-  
-  data.frame(
-    Metric = metric,
-    Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
-    P_value = test$p.value
-  )
-})
-
-results_df <- do.call(rbind, results)
-print(results_df)
-
-# Define significance function
-get_pvalue_asterisks <- function(p) {
-  if (p < 0.001) return("***")  # Highly significant
-  else if (p < 0.01) return("**")  # Very significant
-  else if (p < 0.05) return("*")  # Significant
-  else return("ns")  # Not significant
-}
-
-stat_results <- lapply(metrics, function(metric) {
-  data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
-  
-  test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
-  
-  p_value <- test$p.value
-  significance <- get_pvalue_asterisks(p_value)
-  
-  data.frame(
-    metric = metric,
-    p_value = p_value,
-    significance = significance
-  )
-})
-
-stat_results_df <- do.call(rbind, stat_results)
-
-# Merge significance levels with the dataset
-df_long <- df_long %>%
-  left_join(stat_results_df, by = "metric")
-
-# Create the boxplot with significance annotations
-ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
-  geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
-  theme_minimal() +
-  labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
-  scale_x_discrete(labels = c(
-    "rmse" = "RMSE",
-    "mse" = "MSE"
-  )) +  # Properly formatted labels
-  stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
-                     label.y = max(df_long$value, na.rm = TRUE) + 0.05,
-                     size = 5)  + 
-  theme(legend.text = element_text(size = 14),
-        legend.title = element_text(size = 14), ) + tme
+# 3. Plot with free_y, custom labels, and centered stars at the top:
+ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+  geom_boxplot(
+    notch        = TRUE,
+    outlier.size = 1,
+    position     = position_dodge(width = 0.75)
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales   = "free_y",
+    labeller = as_labeller(metric_labels),
+    ncol     = 4
+  ) +
+  stat_compare_means(
+    method    = "t.test",
+    label     = "p.signif",
+    # put label at the very top of each facet:
+    label.y   = Inf,
+    vjust     = 1.5,
+    # center between the two boxes (position 1 & 2):
+    label.x   = 1.45,
+    tip.length= 0.01,
+    size      = 4
+  ) +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2",
+                               "Island" = "wheat2")) +
+  labs(
+    title = "Performance & Error Metrics by Scale",
+    x     = NULL,
+    y     = NULL
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text      = element_text(face = "bold", size = 12),
+    axis.text.x     = element_blank(),
+    axis.ticks.x    = element_blank(),
+    legend.position = "bottom"
+  ) + tme
 
 ## ---- variable importance ----
 # analyze only one off-diagonal
@@ -2470,11 +2543,11 @@ df_off <- result_summary_site %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer < test_layer)
 # subset relavant columns
-df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
+df_subset_cor <- df_off %>% select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 
 ### ---- autocorrelation check ----
 # 2. Compute correlation matrix
-cor_mat <- cor(df_subset, use = "complete.obs")
+cor_mat <- cor(df_subset_cor, use = "complete.obs")
 #write.csv(cor_mat, "island_autocorrelation.csv")
 
 # 3. Visualize (optional)
@@ -2482,47 +2555,113 @@ cor_mat <- cor(df_subset, use = "complete.obs")
 corrplot(cor_mat, 
          method = "number",      # or "circle", "color", etc.
          type = "upper",         # upper/lower/full
-         tl.cex = 0.7,           # text label size
-         number.cex = 0.7,       # correlation coefficient size
+         tl.cex = 0.5,           # text label size
+         number.cex = 0.5,       # correlation coefficient size
          tl.col = "black"       # text label color (optional)
 )
 
-### ---- linear regression ----
-# Fit a linear model predicting f1_score from all other numeric predictors
-lm_fit <- lm(f1_score ~ distance_km +	avg_sorensen_plants +	avg_sorensen_pollinators +	jaccard_pollinators +	jaccard_plants +	jaccard_edges + size_P +	density_P + size_C +	density_C,
-             data = df_subset)
+# ### ---- linear regression ----
+# # Fit a linear model predicting f1_score from all other numeric predictors
+# lm_fit <- lm(f1_score ~ distance_km +	avg_sorensen_plants +	avg_sorensen_pollinators +	jaccard_pollinators +	jaccard_plants +	jaccard_edges + size_P +	density_P + size_C +	density_C,
+#              data = df_subset)
+# 
+# summary(lm_fit)
+# 
+# # Random Forest (only with numeric columns)
+# rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
+# 
+# # Check variable importance
+# importance(rf_fit)
+# varImpPlot(rf_fit)
+# 
+# # Extract importance
+# imp <- importance(rf_fit) 
+# # For regression: imp is a matrix with columns: %IncMSE, IncNodePurity
+# # For classification: imp often has two columns per measure.
+# # We'll assume %IncMSE and IncNodePurity are present.
+# 
+# # Turn it into a data frame for easier plotting
+# imp_df <- as.data.frame(imp)
+# imp_df$f1_score <- rownames(imp_df)  # Keep variable names in a column
+# 
+# # Example for %IncMSE
+# ggplot(imp_df, aes(x = reorder(f1_score, `%IncMSE`), y = `%IncMSE`)) +
+#   geom_bar(stat = "identity", fill = "lightsteelblue") +
+#   coord_flip() +
+#   labs(x = "F1 score", 
+#        y = "% Increase in MSE") +
+#   theme_minimal() + tme +
+#   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   })) +
+#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   }))
 
-summary(lm_fit)
+plot_rf_importance <- function(df_off, response_var, tme) {
+  
+  # Step 1: Select predictors + the response variable
+  predictors <- c("distance_km", "avg_sorensen_plants", "avg_sorensen_pollinators",
+                  "jaccard_pollinators", "jaccard_plants", "jaccard_edges",
+                  "size_P", "density_P", "size_C", "density_C")
+  
+  df_subset <- df_off %>% select(all_of(c(response_var, predictors)))
+  
+  # Step 2: Fit Random Forest
+  rf_fit <- randomForest(
+    formula = as.formula(paste(response_var, "~ .")),
+    data = df_subset,
+    importance = TRUE
+  )
+  
+  # Step 3: Extract and prepare importance data
+  imp_df <- as.data.frame(importance(rf_fit))
+  imp_df$variable <- rownames(imp_df)
+  
+  # Plot 1: %IncMSE
+  plot_incMSE <- ggplot(imp_df, aes(x = reorder(variable, `%IncMSE`), y = `%IncMSE`)) +
+    geom_bar(stat = "identity", fill = "lightsteelblue") +
+    coord_flip() +
+    labs(title = "%IncMSE", x = NULL, y = "% Increase in MSE") +
+    theme_minimal() + tme +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+      bquote(italic(.(paste(y, collapse = " "))))
+    }))
+  
+  # Plot 2: IncNodePurity (Gini importance)
+  plot_gini <- ggplot(imp_df, aes(x = reorder(variable, IncNodePurity), y = IncNodePurity)) +
+    geom_bar(stat = "identity", fill = "thistle") +
+    coord_flip() +
+    labs(title = "Gini Importance", x = NULL, y = "IncNodePurity") +
+    theme_minimal() + tme +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+      bquote(italic(.(paste(y, collapse = " "))))
+    }))
+  
+  # Combine both plots side by side
+  combined_plot <- grid.arrange(
+    plot_incMSE,
+    plot_gini,
+    ncol = 2,
+    top = paste("Variable Importance for", response_var)
+  )
+  
+  return(combined_plot)
+}
 
-# Random Forest (only with numeric columns)
-rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
+plot_rf_importance(df_off, "f1_score", tme)
+plot_rf_importance(df_off, "balanced_accuracy", tme)
+plot_rf_importance(df_off, "precision", tme)
+plot_rf_importance(df_off, "recall", tme)
+plot_rf_importance(df_off, "specificity", tme)
+plot_rf_importance(df_off, "rmse", tme)
+plot_rf_importance(df_off, "mse", tme)
 
-# Check variable importance
-importance(rf_fit)
-varImpPlot(rf_fit)
 
-# Extract importance
-imp <- importance(rf_fit) 
-# For regression: imp is a matrix with columns: %IncMSE, IncNodePurity
-# For classification: imp often has two columns per measure.
-# We'll assume %IncMSE and IncNodePurity are present.
 
-# Turn it into a data frame for easier plotting
-imp_df <- as.data.frame(imp)
-imp_df$f1_score <- rownames(imp_df)  # Keep variable names in a column
 
-# Example for %IncMSE
-ggplot(imp_df, aes(x = reorder(f1_score, `%IncMSE`), y = `%IncMSE`)) +
-  geom_bar(stat = "identity", fill = "lightsteelblue") +
-  coord_flip() +
-  labs(x = "F1 score", 
-       y = "% Increase in MSE") +
-  theme_minimal() + tme +
-  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  })) +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
+
 
 ## ---- pca of latent traits ----
