@@ -421,6 +421,7 @@ result_summary <- df_removed %>%
 
 result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_site_50_itr.csv')
 head(result_summary)
+summary(result_summary)
 
 ### ---- distribution of evaluators ----
 site_specificity <- ggplot(result_summary, aes(x = specificity)) +
@@ -500,9 +501,19 @@ p5 <- site_specificity +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p6 <- site_rmse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p7 <- site_mse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5,
-  ncol = 3, 
+  p1, p2, p3, p4, p5, p6, p7,
+  ncol = 4, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
@@ -513,8 +524,8 @@ combined_with_axes <- arrangeGrob(
 
 final_plot <- grid.arrange(
   combined_with_axes,
-  ncol = 3,
-  widths = c(2, 0.3, 0.3)
+  ncol = 4,
+  widths = c(2, 0.3, 0.3, 0.3)
 )
 
 ## ---- diagonal vs. off-diagonals ----

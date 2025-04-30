@@ -20,6 +20,7 @@ library(patchwork)
 library(vegan)
 library(ggnewscale)
 library(randomForest)
+library(stringr)
 
 #source("~/Documents/GitHub/softimpute/results/useful_for_plotting.R")
 ## ---- themes ----
@@ -112,6 +113,11 @@ plot_pr_curve <- function(true_labels, predicted_scores) {
 # functions for diagonal and off-diagonal comparison
 plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
                         stat_label_y = NULL, stat_size = 3) {
+  
+  # Calculate max value for y-axis and position for stat label
+  max_y <- max(data[[metric]], na.rm = TRUE)
+  label_y_position <- max_y * 0.98  # 95% of the maximum (a bit below the top)
+  
   ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
     geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
     theme_minimal() +
@@ -119,16 +125,18 @@ plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy",
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
       legend.position = "none",
+      axis.title.x = element_blank(),
       panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
     ) +
     tme + 
     scale_fill_manual(values = custom_colors) +
-    stat_compare_means(method = "t.test", label = "p.signif", hide.ns = FALSE, 
-                       comparisons = list(c("Diagonal", "Off-diagonals")),
-                       label.y = stat_label_y,  # Adjust vertical position here
-                       size = stat_size) +
-    scale_y_continuous(limits = c (0.3, 0.9))
-  
+    stat_compare_means(
+      method = "t.test", label = "p.signif", hide.ns = FALSE, 
+      comparisons = list(c("Diagonal", "Off-diagonals")),
+      label.y = label_y_position * 1.1,  # Auto-set position
+      size = stat_size
+    ) +
+    scale_y_continuous(limits = c(0.4, max_y * 1.1), labels = scales::number_format(accuracy = 0.1))  # Extend slightly above max
 }
 
 plot_hist <- function(data, metric, 
@@ -137,6 +145,7 @@ plot_hist <- function(data, metric,
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -420,6 +429,7 @@ summary(result_summary)
 island_specificity <- ggplot(result_summary, aes(x = specificity)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Specificity",
        y = "Count") +
   tme
@@ -427,6 +437,7 @@ island_specificity <- ggplot(result_summary, aes(x = specificity)) +
 island_f1 <- ggplot(result_summary, aes(x = f1_score)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "F1 score",
        y = "Count") +
   tme
@@ -434,6 +445,7 @@ island_f1 <- ggplot(result_summary, aes(x = f1_score)) +
 island_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Balanced accuracy",
        y = "Count") +
   tme
@@ -441,6 +453,7 @@ island_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
 island_precision <- ggplot(result_summary, aes(x = precision)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Precision",
        y = "Count") +
   tme
@@ -448,7 +461,22 @@ island_precision <- ggplot(result_summary, aes(x = precision)) +
 island_recall <- ggplot(result_summary, aes(x = recall)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
   labs(x = "Recall",
+       y = "Count") +
+  tme
+
+island_rmse <- ggplot(result_summary, aes(x = rmse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "RMSE",
+       y = "Count") +
+  tme
+
+island_mse <- ggplot(result_summary, aes(x = mse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "MSE",
        y = "Count") +
   tme
 
@@ -477,9 +505,19 @@ p5 <- island_specificity +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p6 <- island_rmse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p7 <- island_mse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5,
-  ncol = 3, 
+  p1, p2, p3, p4, p5, p6, p7,
+  ncol = 4, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
@@ -490,8 +528,8 @@ combined_with_axes <- arrangeGrob(
 
 final_plot <- grid.arrange(
   combined_with_axes,
-  ncol = 3,
-  widths = c(2, 0.3, 0.3)
+  ncol = 4,
+  widths = c(2, 0.1, 0.3, 0)
 )
 
 ## ---- diagonal vs. off-diagonals ----
@@ -523,6 +561,35 @@ final_plot <- grid.arrange(
   ncol = 2,
   widths = c(2, 0.3)
 )
+
+plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
+                         stat_size = 3) {
+  
+  # Calculate max value for y-axis and position for stat label
+  max_y <- max(data[[metric]], na.rm = TRUE)
+  min_y <- min(data[[metric]], na.rm = TRUE)
+  label_y_position <- max_y * 0.92  # 95% of the maximum (a bit below the top)
+  
+  ggplot(data, aes(x = layer_comparison, y = .data[[metric]], fill = layer_comparison)) +
+    geom_boxplot(notch = FALSE, alpha = 0.4, color = "black") +
+    theme_minimal() +
+    labs(y = y_axis_label) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "none",
+      axis.title.x = element_blank(),
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+    ) +
+    tme + 
+    scale_fill_manual(values = custom_colors) +
+    stat_compare_means(
+      method = "t.test", label = "p.signif", hide.ns = FALSE, 
+      comparisons = list(c("Diagonal", "Off-diagonals")),
+      label.y = label_y_position * 1.1,  # Auto-set position
+      size = stat_size
+    ) +
+    scale_y_continuous(limits = c(min_y, max_y * 1.2), labels = scales::number_format(accuracy = 0.1))  # Extend slightly above max
+}
 
 # histograms: 
 hist_ba <- plot_hist(result_summary, metric = "balanced_accuracy", 
