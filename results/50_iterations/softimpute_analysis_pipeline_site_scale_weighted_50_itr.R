@@ -435,6 +435,7 @@ site_f1 <- ggplot(result_summary, aes(x = f1_score)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
   labs(x = "F1 score",
        y = "Count") +
   tme
@@ -443,6 +444,7 @@ site_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
   labs(x = "Balanced accuracy",
        y = "Count") +
   tme
@@ -451,6 +453,7 @@ site_precision <- ggplot(result_summary, aes(x = precision)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
   labs(x = "Precision",
        y = "Count") +
   tme
@@ -458,6 +461,7 @@ site_precision <- ggplot(result_summary, aes(x = precision)) +
 site_recall <- ggplot(result_summary, aes(x = recall)) +
   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
   labs(x = "Recall",
        y = "Count") +
   tme
@@ -525,7 +529,7 @@ combined_with_axes <- arrangeGrob(
 final_plot <- grid.arrange(
   combined_with_axes,
   ncol = 4,
-  widths = c(2, 0.3, 0.3, 0.3)
+  widths = c(2, 0.001, 0.2, 0)
 )
 
 ## ---- diagonal vs. off-diagonals ----
@@ -628,7 +632,9 @@ combined_plot <- hist_ba + hist_f1 +
 combined_plot
 
 hist_precision <- plot_hist(result_summary, metric = "precision", 
-                     y_axis_label = "Count")
+                     y_axis_label = "Count",
+                     x_axis_label = "Precision") + theme(axis.title.y = element_blank())
+
 hist_recall <- plot_hist(result_summary, metric = "recall", 
                      y_axis_label = "Count",
                      x_axis_label = "Recall") + theme(axis.title.y = element_blank())
@@ -651,6 +657,7 @@ combined_plot <- hist_precision + hist_recall + hist_specificity + hist_rmse + h
   plot_annotation(theme = theme(legend.position = "right"))
 
 combined_plot
+
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
 # Initialize a data frame to store combined results for all layer combinations
@@ -2475,10 +2482,6 @@ print(site_heatmap_mse)
 #   theme(legend.text = element_text(size = 14),
 #         legend.title = element_text(size = 14), ) + tme
 
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(ggpubr)
 
 # 1. Combine + pivot (adding rmse & mse) and force the order you want:
 df_long <- bind_rows(
