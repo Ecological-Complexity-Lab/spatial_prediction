@@ -600,10 +600,14 @@ plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy",
 
 # histograms: 
 hist_ba <- plot_hist(result_summary, metric = "balanced_accuracy", 
-                     y_axis_label = "Count")
+                     y_axis_label = "Count") +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.05))
+  
 hist_f1 <- plot_hist(result_summary, metric = "f1_score", 
                      y_axis_label = "Count",
-                     x_axis_label = "F1 score") + theme(axis.title.y = element_blank())
+                     x_axis_label = "F1 score") + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) + 
+  theme(axis.title.y = element_blank())
 
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
@@ -614,7 +618,9 @@ combined_plot
 
 hist_precision <- plot_hist(result_summary, metric = "precision", 
                             y_axis_label = "Count",
-                            x_axis_label = "Precision") + theme(axis.title.y = element_blank())
+                            x_axis_label = "Precision") + 
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
+  theme(axis.title.y = element_blank())
 
 hist_recall <- plot_hist(result_summary, metric = "recall", 
                          y_axis_label = "Count",
@@ -626,11 +632,15 @@ hist_specificity <- plot_hist(result_summary, metric = "specificity",
 
 hist_rmse <- plot_hist(result_summary, metric = "rmse", 
                        y_axis_label = "Count",
-                       x_axis_label = "RMSE") + theme(axis.title.y = element_blank())
+                       x_axis_label = "RMSE") + 
+  scale_x_continuous(labels = scales::number_format(accuracy = 1.0)) +
+  theme(axis.title.y = element_blank())
 
 hist_mse <- plot_hist(result_summary, metric = "mse", 
                       y_axis_label = "Count",
-                      x_axis_label = "MSE") + theme(axis.title.y = element_blank())
+                      x_axis_label = "MSE") + 
+  scale_x_continuous(labels = scales::number_format(accuracy = 1.0)) +
+  theme(axis.title.y = element_blank())
 
 combined_plot <- hist_precision + hist_recall + hist_specificity + hist_rmse + hist_mse +
   plot_layout(guides = "collect") +
@@ -1306,19 +1316,19 @@ df_merged <- df_merged %>%
   left_join(df_sorensen_pollinators, by = "node_to")
 
 ### --- correlation with evaluators ----
-# summary_df <- df_merged %>%
-#   group_by(train_layer, test_layer) %>%
-#   summarise(
-#     avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
-#     avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
-#   ) %>%
-#   ungroup()
-# 
-# result_summary <- result_summary %>% 
-#   left_join(summary_df, by = c("train_layer", "test_layer"))
-#   
-# working_df_offs <- result_summary %>% filter (train_layer != test_layer)
-# 
+summary_df <- df_merged %>%
+  group_by(train_layer, test_layer) %>%
+  summarise(
+    avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
+    avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+result_summary <- result_summary %>%
+  left_join(summary_df, by = c("train_layer", "test_layer"))
+
+working_df_offs <- result_summary %>% filter (train_layer != test_layer)
+
 # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
 # correlation
 # # Extract correlation coefficient and p-value
