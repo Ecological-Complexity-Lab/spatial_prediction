@@ -2555,7 +2555,7 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 # analyze only one off-diagonal
 df_off <- result_summary_site %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
-  filter(train_layer < test_layer)
+  filter(train_layer != test_layer)
 # subset relavant columns
 df_subset_cor <- df_off %>% select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 
@@ -2673,6 +2673,95 @@ plot_rf_importance(df_off, "specificity", tme)
 plot_rf_importance(df_off, "rmse", tme)
 plot_rf_importance(df_off, "mse", tme)
 
+
+### ---- table of variable importance ----
+
+summarize_rf_importance_and_correlation <- function(df_off, response_var) {
+  
+  predictors <- c("distance_km", "avg_sorensen_plants", "avg_sorensen_pollinators",
+                  "jaccard_pollinators", "jaccard_plants", "jaccard_edges",
+                  "size_P", "density_P", "size_C", "density_C")
+  
+  df_subset <- df_off %>% select(all_of(c(response_var, predictors)))
+  
+  rf_fit <- randomForest(
+    formula = as.formula(paste(response_var, "~ .")),
+    data = df_subset,
+    importance = TRUE
+  )
+  
+  imp_df <- as.data.frame(importance(rf_fit)) %>%
+    tibble::rownames_to_column("variable") %>%
+    rename(IncMSE = `%IncMSE`, IncNodePurity = IncNodePurity)
+  
+  cor_results <- lapply(predictors, function(var) {
+    test <- cor.test(df_subset[[var]], df_subset[[response_var]])
+    data.frame(
+      variable = var,
+      correlation = test$estimate,
+      p_value = test$p.value,
+      significance = case_when(
+        test$p.value < 0.001 ~ "***",
+        test$p.value < 0.01 ~ "**",
+        test$p.value < 0.05 ~ "*",
+        test$p.value < 0.1 ~ ".",
+        TRUE ~ ""
+      )
+    )
+  }) %>% bind_rows()
+  
+  result_table <- left_join(imp_df, cor_results, by = "variable") %>%
+    mutate(evaluator = response_var) %>%
+    select(variable, evaluator, everything()) %>%
+    arrange(desc(IncMSE))
+  
+  return(result_table)
+}
+
+# Assuming your data is in df_off and you want to analyze "f1_score":
+result_f1 <- summarize_rf_importance_and_correlation(df_off, "f1_score")
+
+# View the table
+print(result_f1)
+
+# several evaluators
+evaluators <- c("f1_score", "balanced_accuracy", "precision", "recall", "specificity", "mcc", "rmse", "mse")
+
+summary_all <- bind_rows(lapply(evaluators, function(ev) {
+  summarize_rf_importance_and_correlation(df_off, ev)
+}))
+
+
+# # for both scales
+# summary_island <- summary_all %>% mutate(scale = "island")
+# 
+# df_offs_site <- result_summary_site %>% filter(train_layer != test_layer)
+# 
+# summary_site <- bind_rows(lapply(evaluators, function(ev) {
+#   summarize_rf_importance_and_correlation(df_offs_site, ev)
+# })) %>% mutate(scale = "site") # fix to have all variables
+
+# summary_all_scales <- bind_rows(summary_island, summary_site)
+library(knitr)
+library(kableExtra)
+
+summary_all %>%
+  mutate(
+    correlation_fmt = ifelse(
+      significance != "",
+      cell_spec(round(correlation, 3), bold = TRUE,
+                color = ifelse(correlation > 0, "salmon", "lightsteelblue")),
+      cell_spec(round(correlation, 3), color = ifelse(correlation > 0, "red", "blue"))
+    ),
+    p_value = round(p_value, 3),
+    IncMSE = round(IncMSE, 3),
+    IncNodePurity = round(IncNodePurity, 3)
+  ) %>%
+  select(variable, evaluator, IncMSE, IncNodePurity, correlation_fmt, p_value, significance) %>%
+  kable("html", escape = FALSE, col.names = c(
+    "Variable", "Evaluator", "%IncMSE", "Gini", "Correlation", "P-value", "Sig."
+  )) %>%
+  kable_styling(full_width = FALSE, position = "left")
 
 
 

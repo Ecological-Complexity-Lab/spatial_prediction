@@ -555,7 +555,10 @@ custom_colors <- c("Diagonal" = "steelblue",
 island_ba <- plot_boxplot(result_summary, metric = "balanced_accuracy", 
                         y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
 island_f1 <- plot_boxplot(result_summary, metric = "f1_score", 
-                        y_axis_label = "F1 score", stat_label_y = 0.85, stat_size = 6)
+                        y_axis_label = "F1 score", stat_label_y = 0.7, stat_size = 5)
+
+island_mse_b <- plot_boxplot(result_summary, metric = "mse", 
+                          y_axis_label = "MSE", stat_size = 6)
 
 combined_plots <- arrangeGrob(
   island_ba, island_f1, 
@@ -2101,6 +2104,48 @@ cor_plot_site_mse <- make_cor_plot(result_summary_site, evaluator = "mse", extra
 cor_plot_isl_mse  <- make_cor_plot(result_summary_island, evaluator = "mse", extra_theme = tme)
 final_plot_mse <- combine_two_plots(cor_plot_site_mse, cor_plot_isl_mse, y_axis_label = "MSE")
 
+make_cor_plot <- function(data, evaluator, 
+                          distance_col = "distance_km", 
+                          x_lab = "Geographic distance (km)",
+                          y_lab = NULL,
+                          extra_theme = NULL) {
+  # Use evaluator as y_lab if no alternative is provided
+  if (is.null(y_lab)) {
+    y_lab <- evaluator
+  }
+  
+  # Compute correlation between evaluator and distance
+  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  ) 
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Create plot with label in the upper right corner using Inf coordinates
+  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+    geom_point(color = "salmon2", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+    geom_hline(yintercept = 0.7, linetype = "dashed", color = "black", linewidth = 0.8) +
+    labs(x = x_lab, y = y_lab) +
+    # The following places the label at the upper right of the plot area
+    annotate("text", x = Inf, y = Inf, label = label_text,
+             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+  
+  # Optionally add additional theme modifications
+  if (!is.null(extra_theme)) {
+    plot <- plot + extra_theme
+  }
+  
+  return(plot)
+}
+
+cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
+final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
+
 
 ## ---- plot heatmaps ----
 island_heatmap_recall <- 
@@ -2132,7 +2177,7 @@ island_heatmap_f1 <-
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
+  scale_fill_gradient2(low = "white", mid = "lightsteelblue2", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added layer", y = "Predicted layer", fill = "F1 score") +
   theme_minimal() +
@@ -2678,5 +2723,142 @@ plot_rf_importance(df_off, "recall", tme)
 plot_rf_importance(df_off, "specificity", tme)
 plot_rf_importance(df_off, "rmse", tme)
 plot_rf_importance(df_off, "mse", tme)
+
+
+### ---- table of variable importance ----
+
+summarize_rf_importance_and_correlation <- function(df_off, response_var) {
+  
+  predictors <- c("distance_km", "avg_sorensen_plants", "avg_sorensen_pollinators",
+                  "jaccard_pollinators", "jaccard_plants", "jaccard_edges",
+                  "size_P", "density_P", "size_C", "density_C")
+  
+  df_subset <- df_off %>% select(all_of(c(response_var, predictors)))
+  
+  rf_fit <- randomForest(
+    formula = as.formula(paste(response_var, "~ .")),
+    data = df_subset,
+    importance = TRUE
+  )
+  
+  imp_df <- as.data.frame(importance(rf_fit)) %>%
+    tibble::rownames_to_column("variable") %>%
+    rename(IncMSE = `%IncMSE`, IncNodePurity = IncNodePurity)
+  
+  cor_results <- lapply(predictors, function(var) {
+    test <- cor.test(df_subset[[var]], df_subset[[response_var]])
+    data.frame(
+      variable = var,
+      correlation = test$estimate,
+      p_value = test$p.value,
+      significance = case_when(
+        test$p.value < 0.001 ~ "***",
+        test$p.value < 0.01 ~ "**",
+        test$p.value < 0.05 ~ "*",
+        test$p.value < 0.1 ~ ".",
+        TRUE ~ ""
+      )
+    )
+  }) %>% bind_rows()
+  
+  result_table <- left_join(imp_df, cor_results, by = "variable") %>%
+    mutate(evaluator = response_var) %>%
+    select(variable, evaluator, everything()) %>%
+    arrange(desc(IncMSE))
+  
+  return(result_table)
+}
+
+# for this analysis i use only data from off-diagonals, to control for the issue of information addition (we have none in the diagonal)
+df_offs <- result_summary_island %>% filter(train_layer != test_layer)
+# Assuming your data is in df_off and you want to analyze "f1_score":
+result_f1 <- summarize_rf_importance_and_correlation(df_offs, "f1_score")
+
+# View the table
+print(result_f1)
+
+# several evaluators
+evaluators <- c("f1_score", "balanced_accuracy", "precision", "recall", "specificity", "mcc", "rmse", "mse")
+
+summary_all <- bind_rows(lapply(evaluators, function(ev) {
+  summarize_rf_importance_and_correlation(df_offs, ev)
+}))
+
+# View combined table
+print(summary_all)
+
+# # for both scales
+# summary_island <- summary_all %>% mutate(scale = "island")
+# 
+# df_offs_site <- result_summary_site %>% filter(train_layer != test_layer)
+# 
+# summary_site <- bind_rows(lapply(evaluators, function(ev) {
+#   summarize_rf_importance_and_correlation(df_offs_site, ev)
+# })) %>% mutate(scale = "site") # fix to have all variables
+
+# summary_all_scales <- bind_rows(summary_island, summary_site)
+
+# # for a nice table in html
+# library(gt)
+# 
+# styled_table <- summary_all %>%
+#   mutate(correlation_display = ifelse(
+#     !is.na(significance) & significance != "",
+#     paste0("**", round(correlation, 3), "**"),  # Bold significant
+#     round(correlation, 3)
+#   )) %>%
+#   gt() %>%
+#   data_color(
+#     columns = vars(correlation),
+#     colors = scales::col_numeric(
+#       palette = c("lightsteelblue", "black", "salmon"),
+#       domain = c(-1, 1)
+#     )
+#   ) %>%
+#   cols_label(
+#     variable = "Variable",
+#     evaluator = "Evaluator",
+#     IncMSE = "%IncMSE",
+#     IncNodePurity = "Gini Importance",
+#     correlation = "Correlation",
+#     p_value = "P-value",
+#     significance = "Sig.",
+#     scale = "Scale"
+#   ) %>%
+#   fmt_number(columns = vars(IncMSE, IncNodePurity, correlation, p_value), decimals = 3) %>%
+#   tab_style(
+#     style = cell_text(weight = "bold"),
+#     locations = cells_body(
+#       columns = vars(correlation),
+#       rows = significance != ""
+#     )
+#   ) %>%
+#   tab_options(
+#     table.font.size = "small",
+#     heading.title.font.size = 14,
+#     data_row.padding = px(3)
+#   )
+
+library(knitr)
+library(kableExtra)
+
+summary_all %>%
+  mutate(
+    correlation_fmt = ifelse(
+      significance != "",
+      cell_spec(round(correlation, 3), bold = TRUE,
+                color = ifelse(correlation > 0, "salmon", "lightsteelblue")),
+      cell_spec(round(correlation, 3), color = ifelse(correlation > 0, "red", "blue"))
+    ),
+    p_value = round(p_value, 3),
+    IncMSE = round(IncMSE, 3),
+    IncNodePurity = round(IncNodePurity, 3)
+  ) %>%
+  select(variable, evaluator, IncMSE, IncNodePurity, correlation_fmt, p_value, significance) %>%
+  kable("html", escape = FALSE, col.names = c(
+    "Variable", "Evaluator", "%IncMSE", "Gini", "Correlation", "P-value", "Sig."
+  )) %>%
+  kable_styling(full_width = FALSE, position = "left")
+
 
 ## ---- pca of latent traits ----
