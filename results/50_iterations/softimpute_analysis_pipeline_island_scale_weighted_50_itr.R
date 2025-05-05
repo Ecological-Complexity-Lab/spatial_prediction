@@ -2550,7 +2550,7 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 # analyze only one off-diagonal
 df_off <- result_summary_island %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
-  filter(train_layer < test_layer)
+  filter(train_layer != test_layer)
 # # subset relavant columns
 # df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 # 
