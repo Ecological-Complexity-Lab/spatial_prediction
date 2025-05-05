@@ -2177,7 +2177,7 @@ island_heatmap_f1 <-
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "white", mid = "lightsteelblue2", high = "salmon2", 
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added layer", y = "Predicted layer", fill = "F1 score") +
   theme_minimal() +

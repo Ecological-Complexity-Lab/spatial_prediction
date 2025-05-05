@@ -789,9 +789,8 @@ result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
 ### ---- correlate netsize with evaluators ----
-# filter the off-diagonals
-result_summary <- result_summary %>% filter(train_layer != test_layer)
 
+# if we want to use all of the results
 df_long_1off <- result_summary %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
@@ -1530,7 +1529,7 @@ make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
                            shared_y_lab = "MSE")
 
-## ---- degree impact ----
+## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
 df_filtered <- df %>%
@@ -1957,9 +1956,6 @@ result_summary_site <- result_summary_site %>%
                                0,              # distance = 0 if same site
                                distance_km))   # otherwise, keep joined distance
 
-# filter offs
-result_summary_site <- result_summary_site %>% filter(train_layer != test_layer)
-
 ## ---- distance correlation with evaluators ----
 make_cor_plot <- function(data, evaluator, 
                           distance_col = "distance_km", 
@@ -2194,7 +2190,7 @@ island_heatmap_f1 <-
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "white", mid = "lightsteelblue2", high = "salmon2", 
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added layer", y = "Predicted layer", fill = "F1 score") +
   theme_minimal() +
@@ -2567,7 +2563,7 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 # analyze only one off-diagonal
 df_off <- result_summary_island %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
-  filter(train_layer != test_layer)
+  filter(train_layer < test_layer)
 # # subset relavant columns
 # df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
 # 
@@ -2814,6 +2810,48 @@ print(summary_all)
 # })) %>% mutate(scale = "site") # fix to have all variables
 
 # summary_all_scales <- bind_rows(summary_island, summary_site)
+
+# # for a nice table in html
+# library(gt)
+# 
+# styled_table <- summary_all %>%
+#   mutate(correlation_display = ifelse(
+#     !is.na(significance) & significance != "",
+#     paste0("**", round(correlation, 3), "**"),  # Bold significant
+#     round(correlation, 3)
+#   )) %>%
+#   gt() %>%
+#   data_color(
+#     columns = vars(correlation),
+#     colors = scales::col_numeric(
+#       palette = c("lightsteelblue", "black", "salmon"),
+#       domain = c(-1, 1)
+#     )
+#   ) %>%
+#   cols_label(
+#     variable = "Variable",
+#     evaluator = "Evaluator",
+#     IncMSE = "%IncMSE",
+#     IncNodePurity = "Gini Importance",
+#     correlation = "Correlation",
+#     p_value = "P-value",
+#     significance = "Sig.",
+#     scale = "Scale"
+#   ) %>%
+#   fmt_number(columns = vars(IncMSE, IncNodePurity, correlation, p_value), decimals = 3) %>%
+#   tab_style(
+#     style = cell_text(weight = "bold"),
+#     locations = cells_body(
+#       columns = vars(correlation),
+#       rows = significance != ""
+#     )
+#   ) %>%
+#   tab_options(
+#     table.font.size = "small",
+#     heading.title.font.size = 14,
+#     data_row.padding = px(3)
+#   )
+
 library(knitr)
 library(kableExtra)
 
