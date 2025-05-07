@@ -778,12 +778,6 @@ result_summary <- result_summary %>%
 ### ---- correlate netsize with evaluators ----
 
 # if we want to use all of the results
-df_long_1off <- result_summary %>%
-  pivot_longer(
-    cols = c(size_P, density_P, size_C, density_C),
-    names_to = "measure_type",
-    values_to = "measure_value"
-  )
 
 df_long_1off <- result_summary %>%
   select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, size_P, density_P, size_C, density_C) %>%
@@ -792,66 +786,6 @@ df_long_1off <- result_summary %>%
     names_to = "measure_type",
     values_to = "measure_value"
   )
-
-# # For each variable, compute correlation with f1_score:
-# cor_table <- df_long_1off %>%
-#   group_by(measure_type) %>%
-#   summarise(
-#     cor_value = cor(f1_score, measure_value, use = "complete.obs", method = "pearson"),
-#     p_value   = cor.test(f1_score, measure_value, method = "pearson")$p.value
-#   ) %>%
-#   ungroup()
-# 
-# cor_table
-# 
-# cor_table_annot <- cor_table %>%
-#   mutate(
-#     # round correlation to 3 decimals, no scientific notation
-#     r_fmt  = formatC(cor_value, format = "f", digits = 2),
-#     # round p-value to 4 decimals, no scientific notation
-#     p_fmt  = formatC(p_value,  format = "f", digits = 4),
-#     label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-#   )
-# 
-# # Create a named vector for renaming facets
-# facet_labels <- c(
-#   "size_C" = "Size of matrix C",
-#   "density_C" = "Density of matrix C",
-#   "size_P" = "Size of matrix P",
-#   "density_P" = "Density of matrix P"
-# )
-# 
-# netsize_island <- ggplot(df_long_1off, aes(x = measure_value, y = f1_score)) +
-#   geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-#   geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-#   facet_wrap(
-#     ~ measure_type,
-#     scales   = "free_x",
-#     labeller = as_labeller(facet_labels)  # Use the named vector
-#   ) +
-#   scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
-#   geom_text(
-#     data    = cor_table_annot,
-#     aes(label = label_text),
-#     x       = Inf,
-#     y       = Inf,
-#     hjust   = 1.1,
-#     vjust   = 1.2,
-#     size    = 3.2,
-#     color   = "black"
-#   ) +
-#   labs(
-#     x = "Network feature",
-#     y = "F1 score",
-#     title = "F1 vs. network measures - all data points"
-#   ) +
-#   theme_minimal() +
-#   tme +
-#   theme(
-#     panel.border = element_rect(color = "black", fill = NA, size = 1),
-#     axis.ticks = element_line(color = "black")
-#   )
-# print(netsize_island)
 
 plot_netsize <- function(data, evaluator = "f1_score",
                          facet_labels = NULL,
@@ -1009,6 +943,82 @@ netsize_island_mse <- plot_netsize(
   evaluator_label = "MSE"
 )
 netsize_island_mse
+
+
+plot_f1_rmse_vs_size_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", rmse = "RMSE"),
+        measure_type = c(size_P  = "Size of matrix P",
+                         size_C  = "Size of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network size",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
+
+df_f1_rmse_size <- result_summary %>%
+  select(f1_score, rmse, size_P, size_C) %>%
+  pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
+  pivot_longer(cols = c(f1_score, rmse), names_to = "evaluator", values_to = "evaluator_value")
+
+plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
 
 
 ## ---- Jaccard correlation with evaluators ----
