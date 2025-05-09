@@ -209,7 +209,7 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 # combine plots
 combine_plots <- function(p1, p2,
                           bottom_label = "Overall degree",
-                          left_label = "Number of predicted, non-observed links",
+                          left_label = "Number of predicted, \nnon-observed links",
                           plot_margin = c(0.5, 0.5, 1, 0.3),
                           label_fontsize = 16,
                           label_fontface = "bold",
@@ -611,6 +611,11 @@ hist_f1 <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) + 
   theme(axis.title.y = element_blank())
+
+hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
+                     y_axis_label = "Count of instances",
+                     x_axis_label = "F1 score") + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
@@ -1466,7 +1471,7 @@ make_full_correlation_plot <- function(data,
     evaluator = evaluator,
     x_lab = NULL,  # No individual x-label
     y_lab = NULL,  # No individual y-label
-    plot_title = "Island scale (pollinators)",
+    plot_title = "Pollinators",
     point_color = "thistle",
     trend_color = "steelblue",
     x_axis_blank = TRUE,
@@ -1479,12 +1484,16 @@ make_full_correlation_plot <- function(data,
     evaluator = evaluator,
     x_lab = NULL,  # No individual x-label
     y_lab = NULL,  # No individual y-label
-    plot_title = "Island scale (plants)",
+    plot_title = "Plants",
     point_color = "darkseagreen3",
     trend_color = "steelblue",
     x_axis_blank = TRUE,
     y_axis_blank = TRUE
   )
+  
+  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(5.5, 15, 5.5, 15))
+  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(5.5, 15, 5.5, 15))
+  
   
   # Arrange plots side by side
   plots_side_by_side <- arrangeGrob(
@@ -1503,9 +1512,10 @@ make_full_correlation_plot <- function(data,
 }
 
 # For F1 score
-make_full_correlation_plot(working_df_offs,
+f1_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "f1_score",
                            shared_y_lab = "F1 score")
+
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
@@ -1633,7 +1643,7 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   labs(
     x = "Overall degree",
     y = "Number of predicted, non-observed interactions",
-    title = "Plants: island scale"
+    title = "Plants"
   ) +
   theme_minimal() + tme +
   annotate("text",
@@ -1662,8 +1672,8 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
-    y = "Number of predicted, non-observed interactions",
-    title = "Pollinators: island scale"
+    y = "Number of predicted, /nnon-observed interactions",
+    title = "Pollinators"
   ) +
   theme_minimal() + tme +
   annotate("text",
@@ -1799,7 +1809,9 @@ ggplot(df_top_10,
     x = "Link (pollinator - plant)",
     y = "Mean predicted value"
     #title = "Mean predicted value and significance"
-  )
+  ) +
+  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
+
 
 ## ---- distance effect ----
 ### ---- add distances and location names ----
@@ -2400,7 +2412,7 @@ print(island_heatmap_mse)
 #   ncol = 3,
 #   widths = c(2, 0.3, 0.3)
 # )
-## ---- compare scales ----
+# ---- compare scales ----
 # # make a long list
 # df1_labeled <- result_summary_site %>%
 #   mutate(scale = "Site")
@@ -2556,7 +2568,66 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     legend.position = "bottom"
   ) + tme
 
-## ---- variable importance ----
+
+df_long <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island")
+) %>%
+  pivot_longer(
+    cols      = c("rmse"),
+    names_to  = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = factor(metric, levels = c(
+    "rmse"
+  )))
+
+# 2. Pretty facet titles with units:
+metric_labels <- c(
+  rmse              = "RMSE"
+  
+)
+
+# 3. Plot with free_y, custom labels, and centered stars at the top:
+ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+  geom_boxplot(
+    notch        = TRUE,
+    outlier.size = 1,
+    position     = position_dodge(width = 0.75)
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales   = "free_y",
+    labeller = as_labeller(metric_labels),
+    ncol     = 4
+  ) +
+  stat_compare_means(
+    method    = "t.test",
+    label     = "p.signif",
+    # put label at the very top of each facet:
+    label.y   = Inf,
+    vjust     = 1.5,
+    # center between the two boxes (position 1 & 2):
+    label.x   = 1.45,
+    tip.length= 0.01,
+    size      = 4
+  ) +
+  scale_fill_manual(values = c("Site" = "lightsteelblue2",
+                               "Island" = "wheat2")) +
+  labs(
+    title = NULL,
+    x     = NULL,
+    y     = "RMSE"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text      = element_text(face = "bold", size = 12),
+    axis.text.x     = element_blank(),
+    axis.ticks.x    = element_blank(),
+    legend.position = "bottom"
+  ) + tme
+
+# ---- variable importance ----
 # analyze only one off-diagonal
 df_off <- result_summary_island %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
