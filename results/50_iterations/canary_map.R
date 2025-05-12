@@ -619,3 +619,293 @@ ggplot() +
     axis.ticks = element_blank(),
     axis.title = element_blank()
   )
+
+library(dplyr)
+library(ggplot2)
+library(sf)
+library(grid)     # for arrow()
+
+# --- 1. Compute island centroids (we’ll use these as arrow endpoints) ---
+centroids <- st_centroid(plot_all)
+cent_df   <- centroids %>% 
+  st_coordinates() %>% 
+  as.data.frame() %>% 
+  bind_cols(name = plot_all$name)
+
+# --- 2. Define your edges with an f1 value for each link ---
+#    (replace these with your real island pairs and f1s)
+edge_df <- tibble(
+  from = c("Tenerife","Gran Canaria","Fasnia"),
+  to   = c("Gran Canaria","El Hierro","Teno Bajo"),
+  f1   = c(0.12, 0.56, 0.33) # not real values
+)
+
+# --- 3. Join in the centroid coordinates for start/end points ---
+edges_plot <- edge_df %>%
+  left_join(cent_df, by = c("from" = "name"))  %>%
+  rename(x   = X,  y   = Y) %>%
+  left_join(cent_df, by = c("to"   = "name"))  %>%
+  rename(xend = X, yend = Y)
+
+# assume edges_plot has x,y,xend,yend already
+short_frac <- 0.12
+
+edges_short <- edges_plot %>%
+  mutate(
+    dx   = xend - x,
+    dy   = yend - y,
+    xs   = x   + short_frac * dx,      # new start
+    ys   = y   + short_frac * dy,
+    xe   = xend - short_frac * dx,     # new end
+    ye   = yend - short_frac * dy
+  )
+
+# then in your ggplot replace geom_curve with:
+geom_curve(
+  data      = edges_short,
+  aes(x = xs, y = ys, xend = xe, yend = ye, color = f1),
+  curvature = 0.2,
+  arrow     = arrow(length = unit(0.2, "cm"), type = "closed"),
+  linewidth = 0.8
+)
+
+# --- 4. Add them to your existing ggplot as colored arrows ---
+ggplot() +
+  # (your background layers here: Africa coast, islands, circle…)  
+  geom_sf(data = africa,         fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, is.na(net_size)),
+          fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, !is.na(net_size)),
+          aes(fill = net_size), color = NA) +
+  
+  # --- arrows, mapping color to f1 ---
+  geom_curve(
+    data      = edges_short,
+    aes(x = xs, y = ys, xend = xe, yend = ye, color = f1),
+    curvature = -0.5,
+    arrow     = arrow(length = unit(0.2, "cm"), type = "closed"),
+    linewidth = 0.6
+  ) +
+  
+  scale_color_gradient(
+    name    = expression(f[1]),
+    low     = "lightblue",
+    high    = "salmon"
+  ) +
+
+  
+  coord_sf(xlim = c(-18, -12), ylim = c(26, 30)) +
+  scale_fill_gradient(
+    name = "Network\nsize",
+    low  = "lightsteelblue",
+    high = "thistle"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+
+library(dplyr)
+
+# 1. Recode the Tenerife names so they match the polygon names
+metrics_edges <- result_summary_island %>% # that's from the analysis code
+  mutate(
+    from = recode(train_layer_name,
+                  "Tenerife Teno"   = "Teno Bajo",
+                  "Tenerife South"  = "Fasnia",
+                  .default = train_layer_name),
+    to   = recode(test_layer_name,
+                  "Tenerife Teno"   = "Teno Bajo",
+                  "Tenerife South"  = "Fasnia",
+                  .default = test_layer_name)
+  )
+
+# 2. Filter out the diagonal comparisons
+metrics_edges <- metrics_edges %>%
+  filter(train_layer != test_layer)
+
+# 3. Build edge_df
+edge_df <- metrics_edges %>%
+  select(from, to, f1 = f1_score)
+
+# Inspect
+print(edge_df)
+
+edge_df <- edge_df %>%
+  mutate(
+    from = if_else(from %in% c("Western Sahara","Sahara"), "NW Sahara", from),
+    to   = if_else(to   %in% c("Western Sahara","Sahara"), "NW Sahara", to)
+  )
+
+# real edges
+edges_plot <- edge_df %>%
+  left_join(cent_df, by = c("from" = "name")) %>% rename(x = X, y = Y) %>%
+  left_join(cent_df, by = c("to"   = "name")) %>% rename(xend = X, yend = Y)
+
+# --- 3. Join in the centroid coordinates for start/end points ---
+edges_plot <- edge_df %>%
+  left_join(cent_df, by = c("from" = "name"))  %>%
+  rename(x   = X,  y   = Y) %>%
+  left_join(cent_df, by = c("to"   = "name"))  %>%
+  rename(xend = X, yend = Y)
+
+# assume edges_plot has x,y,xend,yend already
+short_frac <- 0.12
+
+edges_short <- edges_plot %>%
+  mutate(
+    dx   = xend - x,
+    dy   = yend - y,
+    xs   = x   + short_frac * dx,      # new start
+    ys   = y   + short_frac * dy,
+    xe   = xend - short_frac * dx,     # new end
+    ye   = yend - short_frac * dy
+  )
+
+# then in your ggplot replace geom_curve with:
+geom_curve(
+  data      = edges_short,
+  aes(x = xs, y = ys, xend = xe, yend = ye, color = f1),
+  curvature = 0.2,
+  arrow     = arrow(length = unit(0.2, "cm"), type = "closed"),
+  linewidth = 0.8
+)
+
+# --- 4. Add them to your existing ggplot as colored arrows ---
+ggplot() +
+  # (your background layers here: Africa coast, islands, circle…)  
+  geom_sf(data = africa,         fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, is.na(net_size)),
+          fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, !is.na(net_size)),
+          aes(fill = net_size), color = NA) +
+  
+  # --- arrows, mapping color to f1 ---
+  geom_curve(
+    data      = edges_short,
+    aes(x = xs, y = ys, xend = xe, yend = ye, color = f1),
+    curvature = -0.5,
+    arrow     = arrow(length = unit(0.2, "cm"), type = "closed"),
+    linewidth = 0.6
+  ) +
+  
+  scale_color_gradient(
+    name    = expression(f[1]),
+    low     = "lightblue",
+    high    = "salmon"
+  ) +
+  
+  
+  coord_sf(xlim = c(-18, -12), ylim = c(26, 30)) +
+  scale_fill_gradient(
+    name = "Network\nsize",
+    low  = "lightsteelblue",
+    high = "thistle"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+
+# selecting specific edges
+library(dplyr)
+
+# 1. pick only the three pairs you want
+my_edges <- edge_df %>%
+  filter(
+    (from == "Fuerteventura" & to == "NW Sahara")    |
+      (from == "Teno Bajo"   & to == "Fuerteventura") |
+      (from == "Gran Canaria"    & to == "Fasnia")
+  )
+
+# 2. join on your centroid table (cent_df has columns name, X, Y)
+my_edges_plot <- my_edges %>%
+  left_join(cent_df, by = c("from" = "name")) %>%  rename(x   = X,  y   = Y) %>%
+  left_join(cent_df, by = c("to"   = "name")) %>%  rename(xend= X,  yend= Y)
+
+# 3. (optional) shorten them as before
+short_frac <- 0.12
+edges_short <- my_edges_plot %>%
+  mutate(
+    dx  = xend - x,
+    dy  = yend - y,
+    xs  = x   + short_frac * dx,
+    ys  = y   + short_frac * dy,
+    xe  = xend - short_frac * dx,
+    ye  = yend - short_frac * dy
+  )
+
+edges_trimmed <- my_edges_plot %>%
+  mutate(
+    dx     = xend - x,
+    dy     = yend - y,
+    length = sqrt(dx^2 + dy^2),
+    # custom trim: 0.3° for GC→Teno, 0.1° for the others
+    trim   = case_when(
+      from == "Gran Canaria" & to == "Tenerife Teno" ~ 0.4,
+      TRUE                                         ~ 0.3
+    ),
+    # convert trim to fraction of each edge
+    frac   = trim / length,
+    # new start/end
+    xs     = x   + frac * dx,
+    ys     = y   + frac * dy,
+    xe     = xend - frac * dx,
+    ye     = yend - frac * dy
+  )
+
+# 4. plot just those arrows
+p <- ggplot() +
+  # (your background layers here: Africa coast, islands, circle…)  
+  geom_sf(data = africa,         fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, is.na(net_size)),
+          fill = NA, color = "gray80", linewidth = 0.8) +
+  geom_sf(data = filter(plot_all, !is.na(net_size)),
+          aes(fill = net_size), color = NA) +
+  
+  # --- arrows, mapping color to f1 ---
+  geom_curve(
+    data      = edges_trimmed,
+    aes(x = xs, y = ys, xend = xe, yend = ye, color = f1),
+    curvature = -0.5,
+    arrow     = arrow(length = unit(0.2, "cm"), type = "closed"),
+    linewidth = 1.2
+  ) +
+  
+  scale_color_gradient(
+    name    = expression(f[1]),
+    low     = "lightblue",
+    high    = "salmon"
+  ) +
+  
+  
+  coord_sf(xlim = c(-18, -12), ylim = c(26, 30)) +
+  scale_fill_gradient(
+    name = "Network\nsize",
+    low  = "lightsteelblue",
+    high = "thistle"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text  = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+
+# Base‐R PDF device
+pdf(
+  file   = "canary_network_map.pdf",
+  width  = 10,    # inches
+  height = 8,
+  family = "Helvetica"   # or another installed font
+)
+print(p)      # draw your ggplot to the device
+dev.off()     # close the file
+
