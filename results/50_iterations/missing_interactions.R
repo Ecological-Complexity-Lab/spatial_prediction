@@ -40,3 +40,11 @@ ints_urell <- get_interactions_by_taxa(
 
 # Take a look
 view(ints_urell)
+
+# for Brazil
+ints_bombus <- get_interactions_by_taxa(
+  sourcetaxon   = "cuphea ericoides"
+)
+
+# Take a look
+view(ints_bombus)

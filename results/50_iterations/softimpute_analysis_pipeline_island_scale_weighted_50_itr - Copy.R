@@ -260,7 +260,7 @@ combine_plots <- function(p1, p2,
 
 ## ---- load data ----
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
-df <- read_csv('weighted__scaled_island_net_60_50_itr.csv') # weighted, scaled
+df <- read_csv('weighted__scaled_island_net_25_50_itr.csv') # weighted, scaled
 
 ## ---- selecting optimal threshold ----
 
@@ -1189,33 +1189,33 @@ canary_results_diags <- result_summary %>%
 # 
 # offs_island
 
-offs_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
+jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
                                         evaluator = "f1_score",
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
                                         plot_title = "F1 vs. Jaccard - off-diagonals (island)",
                                         facet_scales = "free_x")
-offs_isl_f1
+jaccard_isl_f1
 
 # Base‐R PDF device
 pdf(
-  file   = "offs_isl_f1.pdf",
+  file   = "jaccard_isl_f1.pdf",
   width  = 8,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
-print(offs_isl_f1)
+print(jaccard_isl_f1)
 dev.off()     # close the file
 
 png(
-  filename = "offs_isl_f1.png",
+  filename = "jaccard_isl_f1.png",
   width    = 8,           # width in inches
   height   = 4,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
-print(offs_isl_f1)
+print(jaccard_isl_f1)
 dev.off() 
 
 offs_isl_ba <- make_facet_scatter_plot(data = canary_results_diags, 
@@ -1255,33 +1255,33 @@ offs_isl_specificity <- make_facet_scatter_plot(data = canary_results_diags,
                                                  facet_scales = "free_x")
 offs_isl_specificity
 
-offs_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
+jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
                                           evaluator = "rmse",
                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                           x_lab = "Jaccard similarity",
                                           y_lab = "RMSE",
                                           plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
                                           facet_scales = "free_x")
-offs_isl_rmse
+jaccard_isl_rmse
 
 # Base‐R PDF device
 pdf(
-  file   = "offs_isl_rmse.pdf",
+  file   = "jaccard_isl_rmse.pdf",
   width  = 8,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
-print(offs_isl_rmse)
+print(jaccard_isl_rmse)
 dev.off()     # close the file
 
 png(
-  filename = "offs_isl_rmse.png",
+  filename = "jaccard_isl_rmse.png",
   width    = 8,           # width in inches
   height   = 4,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
-print(offs_isl_rmse)
+print(jaccard_isl_rmse)
 dev.off()
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
@@ -2629,7 +2629,7 @@ metric_labels <- c(
 )
 
 # 3. Plot with free_y, custom labels, and centered stars at the top:
-ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
     notch        = TRUE,
     outlier.size = 1,
@@ -2666,6 +2666,16 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     axis.ticks.x    = element_blank(),
     legend.position = "bottom"
   ) + tme
+
+rmse_scales
+pdf(
+  file   = "rmse_scales.pdf",
+  width  = 3.2,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(rmse_scales)
+dev.off()     # close the file
 
 # ---- variable importance ----
 # analyze only one off-diagonal

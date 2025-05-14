@@ -3,7 +3,7 @@
 # #                    "geogrid","rmapshaper"))
 # # 
 # # install.packages(
-# #   "terra",
+# #   "terra", 
 # #   repos = "https://cran.rstudio.com",
 # #   type  = "binary"
 # # )
@@ -896,8 +896,11 @@ p <- ggplot() +
     panel.grid = element_blank(),
     axis.text  = element_blank(),
     axis.ticks = element_blank(),
-    axis.title = element_blank()
+    axis.title = element_blank(),
+    legend.title = element_text(size = 16),  # <-- title size
+    legend.text  = element_text(size = 14) 
   )
+
 
 # Base‐R PDF device
 pdf(
