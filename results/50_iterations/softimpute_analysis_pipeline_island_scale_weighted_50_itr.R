@@ -617,6 +617,16 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
+# Base‐R PDF device
+pdf(
+  file   = "hist_f1a.pdf",
+  width  = 5,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(hist_f1a)
+dev.off()     # close the file
+
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
   # Optionally, set the legend position (e.g., to the right or bottom)
@@ -1004,7 +1014,7 @@ plot_f1_rmse_vs_size_free_both <- function(data) {
       expand = expansion(mult = c(0.05, 0.1))
     ) +
     
-    labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
     
     theme_minimal() +
     theme(
@@ -1023,8 +1033,16 @@ df_f1_rmse_size <- result_summary %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, rmse), names_to = "evaluator", values_to = "evaluator_value")
 
-plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
+netsize_f1_rmse <- plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
 
+pdf(
+  file   = "netsize_f1_rmse.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(netsize_f1_rmse)
+dev.off()     # close the file
 
 ## ---- Jaccard correlation with evaluators ----
 
@@ -1097,7 +1115,7 @@ make_facet_scatter_plot <- function(data,
                                     values_to = "jaccard_value",
                                     x_lab = "Jaccard similarity",
                                     y_lab = "F1 score",
-                                    plot_title = "F1 vs. Jaccard - All data (site)",
+                                    plot_title = NULL,
                                     facet_scales = "free_x") {
   
   # Reshape data from wide to long format for the specified pivot columns
@@ -1194,7 +1212,7 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags,
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
-                                        plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                        #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
                                         facet_scales = "free_x")
 jaccard_isl_f1
 
@@ -1202,7 +1220,7 @@ jaccard_isl_f1
 pdf(
   file   = "jaccard_isl_f1.pdf",
   width  = 8,    # inches
-  height = 4,
+  height = 3.5,
   family = "Helvetica"   # or another installed font
 )
 print(jaccard_isl_f1)
@@ -1546,6 +1564,18 @@ f1_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "f1_score",
                            shared_y_lab = "F1 score")
 
+# Base‐R PDF device
+pdf(
+  file   = "f1_fidelity.pdf",
+  width  = 7,
+  height = 4,
+  family = "Helvetica"
+)
+
+grid::grid.draw(f1_fidelity)
+
+dev.off()
+
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
@@ -1558,9 +1588,20 @@ make_full_correlation_plot(working_df_offs,
 
 make_full_correlation_plot(working_df_offs, evaluator = "specificity")
 
-make_full_correlation_plot(working_df_offs,
+rmse_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "rmse",
                            shared_y_lab = "RMSE")
+
+pdf(
+  file   = "rmse_fidelity.pdf",
+  width  = 7,
+  height = 4,
+  family = "Helvetica"
+)
+
+grid::grid.draw(rmse_fidelity)
+
+dev.off()
 
 make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
@@ -1718,6 +1759,17 @@ poll_degree
 
 final_plot <- combine_plots(plant_degree, poll_degree)
 
+pdf(
+  file   = "degree.pdf",
+  width  = 8,
+  height = 4,
+  family = "Helvetica"
+)
+
+grid::grid.draw(final_plot)
+
+dev.off()
+
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of islands in which these interactions were observed.
@@ -1743,7 +1795,7 @@ df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 
 
-ggplot(df_summary, aes(x = node_to, y = node_from)) +
+map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
   geom_tile(aes(fill = avg_prop)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
@@ -1774,6 +1826,14 @@ ggplot(df_summary, aes(x = node_to, y = node_from)) +
     bquote(italic(.(paste(y, collapse = " "))))
   }))
 
+pdf(
+  file   = "map_missing_links.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_missing_links)
+dev.off()     # close the file
 
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
 # filter the interactions that were always observed as zeros yet predicted to exist
@@ -1816,7 +1876,7 @@ df_top_10 <- predicted_links %>%
   # Take the first 10 rows
   slice(1:10)
 
-ggplot(df_top_10, 
+missing_links <- ggplot(df_top_10, 
        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
            y = mean_pred,
            fill = p_value < 0.05)) +
@@ -1842,6 +1902,14 @@ ggplot(df_top_10,
   ) +
   theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
 
+pdf(
+  file   = "missing_links.pdf",
+  width  = 10,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(missing_links)
+dev.off()     # close the file
 
 ## ---- distance effect ----
 ### ---- add distances and location names ----
@@ -2130,7 +2198,19 @@ combine_two_plots <- function(p1, p2,
 
 cor_plot_site_f1 <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
 cor_plot_isl_f1  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
-final_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
+distance_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
+
+pdf(
+  file   = "distance_plot_f1.pdf",
+  width  = 8,
+  height = 4,
+  family = "Helvetica"
+)
+
+grid::grid.draw(distance_plot_f1)
+
+dev.off()
+
 
 cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
 cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
@@ -2660,10 +2740,11 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   ) +
   theme_minimal(base_size = 14) +
   theme(
-    strip.text      = element_text(face = "bold", size = 12),
+    #strip.text      = element_text(face = "bold", size = 12),
     axis.text.x     = element_blank(),
     axis.ticks.x    = element_blank(),
-    legend.position = "bottom"
+    legend.position = "bottom",
+    strip.text = element_blank()
   ) + tme
 
 # Base‐R PDF device
