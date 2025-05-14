@@ -2209,7 +2209,7 @@ cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall",
 final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
 
 
-## ---- plot heatmaps ----
+# ---- plot heatmaps ----
 island_heatmap_recall <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -2253,6 +2253,15 @@ island_heatmap_f1 <-
   coord_fixed() + tme
 
 print(island_heatmap_f1)
+
+pdf(
+  file   = "island_heatmap_f1.pdf",
+  width  = 8,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(island_heatmap_f1)
+dev.off()     # close the file
 
 island_heatmap_ba <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
