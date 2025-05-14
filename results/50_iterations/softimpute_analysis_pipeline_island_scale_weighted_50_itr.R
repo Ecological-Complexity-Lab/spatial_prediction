@@ -1189,33 +1189,33 @@ canary_results_diags <- result_summary %>%
 # 
 # offs_island
 
-offs_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
+jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
                                         evaluator = "f1_score",
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
                                         plot_title = "F1 vs. Jaccard - off-diagonals (island)",
                                         facet_scales = "free_x")
-offs_isl_f1
+jaccard_isl_f1
 
 # Base‐R PDF device
 pdf(
-  file   = "offs_isl_f1.pdf",
+  file   = "jaccard_isl_f1.pdf",
   width  = 8,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
-print(offs_isl_f1)
+print(jaccard_isl_f1)
 dev.off()     # close the file
 
 png(
-  filename = "offs_isl_f1.png",
+  filename = "jaccard_isl_f1.png",
   width    = 8,           # width in inches
   height   = 4,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
-print(offs_isl_f1)
+print(jaccard_isl_f1)
 dev.off() 
 
 offs_isl_ba <- make_facet_scatter_plot(data = canary_results_diags, 
@@ -1255,34 +1255,24 @@ offs_isl_specificity <- make_facet_scatter_plot(data = canary_results_diags,
                                                  facet_scales = "free_x")
 offs_isl_specificity
 
-offs_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
+jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
                                           evaluator = "rmse",
                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                           x_lab = "Jaccard similarity",
                                           y_lab = "RMSE",
                                           plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
                                           facet_scales = "free_x")
-offs_isl_rmse
+jaccard_isl_rmse
 
 # Base‐R PDF device
 pdf(
-  file   = "offs_isl_rmse.pdf",
+  file   = "jaccard_isl_rmse.pdf",
   width  = 8,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
-print(offs_isl_rmse)
+print(jaccard_isl_rmse)
 dev.off()     # close the file
-
-png(
-  filename = "offs_isl_rmse.png",
-  width    = 8,           # width in inches
-  height   = 4,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-print(offs_isl_rmse)
-dev.off()
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
                                          evaluator = "mse",
@@ -2209,7 +2199,7 @@ cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall",
 final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
 
 
-## ---- plot heatmaps ----
+# ---- plot heatmaps ----
 island_heatmap_recall <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -2253,6 +2243,15 @@ island_heatmap_f1 <-
   coord_fixed() + tme
 
 print(island_heatmap_f1)
+
+pdf(
+  file   = "island_heatmap_f1.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(island_heatmap_f1)
+dev.off()     # close the file
 
 island_heatmap_ba <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
@@ -2629,7 +2628,7 @@ metric_labels <- c(
 )
 
 # 3. Plot with free_y, custom labels, and centered stars at the top:
-ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
     notch        = TRUE,
     outlier.size = 1,
@@ -2666,6 +2665,16 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     axis.ticks.x    = element_blank(),
     legend.position = "bottom"
   ) + tme
+
+# Base‐R PDF device
+pdf(
+  file   = "rmse_scales.pdf",
+  width  = 4,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(rmse_scales)
+dev.off()     # close the file
 
 # ---- variable importance ----
 # analyze only one off-diagonal
