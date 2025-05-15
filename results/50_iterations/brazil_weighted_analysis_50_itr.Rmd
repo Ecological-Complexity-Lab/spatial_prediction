@@ -1,3 +1,16 @@
+---
+title: "softimpute analysis pipeline - island scale (50 iterations)"
+author: "Kesem Abramov"
+date: "2025-04-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r all}
 # ---- softImpute analysis pipeline for island scale ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
@@ -260,7 +273,7 @@ combine_plots <- function(p1, p2,
 
 ## ---- load data ----
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
-df <- read_csv('weighted__scaled_island_net_60_50_itr.csv') # weighted, scaled
+df <- read_csv('weighted__scaled_island_net_25_50_itr.csv') # weighted, scaled
 
 ## ---- selecting optimal threshold ----
 
@@ -616,16 +629,6 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      y_axis_label = "Count of instances",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
-
-# Base‐R PDF device
-pdf(
-  file   = "hist_f1a.pdf",
-  width  = 5,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(hist_f1a)
-dev.off()     # close the file
 
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
@@ -1014,7 +1017,7 @@ plot_f1_rmse_vs_size_free_both <- function(data) {
       expand = expansion(mult = c(0.05, 0.1))
     ) +
     
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
     
     theme_minimal() +
     theme(
@@ -1033,16 +1036,8 @@ df_f1_rmse_size <- result_summary %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, rmse), names_to = "evaluator", values_to = "evaluator_value")
 
-netsize_f1_rmse <- plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
+plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
 
-pdf(
-  file   = "netsize_f1_rmse.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(netsize_f1_rmse)
-dev.off()     # close the file
 
 ## ---- Jaccard correlation with evaluators ----
 
@@ -1115,7 +1110,7 @@ make_facet_scatter_plot <- function(data,
                                     values_to = "jaccard_value",
                                     x_lab = "Jaccard similarity",
                                     y_lab = "F1 score",
-                                    plot_title = NULL,
+                                    plot_title = "F1 vs. Jaccard - All data (site)",
                                     facet_scales = "free_x") {
   
   # Reshape data from wide to long format for the specified pivot columns
@@ -1212,7 +1207,7 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags,
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
-                                        #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                        plot_title = "F1 vs. Jaccard - off-diagonals (island)",
                                         facet_scales = "free_x")
 jaccard_isl_f1
 
@@ -1220,7 +1215,7 @@ jaccard_isl_f1
 pdf(
   file   = "jaccard_isl_f1.pdf",
   width  = 8,    # inches
-  height = 5,
+  height = 4,
   family = "Helvetica"   # or another installed font
 )
 print(jaccard_isl_f1)
@@ -1229,7 +1224,7 @@ dev.off()     # close the file
 png(
   filename = "jaccard_isl_f1.png",
   width    = 8,           # width in inches
-  height   = 5,           # height in inches
+  height   = 4,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
@@ -1286,11 +1281,21 @@ jaccard_isl_rmse
 pdf(
   file   = "jaccard_isl_rmse.pdf",
   width  = 8,    # inches
-  height = 5,
+  height = 4,
   family = "Helvetica"   # or another installed font
 )
 print(jaccard_isl_rmse)
 dev.off()     # close the file
+
+png(
+  filename = "jaccard_isl_rmse.png",
+  width    = 8,           # width in inches
+  height   = 4,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+print(jaccard_isl_rmse)
+dev.off()
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
                                          evaluator = "mse",
@@ -1564,18 +1569,6 @@ f1_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "f1_score",
                            shared_y_lab = "F1 score")
 
-# Base‐R PDF device
-pdf(
-  file   = "f1_fidelity.pdf",
-  width  = 7,
-  height = 4,
-  family = "Helvetica"
-)
-
-grid::grid.draw(f1_fidelity)
-
-dev.off()
-
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
@@ -1588,20 +1581,9 @@ make_full_correlation_plot(working_df_offs,
 
 make_full_correlation_plot(working_df_offs, evaluator = "specificity")
 
-rmse_fidelity <- make_full_correlation_plot(working_df_offs,
+make_full_correlation_plot(working_df_offs,
                            evaluator = "rmse",
                            shared_y_lab = "RMSE")
-
-pdf(
-  file   = "rmse_fidelity.pdf",
-  width  = 7,
-  height = 5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(rmse_fidelity)
-
-dev.off()
 
 make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
@@ -1696,10 +1678,6 @@ never_plants_degree_overall <- df_never_observed %>% left_join(overall_plant_deg
 
 never_poll_degree_overall <- df_never_observed_poll %>% left_join(overall_poll_degree, by="node_to")
 
-# if we want to omit the Euphorbias
-# never_plants_degree_overall <- never_plants_degree_overall %>%
-#   filter(!node_from %in% c("Euphorbia_balsamifera_m", "Euphorbia_balsamifera_f"))
-
 # correlation
 df_to_correlate <- never_plants_degree_overall
 df_to_correlate$x <- df_to_correlate$overall_plant_degree
@@ -1763,17 +1741,6 @@ poll_degree
 
 final_plot <- combine_plots(plant_degree, poll_degree)
 
-pdf(
-  file   = "degree.pdf",
-  width  = 8,
-  height = 5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(final_plot)
-
-dev.off()
-
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of islands in which these interactions were observed.
@@ -1799,7 +1766,7 @@ df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 
 
-map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
   geom_tile(aes(fill = avg_prop)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
@@ -1830,15 +1797,6 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     bquote(italic(.(paste(y, collapse = " "))))
   }))
 
-print(map_missing_links)
-pdf(
-  file   = "map_missing_links.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links)
-dev.off()     # close the file
 
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
 # filter the interactions that were always observed as zeros yet predicted to exist
@@ -1881,7 +1839,7 @@ df_top_10 <- predicted_links %>%
   # Take the first 10 rows
   slice(1:10)
 
-missing_links <- ggplot(df_top_10, 
+ggplot(df_top_10, 
        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
            y = mean_pred,
            fill = p_value < 0.05)) +
@@ -1907,14 +1865,6 @@ missing_links <- ggplot(df_top_10,
   ) +
   theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
 
-pdf(
-  file   = "missing_links.pdf",
-  width  = 9,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(missing_links)
-dev.off()     # close the file
 
 ## ---- distance effect ----
 ### ---- add distances and location names ----
@@ -2203,19 +2153,7 @@ combine_two_plots <- function(p1, p2,
 
 cor_plot_site_f1 <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
 cor_plot_isl_f1  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
-distance_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
-
-pdf(
-  file   = "distance_plot_f1.pdf",
-  width  = 8,
-  height = 4,
-  family = "Helvetica"
-)
-
-grid::grid.draw(distance_plot_f1)
-
-dev.off()
-
+final_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
 
 cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
 cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
@@ -2283,54 +2221,6 @@ make_cor_plot <- function(data, evaluator,
 cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
 final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
 
-# check what happens if we remove sites in the same island
-result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
-result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
-
-# Helper function to extract "island" per your rules
-# get_island <- function(site_name) {
-#   if (grepl("Tenerife Teno", site_name)) {
-#     return("Tenerife Teno")
-#   } else if (grepl("Tenerife South", site_name)) {
-#     return("Tenerife South")
-#   } else {
-#     # Default: use first word as island
-#     return(sub("^(\\w+).*", "\\1", site_name))
-#   }
-# }
-
-# # Apply to both train and test layer names
-# result_summary_site_dif$train_island <- sapply(result_summary_site_dif$train_layer_name, get_island)
-# result_summary_site_dif$test_island <- sapply(result_summary_site_dif$test_layer_name, get_island)
-# 
-# # Filter for rows where train and test island are different
-# filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
-
-# also treat the two Tenerife "islands" as one`
-
-# Step 1: Extract island names
-result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
-result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
-
-# Step 2: Filter rows where island names are different
-filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
-
-# plot
-cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme)
-cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
-distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
-
-# run the previous make_cor_plot again
-pdf(
-  file   = "distance_plot_f1_different_isl.pdf",
-  width  = 8,
-  height = 5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(distance_dif_plot_f1)
-
-dev.off()
 
 # ---- plot heatmaps ----
 island_heatmap_recall <- 
@@ -2379,8 +2269,8 @@ print(island_heatmap_f1)
 
 pdf(
   file   = "island_heatmap_f1.pdf",
-  width  = 6,    # inches
-  height = 6,
+  width  = 8,    # inches
+  height = 4,
   family = "Helvetica"   # or another installed font
 )
 print(island_heatmap_f1)
@@ -2793,17 +2683,16 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   ) +
   theme_minimal(base_size = 14) +
   theme(
-    #strip.text      = element_text(face = "bold", size = 12),
+    strip.text      = element_text(face = "bold", size = 12),
     axis.text.x     = element_blank(),
     axis.ticks.x    = element_blank(),
-    legend.position = "bottom",
-    strip.text = element_blank()
+    legend.position = "bottom"
   ) + tme
 
-# Base‐R PDF device
+rmse_scales
 pdf(
   file   = "rmse_scales.pdf",
-  width  = 4,    # inches
+  width  = 3.2,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
@@ -3197,3 +3086,6 @@ combo2_df
 overall_mean_novel
 
 ## ---- pca of latent traits ----
+
+```
+

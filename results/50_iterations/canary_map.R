@@ -879,7 +879,7 @@ p <- ggplot() +
   ) +
   
   scale_color_gradient(
-    name    = expression(f[1]),
+    name    = "F1 score",
     low     = "lightblue",
     high    = "salmon"
   ) +
