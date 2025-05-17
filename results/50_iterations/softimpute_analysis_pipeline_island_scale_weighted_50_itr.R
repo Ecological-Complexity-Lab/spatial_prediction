@@ -1219,8 +1219,8 @@ jaccard_isl_f1
 # Base‐R PDF device
 pdf(
   file   = "jaccard_isl_f1.pdf",
-  width  = 8,    # inches
-  height = 5,
+  width  = 7,    # inches
+  height = 3.5,
   family = "Helvetica"   # or another installed font
 )
 print(jaccard_isl_f1)
@@ -1228,8 +1228,8 @@ dev.off()     # close the file
 
 png(
   filename = "jaccard_isl_f1.png",
-  width    = 8,           # width in inches
-  height   = 5,           # height in inches
+  width    = 7,           # width in inches
+  height   = 3.5,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
@@ -1278,19 +1278,29 @@ jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags,
                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                           x_lab = "Jaccard similarity",
                                           y_lab = "RMSE",
-                                          plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
+                                          #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
                                           facet_scales = "free_x")
 jaccard_isl_rmse
 
 # Base‐R PDF device
 pdf(
   file   = "jaccard_isl_rmse.pdf",
-  width  = 8,    # inches
-  height = 5,
+  width  = 7,    # inches
+  height = 3.5,
   family = "Helvetica"   # or another installed font
 )
 print(jaccard_isl_rmse)
 dev.off()     # close the file
+
+png(
+  filename = "jaccard_isl_rmse.png",
+  width    = 7,           # width in inches
+  height   = 3.5,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+print(jaccard_isl_rmse)
+dev.off() 
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
                                          evaluator = "mse",
@@ -1489,7 +1499,8 @@ make_simple_correlation_plot <- function(data,
   
   # Optionally remove axis titles
   if (y_axis_blank) {
-    p <- p + theme(axis.title.y = element_blank())
+    p <- p + theme(axis.title.y = element_blank(),
+                   axis.text.y = element_blank())
   }
   if (x_axis_blank) {
     p <- p + theme(axis.title.x = element_blank())
@@ -1536,18 +1547,25 @@ make_full_correlation_plot <- function(data,
     point_color = "darkseagreen3",
     trend_color = "steelblue",
     x_axis_blank = TRUE,
-    y_axis_blank = TRUE
+    y_axis_blank = FALSE
   )
   
-  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(5.5, 15, 5.5, 15))
-  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(5.5, 15, 5.5, 15))
+  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
+  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
   
   
   # Arrange plots side by side
+  # plots_side_by_side <- arrangeGrob(
+  #   plant_plot, pollinator_plot,
+  #   ncol = 2
+  # )
+  # Arrange plots side by side with equal widths
   plots_side_by_side <- arrangeGrob(
     plant_plot, pollinator_plot,
-    ncol = 2
+    ncol = 2,
+    widths = unit.c(unit(1.13, "null"), unit(1, "null"))  # Equal widths
   )
+  
   
   # Add shared axis labels
   final_plot <- grid.arrange(
@@ -1576,6 +1594,16 @@ grid::grid.draw(f1_fidelity)
 
 dev.off()
 
+png(
+  filename = "f1_fidelity.png",
+  width    = 7,           # width in inches
+  height   = 4,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+grid::grid.draw(f1_fidelity)
+dev.off() 
+
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
 
@@ -1595,13 +1623,23 @@ rmse_fidelity <- make_full_correlation_plot(working_df_offs,
 pdf(
   file   = "rmse_fidelity.pdf",
   width  = 7,
-  height = 5,
+  height = 4,
   family = "Helvetica"
 )
 
 grid::grid.draw(rmse_fidelity)
 
 dev.off()
+
+png(
+  filename = "rmse_fidelity.png",
+  width    = 7,           # width in inches
+  height   = 4,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+grid::grid.draw(rmse_fidelity)
+dev.off() 
 
 make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
@@ -2166,6 +2204,7 @@ combine_two_plots <- function(p1, p2,
     theme(
       legend.position = "none",
       axis.title = element_blank(),
+      axis.text.y = element_blank(),
       plot.margin = margins
     )
   
@@ -2173,7 +2212,7 @@ combine_two_plots <- function(p1, p2,
   combined_plots <- arrangeGrob(
     p1, p2,
     ncol = 2,
-    widths = c(1, 1)
+    widths = c(1.1, 1)
   )
   
   # Add global x and y axis labels
@@ -2195,7 +2234,7 @@ combine_two_plots <- function(p1, p2,
   final_plot <- grid.arrange(
     combined_with_axes,
     ncol = 2,
-    widths = c(2, 0.3)
+    widths = c(2, 0.01)
   )
   
   return(final_plot)
@@ -2216,6 +2255,17 @@ grid::grid.draw(distance_plot_f1)
 
 dev.off()
 
+png(
+  file   = "distance_plot_f1.png",
+  width  = 8,
+  height = 4,
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+
+grid::grid.draw(distance_plot_f1)
+
+dev.off()
 
 cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
 cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
@@ -2323,9 +2373,21 @@ distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl
 # run the previous make_cor_plot again
 pdf(
   file   = "distance_plot_f1_different_isl.pdf",
-  width  = 8,
-  height = 5,
+  width  = 7,
+  height = 4,
   family = "Helvetica"
+)
+
+grid::grid.draw(distance_dif_plot_f1)
+
+dev.off()
+
+png(
+  file   = "distance_plot_f1_different_isl.png",
+  width  = 7,
+  height = 4,
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300   
 )
 
 grid::grid.draw(distance_dif_plot_f1)
