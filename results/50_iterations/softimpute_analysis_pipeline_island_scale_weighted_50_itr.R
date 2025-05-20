@@ -421,7 +421,7 @@ result_summary <- df_removed %>%
   ) %>%
   ungroup()
 
-result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
+#result_summary %>% write_csv('working_df_all_itr_60_weighted_scaled_island_50_itr.csv')
 head(result_summary)
 summary(result_summary)
 
@@ -666,6 +666,38 @@ combined_plot <- hist_precision + hist_recall + hist_specificity + hist_rmse + h
   plot_annotation(theme = theme(legend.position = "right"))
 
 combined_plot
+
+# stats
+# Run the t-test via formula interface
+t_test_f1 <- t.test(f1_score ~ layer_comparison, 
+                    data       = result_summary_island,
+                    var.equal  = FALSE)  # Welch’s test
+
+# 3. Print the full test
+print(t_test_f1)
+#> 
+#> Welch Two Sample t-test
+#> 
+#> data:  f1_score by layer_comparison
+#> t =  X.XXX, df =  Y.YY, p-value = Z.ZZZ
+#> alternative hypothesis: true difference in means is not equal to 0
+#> 95 percent confidence interval:
+#>   LL UU
+#> sample estimates:
+#> mean in group Diagonal mean in group Off-diagonals 
+#>                M₁                     M₂ 
+
+# 4. Extract just the numbers you want
+t_stat <- unname(t_test_f1$statistic)
+df_val <- unname(t_test_f1$parameter)
+p_val  <- t_test_f1$p.value
+
+data.frame(
+  t_value = t_stat,
+  df      = df_val,
+  p_value = p_val
+)
+
 
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
@@ -2291,7 +2323,7 @@ cor_plot_site_mse <- make_cor_plot(result_summary_site, evaluator = "mse", extra
 cor_plot_isl_mse  <- make_cor_plot(result_summary_island, evaluator = "mse", extra_theme = tme)
 final_plot_mse <- combine_two_plots(cor_plot_site_mse, cor_plot_isl_mse, y_axis_label = "MSE")
 
-make_cor_plot <- function(data, evaluator, 
+make_cor_plot_line <- function(data, evaluator, 
                           distance_col = "distance_km", 
                           x_lab = "Geographic distance (km)",
                           y_lab = NULL,
@@ -2330,8 +2362,8 @@ make_cor_plot <- function(data, evaluator,
   return(plot)
 }
 
-cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
-final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
+cor_plot_site_recall <- make_cor_plot_line(result_summary_site, evaluator = "recall", extra_theme = tme)
+#final_plot_recall <- make_cor_plot_line(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
 
 # check what happens if we remove sites in the same island
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
@@ -2393,6 +2425,63 @@ png(
 grid::grid.draw(distance_dif_plot_f1)
 
 dev.off()
+
+# use MRM test
+# 1. Install & load ecodist
+#install.packages("ecodist")
+library(ecodist)
+
+# 2. Make sure your data.frame is called, say, df, with columns:
+#    train_layer_name, test_layer_name, f1_score, distance_km
+
+# 3. Build square matrices of F1 and Distance
+#    (layers must be in the same order for rows & cols)
+
+# a) Get a list of all unique layer names
+layers <- sort(unique(c(result_summary_island$train_layer_name, result_summary_island$test_layer_name)))
+
+# b) Initialize empty matrices
+f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
+                      dimnames=list(layers, layers))
+dist_mat_km <- f1_mat
+
+# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+for(i in layers) for(j in layers) {
+  # Subset rows where train=i and test=j
+  sub <- result_summary_island[result_summary_island$train_layer_name==i & result_summary_island$test_layer_name==j, ]
+  if(nrow(sub)==1) {
+    f1_mat[i,j]      <- sub$f1_score
+    dist_mat_km[i,j] <- sub$distance_km
+  }
+}
+
+# d) Because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+sym_average <- function(m) {
+  mm <- m
+  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
+    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
+      avg       <- mean(c(m[i,j], m[j,i]))
+      mm[i,j]   <- avg
+      mm[j,i]   <- avg
+    }
+  }
+  mm
+}
+f1_sym      <- sym_average(f1_mat)
+dist_sym_km <- sym_average(dist_mat_km)
+
+# e) Convert to “dist” objects (lower triangle)
+dist_f1      <- as.dist(f1_sym)
+dist_km      <- as.dist(dist_sym_km)
+
+# 4. Run the MRM
+#    — this will regress the F1‐distance matrix on the geographic–distance matrix
+set.seed(42)   # for reproducibility of permutations
+mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
+
+# 5. Inspect results
+print(mrm_out)
+
 
 # ---- plot heatmaps ----
 island_heatmap_recall <- 
@@ -2647,7 +2736,7 @@ print(island_heatmap_mse)
 #   widths = c(2, 0.3, 0.3)
 # )
 # ---- compare scales ----
-# # make a long list
+# # # make a long list
 # df1_labeled <- result_summary_site %>%
 #   mutate(scale = "Site")
 # 
@@ -2658,33 +2747,35 @@ print(island_heatmap_mse)
 # 
 # df_long <- df_combined %>%
 #   pivot_longer(
-#     cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity"),
+#     cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity", "rmse"),
 #     names_to = "metric",
 #     values_to = "value"
 #   )
-# 
-# metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity")
-# 
+# #
+# metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity", "rmse")
+# #
 # results <- lapply(metrics, function(metric) {
 #   test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
 #   test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
-#   
+# 
 #   if (test_normality_site > 0.05 & test_normality_island > 0.05) {
 #     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
 #   } else {
-#     test <- wilcox.test(result_summary_site[[metric]], result_summary_island[[metric]])
+#     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]])
 #   }
-#   
+# 
 #   data.frame(
 #     Metric = metric,
-#     Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "Wilcoxon"),
-#     P_value = test$p.value
+#     Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "T-test"),
+#     P_value = test$p.value,
+#     t_value  = test$statistic,   # extract the t‐value
+#     df       = test$parameter   # degrees of freedom
 #   )
 # })
 # 
 # results_df <- do.call(rbind, results)
 # print(results_df)
-# 
+# # 
 # # Define significance function
 # get_pvalue_asterisks <- function(p) {
 #   if (p < 0.001) return("***")  # Highly significant
@@ -2695,12 +2786,12 @@ print(island_heatmap_mse)
 # 
 # stat_results <- lapply(metrics, function(metric) {
 #   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
-#   
+# 
 #   test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
-#   
+# 
 #   p_value <- test$p.value
 #   significance <- get_pvalue_asterisks(p_value)
-#   
+# 
 #   data.frame(
 #     metric = metric,
 #     p_value = p_value,
@@ -2803,6 +2894,8 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   ) + tme
 
 
+# rmse separately
+
 df_long <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
   result_summary_island %>% mutate(scale = "Island")
@@ -2871,6 +2964,40 @@ pdf(
 )
 print(rmse_scales)
 dev.off()     # close the file
+
+# stats
+df_scales <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island"))
+
+t_test_f1_scales <- t.test(f1_score ~ scale, 
+                    data       = df_scales,
+                    var.equal  = FALSE)  # Welch’s test
+
+# 3. Print the full test
+print(t_test_f1_scales)
+#> 
+#> Welch Two Sample t-test
+#> 
+#> data:  f1_score by layer_comparison
+#> t =  X.XXX, df =  Y.YY, p-value = Z.ZZZ
+#> alternative hypothesis: true difference in means is not equal to 0
+#> 95 percent confidence interval:
+#>   LL UU
+#> sample estimates:
+#> mean in group Diagonal mean in group Off-diagonals 
+#>                M₁                     M₂ 
+
+# 4. Extract just the numbers you want
+t_stat <- unname(t_test_f1_scales$statistic)
+df_val <- unname(t_test_f1_scales$parameter)
+p_val  <- t_test_f1_scales$p.value
+
+data.frame(
+  t_value = t_stat,
+  df      = df_val,
+  p_value = p_val
+)
 
 # ---- variable importance ----
 # analyze only one off-diagonal
@@ -3257,5 +3384,30 @@ overall_mean_novel <- mean(combo2_df$mean_prop_novel, na.rm = TRUE)
 # Inspect results
 combo2_df
 overall_mean_novel
+
+## ---- some stats ----
+print(summary(result_summary_island))
+print(summary(result_summary_site))
+
+Sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara")
+summary(Sahara)
+
+no_Sahara <- result_summary_island %>% filter(test_layer_name != "Western Sahara")
+summary(no_Sahara)
+
+# assuming your data.frame is called df
+# first, select only the numeric columns
+num_df <- result_summary_island[sapply(result_summary_island, is.numeric)]
+
+# now compute mean, median, SD and SE for each column
+stats <- data.frame(
+  mean   = sapply(num_df, mean,   na.rm = TRUE),
+  median = sapply(num_df, median, na.rm = TRUE),
+  sd     = sapply(num_df, sd,     na.rm = TRUE),
+  # standard error = sd / sqrt(n_nonNA)
+  se     = sapply(num_df, function(x) sd(x, na.rm=TRUE) / sqrt(sum(!is.na(x))))
+)
+
+print(stats)
 
 ## ---- pca of latent traits ----
