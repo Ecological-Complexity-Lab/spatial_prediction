@@ -670,7 +670,7 @@ combined_plot
 # stats
 # Run the t-test via formula interface
 t_test_f1 <- t.test(f1_score ~ layer_comparison, 
-                    data       = result_summary_island,
+                    data       = result_summary,
                     var.equal  = FALSE)  # Welch’s test
 
 # 3. Print the full test
