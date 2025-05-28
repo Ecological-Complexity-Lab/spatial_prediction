@@ -24,8 +24,8 @@ library(stringr)
 
 #source("~/Documents/GitHub/softimpute/results/useful_for_plotting.R")
 ## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 14, color = "black"),
-              axis.title = element_text(size = 14, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 26, color = "black"),
+              axis.title = element_text(size = 26, face = "bold"),
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
               panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
@@ -112,7 +112,7 @@ plot_pr_curve <- function(true_labels, predicted_scores) {
 
 # functions for diagonal and off-diagonal comparison
 plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
-                        stat_label_y = NULL, stat_size = 3) {
+                         stat_label_y = NULL, stat_size = 3) {
   
   # Calculate max value for y-axis and position for stat label
   max_y <- max(data[[metric]], na.rm = TRUE)
@@ -142,7 +142,7 @@ plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy",
 plot_hist <- function(data, metric, 
                       x_axis_label = "Balanced accuracy", 
                       y_axis_label = "Count") {
-  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
+  ggplot(data, aes(x = .data[[metric]], fill = layer_comparison1)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
     scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
@@ -152,7 +152,9 @@ plot_hist <- function(data, metric,
          fill = "Layer comparison") +
     theme(
       axis.text.x = element_text(hjust = 1),
-      panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+      legend.title = element_text(size = 14),   # Increase legend title font size
+      legend.text = element_text(size = 12) 
     ) +
     scale_fill_manual(values = custom_colors) + tme
 }
@@ -460,7 +462,7 @@ island_precision <- ggplot(result_summary, aes(x = precision)) +
     labels = scales::number_format(accuracy = 0.05)
   ) +
   scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
-labs(x = "Precision",
+  labs(x = "Precision",
        y = "Count") +
   tme
 
@@ -543,22 +545,22 @@ final_plot <- grid.arrange(
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 
 result_summary <- result_summary %>%
-  mutate(layer_comparison = case_when(
-    train_layer == test_layer ~ "Diagonal",
-    train_layer != test_layer ~ "Off-diagonals"
+  mutate(layer_comparison1 = case_when(
+    train_layer == test_layer ~ "Single location",
+    train_layer != test_layer ~ "Added location"
   ))
 
-custom_colors <- c("Diagonal" = "steelblue",
-                   "Off-diagonals" = "thistle")
+custom_colors <- c("Single location" = "steelblue",
+                   "Added location" = "thistle")
 
 # boxplots:
 island_ba <- plot_boxplot(result_summary, metric = "balanced_accuracy", 
-                        y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
+                          y_axis_label = "Balanced accuracy", stat_label_y = 0.85, stat_size = 6)
 island_f1 <- plot_boxplot(result_summary, metric = "f1_score", 
-                        y_axis_label = "F1 score", stat_label_y = 0.7, stat_size = 5)
+                          y_axis_label = "F1 score", stat_label_y = 0.7, stat_size = 5)
 
 island_mse_b <- plot_boxplot(result_summary, metric = "mse", 
-                          y_axis_label = "MSE", stat_size = 6)
+                             y_axis_label = "MSE", stat_size = 6)
 
 combined_plots <- arrangeGrob(
   island_ba, island_f1, 
@@ -605,7 +607,7 @@ plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy",
 hist_ba <- plot_hist(result_summary, metric = "balanced_accuracy", 
                      y_axis_label = "Count") +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05))
-  
+
 hist_f1 <- plot_hist(result_summary, metric = "f1_score", 
                      y_axis_label = "Count",
                      x_axis_label = "F1 score") + 
@@ -613,8 +615,8 @@ hist_f1 <- plot_hist(result_summary, metric = "f1_score",
   theme(axis.title.y = element_blank())
 
 hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
-                     y_axis_label = "Count of instances",
-                     x_axis_label = "F1 score") + 
+                      y_axis_label = "Count of instances",
+                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
 # Base‐R PDF device
@@ -626,6 +628,16 @@ pdf(
 )
 print(hist_f1a)
 dev.off()     # close the file
+
+png(
+  filename = "hist_f1p.png",
+  width    = 8,           # width in inches
+  height   = 5,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
+)
+grid::grid.draw(hist_f1a)
+dev.off() 
 
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
@@ -698,32 +710,6 @@ data.frame(
   p_value = p_val
 )
 
-# for poster:
-custom_labels <- c("Diagonal" = "Single location",
-                   "Off-diagonals" = "Location combination")
-
-hist_f1p <- plot_hist(result_summary, metric = "f1_score", 
-                      y_axis_label = "Count of instances",
-                      x_axis_label = "F1 score") + 
-  scale_fill_manual(values = custom_colors, labels = custom_labels) +
-  labs(fill = "Prediction based on") +
-  scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
-  theme(legend.title = element_text(size = 20),
-        legend.text = element_text(size = 18),
-        axis.title.x = element_text(size = 26),
-        axis.title.y = element_text(size = 26),
-        axis.text.y = element_text(size = 18),
-        axis.text.x = element_text(size = 18))
-
-png(
-  filename = "hist_f1p.png",
-  width    = 8,           # width in inches
-  height   = 5,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-grid::grid.draw(hist_f1p)
-dev.off() 
 
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
@@ -1212,7 +1198,7 @@ make_facet_scatter_plot <- function(data,
   
   # Construct the faceted scatter plot
   plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 3) +
     geom_smooth(method = "lm", se = FALSE, color = "thistle") +
     facet_wrap(as.formula(paste("~", names_to)), 
                scales = facet_scales,
@@ -1225,13 +1211,14 @@ make_facet_scatter_plot <- function(data,
               y = Inf,
               hjust = 1.1,
               vjust = 1.2,
-              size = 3.2,
+              size = 8,
               color = "black") +
     labs(x = x_lab, y = y_lab, title = plot_title) +
     theme_minimal() +
     tme +
     theme(
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
+      axis.title.y = element_text(size = 26),
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black")
     )
@@ -1241,12 +1228,12 @@ make_facet_scatter_plot <- function(data,
 
 # all data points
 all_island <- make_facet_scatter_plot(data = result_summary, 
-                                       evaluator = "f1_score",
-                                       pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                       x_lab = "Jaccard similarity",
-                                       y_lab = "F1 score",
-                                       plot_title = "F1 vs. Jaccard - all data (island)",
-                                       facet_scales = "free_x")
+                                      evaluator = "f1_score",
+                                      pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                      x_lab = "Jaccard similarity",
+                                      y_lab = "F1 score",
+                                      plot_title = "F1 vs. Jaccard - all data (island)",
+                                      facet_scales = "free_x")
 
 all_island
 
@@ -1266,12 +1253,12 @@ canary_results_diags <- result_summary %>%
 # offs_island
 
 jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
-                                        evaluator = "f1_score",
-                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                        x_lab = "Jaccard similarity",
-                                        y_lab = "F1 score",
-                                        #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
-                                        facet_scales = "free_x")
+                                          evaluator = "f1_score",
+                                          pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                          x_lab = "Jaccard similarity",
+                                          y_lab = "F1 score",
+                                          #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                          facet_scales = "free_x")
 jaccard_isl_f1
 
 # Base‐R PDF device
@@ -1295,49 +1282,49 @@ print(jaccard_isl_f1)
 dev.off() 
 
 offs_isl_ba <- make_facet_scatter_plot(data = canary_results_diags, 
-                                        evaluator = "balanced_accuracy",
-                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                        x_lab = "Jaccard similarity",
-                                        y_lab = "Balanced accuracy",
-                                        plot_title = "BA vs. Jaccard - off-diagonals (island)",
-                                        facet_scales = "free_x")
+                                       evaluator = "balanced_accuracy",
+                                       pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                       x_lab = "Jaccard similarity",
+                                       y_lab = "Balanced accuracy",
+                                       plot_title = "BA vs. Jaccard - off-diagonals (island)",
+                                       facet_scales = "free_x")
 offs_isl_ba
 
 offs_isl_presicion <- make_facet_scatter_plot(data = canary_results_diags, 
-                                               evaluator = "precision",
-                                               pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                               x_lab = "Jaccard similarity",
-                                               y_lab = "Precision",
-                                               plot_title = "precision vs. Jaccard - off-diagonals (island)",
-                                               facet_scales = "free_x")
+                                              evaluator = "precision",
+                                              pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                              x_lab = "Jaccard similarity",
+                                              y_lab = "Precision",
+                                              plot_title = "precision vs. Jaccard - off-diagonals (island)",
+                                              facet_scales = "free_x")
 offs_isl_presicion
 
 
 offs_isl_recall <- make_facet_scatter_plot(data = canary_results_diags, 
-                                            evaluator = "recall",
-                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                            x_lab = "Jaccard similarity",
-                                            y_lab = "Recall",
-                                            plot_title = "Recall vs. Jaccard - off-diagonals (island)",
-                                            facet_scales = "free_x")
+                                           evaluator = "recall",
+                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                           x_lab = "Jaccard similarity",
+                                           y_lab = "Recall",
+                                           plot_title = "Recall vs. Jaccard - off-diagonals (island)",
+                                           facet_scales = "free_x")
 offs_isl_recall
 
 offs_isl_specificity <- make_facet_scatter_plot(data = canary_results_diags, 
-                                                 evaluator = "specificity",
-                                                 pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                                 x_lab = "Jaccard similarity",
-                                                 y_lab = "Specificity",
-                                                 plot_title = "Specificity vs. Jaccard - off-diagonals (island)",
-                                                 facet_scales = "free_x")
+                                                evaluator = "specificity",
+                                                pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                                x_lab = "Jaccard similarity",
+                                                y_lab = "Specificity",
+                                                plot_title = "Specificity vs. Jaccard - off-diagonals (island)",
+                                                facet_scales = "free_x")
 offs_isl_specificity
 
 jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                          evaluator = "rmse",
-                                          pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                          x_lab = "Jaccard similarity",
-                                          y_lab = "RMSE",
-                                          #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
-                                          facet_scales = "free_x")
+                                            evaluator = "rmse",
+                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                            x_lab = "Jaccard similarity",
+                                            y_lab = "RMSE",
+                                            #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
+                                            facet_scales = "free_x")
 jaccard_isl_rmse
 
 # Base‐R PDF device
@@ -1361,12 +1348,12 @@ print(jaccard_isl_rmse)
 dev.off() 
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                         evaluator = "mse",
-                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                         x_lab = "Jaccard similarity",
-                                         y_lab = "MSE",
-                                         plot_title = "MSE vs. Jaccard - off-diagonals (island)",
-                                         facet_scales = "free_x")
+                                        evaluator = "mse",
+                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                        x_lab = "Jaccard similarity",
+                                        y_lab = "MSE",
+                                        plot_title = "MSE vs. Jaccard - off-diagonals (island)",
+                                        facet_scales = "free_x")
 offs_isl_mse
 
 
@@ -1540,7 +1527,7 @@ make_simple_correlation_plot <- function(data,
   
   # Build the plot
   p <- ggplot(data, aes_string(x = x_var, y = evaluator)) +
-    geom_point(color = point_color, alpha = 0.6, size = 2) +
+    geom_point(color = point_color, alpha = 0.6, size = 4) +
     geom_smooth(method = "lm", se = FALSE, color = trend_color) +
     labs(
       x = x_lab,
@@ -1552,7 +1539,7 @@ make_simple_correlation_plot <- function(data,
              x = Inf, y = Inf,
              hjust = 1.1, vjust = 1.2,
              label = label_text,
-             size = 3.5,
+             size = 8,
              color = "black")
   
   # Optionally remove axis titles
@@ -1608,8 +1595,8 @@ make_full_correlation_plot <- function(data,
     y_axis_blank = FALSE
   )
   
-  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
-  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
+  plant_plot <- plant_plot + theme(plot.title = element_text(size = 26), plot.margin = ggplot2::margin(4, 20, 4, 10))
+  pollinator_plot <- pollinator_plot + theme(plot.title = element_text(size = 26), plot.margin = ggplot2::margin(4, 15, 4, 10))
   
   
   # Arrange plots side by side
@@ -1628,8 +1615,8 @@ make_full_correlation_plot <- function(data,
   # Add shared axis labels
   final_plot <- grid.arrange(
     plots_side_by_side,
-    left = textGrob(shared_y_lab, rot = 90, gp = gpar(fontsize = 13, fontface = "bold")),
-    bottom = textGrob(shared_x_lab, gp = gpar(fontsize = 13, fontface = "bold"))
+    left = textGrob(shared_y_lab, rot = 90, gp = gpar(fontsize = 24, fontface = "bold")),
+    bottom = textGrob(shared_x_lab, gp = gpar(fontsize = 24, fontface = "bold"))
   )
   
   return(final_plot)
@@ -1637,8 +1624,8 @@ make_full_correlation_plot <- function(data,
 
 # For F1 score
 f1_fidelity <- make_full_correlation_plot(working_df_offs,
-                           evaluator = "f1_score",
-                           shared_y_lab = "F1 score")
+                                          evaluator = "f1_score",
+                                          shared_y_lab = "F1 score")
 
 # Base‐R PDF device
 pdf(
@@ -1675,8 +1662,9 @@ make_full_correlation_plot(working_df_offs,
 make_full_correlation_plot(working_df_offs, evaluator = "specificity")
 
 rmse_fidelity <- make_full_correlation_plot(working_df_offs,
-                           evaluator = "rmse",
-                           shared_y_lab = "RMSE")
+                                            evaluator = "rmse",
+                                            shared_y_lab = "RMSE",
+                                            shared_x_lab = "Similarity in partner composition across space \n(mean Sorensen similarity)")
 
 pdf(
   file   = "rmse_fidelity.pdf",
@@ -1690,14 +1678,26 @@ grid::grid.draw(rmse_fidelity)
 dev.off()
 
 png(
-  filename = "rmse_fidelity.png",
-  width    = 7,           # width in inches
-  height   = 4,           # height in inches
+  filename = "rmse_fidelity_p.png",
+  width    = 10,           # width in inches
+  height   = 5,           # height in inches
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300          # resolution in dots per inch
 )
 grid::grid.draw(rmse_fidelity)
 dev.off() 
+
+save_standard_plot <- function(plot, filename) {
+  ggsave(
+    filename = filename,
+    plot     = plot,
+    width    = 10,
+    height   = 5,
+    units    = "in",
+    dpi      = 300
+  )
+}
+
 
 make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
@@ -1899,7 +1899,8 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
   geom_tile(aes(fill = avg_prop)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
+                      name = "Observes links: \nproportion of \nislands observed",
+                      labels = scales::label_number(accuracy = 0.1)) +
   
   # Reset fill scale so the next layer can have its own gradient
   new_scale_fill() +
@@ -1911,7 +1912,8 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     alpha = 0.6
   ) +
   scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
+                      name = "Unobserved links: \naverage predicted \nprobability",
+                      labels = scales::label_number(accuracy = 0.1)) +
   
   # Final adjustments
   theme_minimal() +
@@ -1920,7 +1922,9 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     axis.text.x = element_blank(), 
     axis.text.y = element_text(size = 8),
     legend.position = "bottom",         # Place legends at the bottom
-    legend.box = "horizontal" 
+    legend.box = "horizontal",
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 14)
   ) + tme +
   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
@@ -1932,6 +1936,16 @@ pdf(
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
+)
+print(map_missing_links)
+dev.off()     # close the file
+
+png(
+  file   = "map_missing_links.png",
+  width  = 11,    # inches
+  height = 6,
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300 
 )
 print(map_missing_links)
 dev.off()     # close the file
@@ -1978,9 +1992,9 @@ df_top_10 <- predicted_links %>%
   slice(1:10)
 
 missing_links <- ggplot(df_top_10, 
-       aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
-           y = mean_pred,
-           fill = p_value < 0.05)) +
+                        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
+                            y = mean_pred,
+                            fill = p_value < 0.05)) +
   geom_col(fill = "lightsteelblue") +
   geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
                 width = 0.2) +
@@ -2188,12 +2202,12 @@ make_cor_plot <- function(data, evaluator,
   
   # Create plot with label in the upper right corner using Inf coordinates
   plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
-    geom_point(color = "salmon2", size = 2) +
+    geom_point(color = "salmon2", size = 3) +
     geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
     labs(x = x_lab, y = y_lab) +
     # The following places the label at the upper right of the plot area
     annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+             hjust = 1.1, vjust = 1.1, size = 8, color = "black")
   
   # Optionally add additional theme modifications
   if (!is.null(extra_theme)) {
@@ -2350,10 +2364,10 @@ cor_plot_isl_mse  <- make_cor_plot(result_summary_island, evaluator = "mse", ext
 final_plot_mse <- combine_two_plots(cor_plot_site_mse, cor_plot_isl_mse, y_axis_label = "MSE")
 
 make_cor_plot_line <- function(data, evaluator, 
-                          distance_col = "distance_km", 
-                          x_lab = "Geographic distance (km)",
-                          y_lab = NULL,
-                          extra_theme = NULL) {
+                               distance_col = "distance_km", 
+                               x_lab = "Geographic distance (km)",
+                               y_lab = NULL,
+                               extra_theme = NULL) {
   # Use evaluator as y_lab if no alternative is provided
   if (is.null(y_lab)) {
     y_lab <- evaluator
@@ -2372,13 +2386,13 @@ make_cor_plot_line <- function(data, evaluator,
   
   # Create plot with label in the upper right corner using Inf coordinates
   plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
-    geom_point(color = "salmon2", size = 2) +
+    geom_point(color = "salmon2", size = 4) +
     geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
     geom_hline(yintercept = 0.7, linetype = "dashed", color = "black", linewidth = 0.8) +
     labs(x = x_lab, y = y_lab) +
     # The following places the label at the upper right of the plot area
     annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+             hjust = 1.1, vjust = 1.1, size = 5, color = "black")
   
   # Optionally add additional theme modifications
   if (!is.null(extra_theme)) {
@@ -2428,27 +2442,118 @@ cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", 
 cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
 distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
 
-# run the previous make_cor_plot again
-pdf(
-  file   = "distance_plot_f1_different_isl.pdf",
-  width  = 7,
-  height = 4,
-  family = "Helvetica"
-)
-
-grid::grid.draw(distance_dif_plot_f1)
-
-dev.off()
+# for the poster
+jaccard_isl_f1_links <- make_facet_scatter_plot(data = canary_results_diags, 
+                                                                                 evaluator = "f1_score",
+                                                                                 pivot_cols = c("jaccard_edges"),
+                                                                                 x_lab = "Interaction overlap \n(Jaccard similarity)",
+                                                                                 y_lab = "F1 score",
+                                                                                 #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                                                                 facet_scales = "free_x") +
+  theme(strip.text = element_blank())
 
 png(
-  file   = "distance_plot_f1_different_isl.png",
-  width  = 7,
-  height = 4,
+  file   = "f1_jaccard_links.png",
+  width  = 6,
+  height = 6,
   units    = "in",        # could also be "px", "cm", etc.
   res      = 300   
 )
 
-grid::grid.draw(distance_dif_plot_f1)
+grid::grid.draw(jaccard_isl_f1_links)
+
+dev.off()
+
+# distance_dif_jaccard_f1 <- (jaccard_isl_f1_links + cor_plot_site_dif_f1) & 
+#   theme(
+#     strip.text = element_blank(),        # Remove facet titles
+#     axis.title.x = element_text(size = 24),
+#     axis.title.y = element_text(size = 24),
+#     axis.text.x = element_text(size = 18),
+#     axis.text.y = element_text(size = 18)
+#   )
+
+
+library(patchwork)
+library(ggplot2)
+
+# Add right margin using ggplot2::margin
+right_plot <- cor_plot_site_dif_f1 +
+  scale_y_continuous(limits = c(NA, 0.75), labels = NULL) +  # Set upper limit, remove labels
+  theme(
+    axis.title.y = element_blank(),                          # Remove y-axis title
+    plot.margin = ggplot2::margin(t = 5, r = 30, b = 5, l = 5)
+  )
+
+left_plot <- jaccard_isl_f1_links + 
+  theme( 
+    plot.margin = ggplot2::margin(t = 5, r = 20, b = 5, l = 5)
+  )
+
+# Combine plots with shared formatting
+distance_dif_jaccard_f1 <- left_plot + right_plot +
+  plot_layout(ncol = 2) &
+  theme(
+    strip.text = element_blank(),
+    axis.title.x = element_text(size = 26),
+    axis.text.x  = element_text(size = 20),
+    axis.text.y  = element_text(size = 20)
+  )
+# add site scale Jaccard instead:
+# i ran the site script to get the canary_results_diags for site scale
+jaccard_isl_f1_links <- make_facet_scatter_plot(data = canary_results_diags, 
+                                                evaluator = "f1_score",
+                                                pivot_cols = c("jaccard_edges"),
+                                                x_lab = "Interaction overlap \n(Jaccard similarity)",
+                                                y_lab = "F1 score",
+                                                #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
+                                                facet_scales = "free_x") +
+  theme(strip.text = element_blank())
+
+right_plot <- cor_plot_site_dif_f1 +
+  scale_y_continuous(limits = c(NA, 0.75), labels = NULL) +  # Set upper limit, remove labels
+  theme(
+    axis.title.y = element_blank(),                          # Remove y-axis title
+    plot.margin = ggplot2::margin(t = 5, r = 30, b = 5, l = 5)
+  )
+
+left_plot <- jaccard_isl_f1_links + 
+  theme( 
+    plot.margin = ggplot2::margin(t = 5, r = 20, b = 5, l = 5),
+    axis.title.y = element_text(size = 26)
+  )
+
+# Combine plots with shared formatting
+distance_dif_jaccard_f1 <- left_plot + right_plot +
+  plot_layout(ncol = 2) &
+  theme(
+    strip.text = element_blank(),
+    axis.title.x = element_text(size = 26),
+    axis.text.x  = element_text(size = 20),
+    axis.text.y  = element_text(size = 20)
+  )
+
+# # Now remove the y-axis title only from the right plot
+# distance_dif_jaccard_f1 <- jaccard_isl_f1_links + 
+#   (cor_plot_site_dif_f1+ theme(axis.title.y = element_blank())) +
+#   plot_layout(ncol = 2) &
+#   theme(
+#     strip.text = element_blank(),
+#     axis.title.x = element_text(size = 24),
+#     axis.text.x = element_text(size = 18),
+#     axis.text.y = element_text(size = 18)
+#   )
+
+
+png(
+  file   = "distance_jaccard_plot_f1_different_site.png",
+  width  = 10,
+  height = 5,
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300   
+)
+
+grid::grid.draw(distance_dif_jaccard_f1)
 
 dev.off()
 
@@ -2920,29 +3025,29 @@ ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   ) + tme
 
 
-# rmse separately
+# f1 and rmse separately
 
 df_long <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
   result_summary_island %>% mutate(scale = "Island")
 ) %>%
   pivot_longer(
-    cols      = c("rmse"),
+    cols      = c("f1_score", "rmse"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "rmse"
+  mutate(metric = factor(metric, levels = c("f1_score", "rmse"
   )))
 
 # 2. Pretty facet titles with units:
 metric_labels <- c(
+  f1_score = "F1 score",
   rmse              = "RMSE"
   
 )
 
 # 3. Plot with free_y, custom labels, and centered stars at the top:
-rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+f1_rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
     notch        = TRUE,
     outlier.size = 1,
@@ -2963,14 +3068,14 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     # center between the two boxes (position 1 & 2):
     label.x   = 1.45,
     tip.length= 0.01,
-    size      = 4
+    size      = 8
   ) +
   scale_fill_manual(values = c("Site" = "lightsteelblue2",
                                "Island" = "wheat2")) +
   labs(
     title = NULL,
     x     = NULL,
-    y     = "RMSE"
+    y     = "Value"
   ) +
   theme_minimal(base_size = 14) +
   theme(
@@ -2978,18 +3083,22 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     axis.text.x     = element_blank(),
     axis.ticks.x    = element_blank(),
     legend.position = "bottom",
-    strip.text = element_blank()
+    strip.text = element_text(size = 20),
+    legend.title = element_text(size = 22),
+    legend.text = element_text(size = 20),
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26)
   ) + tme
 
-# Base‐R PDF device
-pdf(
-  file   = "rmse_scales.pdf",
-  width  = 4,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
+png(
+  filename = "scales_f1_rmse.png",
+  width    = 10,           # width in inches
+  height   = 5,           # height in inches
+  units    = "in",        # could also be "px", "cm", etc.
+  res      = 300          # resolution in dots per inch
 )
-print(rmse_scales)
-dev.off()     # close the file
+grid::grid.draw(f1_rmse_scales)
+dev.off()
 
 # stats
 df_scales <- bind_rows(
@@ -2997,8 +3106,8 @@ df_scales <- bind_rows(
   result_summary_island %>% mutate(scale = "Island"))
 
 t_test_f1_scales <- t.test(f1_score ~ scale, 
-                    data       = df_scales,
-                    var.equal  = FALSE)  # Welch’s test
+                           data       = df_scales,
+                           var.equal  = FALSE)  # Welch’s test
 
 # 3. Print the full test
 print(t_test_f1_scales)
