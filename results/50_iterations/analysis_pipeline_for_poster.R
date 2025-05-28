@@ -24,8 +24,8 @@ library(stringr)
 
 #source("~/Documents/GitHub/softimpute/results/useful_for_plotting.R")
 ## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 26, color = "black"),
-              axis.title = element_text(size = 26, face = "bold"),
+tme <-  theme(axis.text = element_text(size = 20, color = "black"),
+              axis.title = element_text(size = 20, face = "bold"),
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
               panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
