@@ -1704,6 +1704,9 @@ make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
                            shared_y_lab = "MSE")
 
+### ---- check it for pairwise partner fidelity ----
+
+
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
@@ -2509,6 +2512,30 @@ mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
 # 5. Inspect results
 print(mrm_out)
 
+# are the results the same for asymmetrical matrices?
+f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
+                      dimnames=list(layers, layers))
+dist_mat_km <- f1_mat
+
+# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+for(i in layers) for(j in layers) {
+  # Subset rows where train=i and test=j
+  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
+  if(nrow(sub)==1) {
+    f1_mat[i,j]      <- sub$f1_score
+    dist_mat_km[i,j] <- sub$distance_km
+  }
+}
+
+dist_f1      <- as.dist(f1_mat)
+dist_km      <- as.dist(dist_mat_km)
+
+set.seed(42)   # for reproducibility of permutations
+mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
+
+# 5. Inspect results
+print(mrm_out)
+
 ### ---- MRM for site scale ---- ###
 layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
 
@@ -2535,6 +2562,34 @@ dist_sym_km_site <- sym_average(dist_mat_km_site)
 # e) Convert to “dist” objects (lower triangle)
 dist_f1_site      <- as.dist(f1_sym_site)
 dist_km_site     <- as.dist(dist_sym_km_site)
+
+# 4. Run the MRM
+#    — this will regress the F1‐distance matrix on the geographic–distance matrix
+set.seed(42)   # for reproducibility of permutations
+mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
+
+# 5. Inspect results
+print(mrm_out_site)
+
+# are the results the same for asymmetric matrix for site scale?
+# b) Initialize empty matrices
+f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
+                           dimnames=list(layers_site, layers_site))
+dist_mat_km_site <- f1_mat_site
+
+# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+for(i in layers_site) for(j in layers_site) {
+  # Subset rows where train=i and test=j
+  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
+  if(nrow(sub)==1) {
+    f1_mat_site[i,j]      <- sub$f1_score
+    dist_mat_km_site[i,j] <- sub$distance_km
+  }
+}
+
+# e) Convert to “dist” objects (lower triangle)
+dist_f1_site      <- as.dist(f1_mat_site)
+dist_km_site     <- as.dist(dist_mat_km_site)
 
 # 4. Run the MRM
 #    — this will regress the F1‐distance matrix on the geographic–distance matrix
