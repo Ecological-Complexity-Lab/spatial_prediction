@@ -1,7 +1,8 @@
 # ---- softImpute analysis pipeline for island scale ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
-
+ 
+### this is the most up to date code ###
 ## ---- load libraries ----
 library(tidyverse)
 library(ggplot2)
@@ -2463,8 +2464,8 @@ library(ecodist)
 # 3. Build square matrices of F1 and Distance
 #    (layers must be in the same order for rows & cols)
 
-# a) Get a list of all unique layer names
-layers <- sort(unique(c(result_summary_island$train_layer_name, result_summary_island$test_layer_name)))
+# a) Get a list of all unique layers
+layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_island_dif$test_layer)))
 
 # b) Initialize empty matrices
 f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
@@ -2474,7 +2475,7 @@ dist_mat_km <- f1_mat
 # c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
 for(i in layers) for(j in layers) {
   # Subset rows where train=i and test=j
-  sub <- result_summary_island[result_summary_island$train_layer_name==i & result_summary_island$test_layer_name==j, ]
+  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
   if(nrow(sub)==1) {
     f1_mat[i,j]      <- sub$f1_score
     dist_mat_km[i,j] <- sub$distance_km
@@ -2507,6 +2508,42 @@ mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
 
 # 5. Inspect results
 print(mrm_out)
+
+### ---- MRM for site scale ---- ###
+layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
+
+# b) Initialize empty matrices
+f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
+                      dimnames=list(layers_site, layers_site))
+dist_mat_km_site <- f1_mat_site
+
+# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+for(i in layers_site) for(j in layers_site) {
+  # Subset rows where train=i and test=j
+  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
+  if(nrow(sub)==1) {
+    f1_mat_site[i,j]      <- sub$f1_score
+    dist_mat_km_site[i,j] <- sub$distance_km
+  }
+}
+
+# d) Because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+
+f1_sym_site      <- sym_average(f1_mat_site)
+dist_sym_km_site <- sym_average(dist_mat_km_site)
+
+# e) Convert to “dist” objects (lower triangle)
+dist_f1_site      <- as.dist(f1_sym_site)
+dist_km_site     <- as.dist(dist_sym_km_site)
+
+# 4. Run the MRM
+#    — this will regress the F1‐distance matrix on the geographic–distance matrix
+set.seed(42)   # for reproducibility of permutations
+mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
+
+# 5. Inspect results
+print(mrm_out_site)
+
 
 
 # ---- plot heatmaps ----
