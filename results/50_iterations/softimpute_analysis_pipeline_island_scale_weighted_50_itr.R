@@ -1705,7 +1705,101 @@ make_full_correlation_plot(working_df_offs,
                            shared_y_lab = "MSE")
 
 ### ---- check it for pairwise partner fidelity ----
+df_fid <- df %>%
+  filter(train_layer == test_layer,
+         original_links   != 0,
+         itr              == 1)
 
+# compute parner sets for each species in a specific layer
+plant_partners <- df_fid %>%
+  distinct(node_from, train_layer, node_to) %>%
+  group_by(node_from, train_layer) %>%
+  summarise(partners = list(node_to), .groups = "drop")
+
+poll_partners <- df_fid %>%
+  distinct(node_to, train_layer, node_from) %>%
+  group_by(node_to, train_layer) %>%
+  summarise(partners = list(node_from), .groups = "drop")
+
+# calculate the average similarity between partner composition in each pair of layers for each species
+
+compute_fidelity <- function(df_part, species_col) {
+  df_part %>%
+    # rename for convenience
+    rename(layer = train_layer, pset = partners) %>%
+    # self‐join to get all layer‐pairs
+    inner_join(
+      df_part %>% rename(layer2 = train_layer, pset2 = partners),
+      by = species_col
+    ) %>%
+    filter(layer < layer2) %>%               # only once per unordered pair
+    rowwise() %>%
+    mutate(
+      a = length(intersect(pset,  pset2)),
+      b = length(setdiff(pset,  pset2)),
+      c = length(setdiff(pset2, pset)),
+      sor = if (2*a + b + c == 0) NA_real_ else 2*a / (2*a + b + c)
+    ) %>%
+    ungroup() %>%
+    group_by(!!sym(species_col)) %>%
+    summarise(partner_fidelity = mean(sor, na.rm = TRUE), .groups = "drop")
+}
+
+plant_fid <- compute_fidelity(plant_partners,   "node_from")
+poll_fid  <- compute_fidelity(poll_partners,    "node_to")
+
+# for each species, calculate the average difference between observed and predicted values for each species
+# if we want to look only at off-diagonals:
+df_error <- df_removed %>% filter(test_layer != train_layer) # (it does not change the results much)
+
+plant_error <- df_error %>%
+  group_by(node_from) %>%
+  summarise(
+    mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+poll_error <- df_error %>%
+  group_by(node_to) %>%
+  summarise(
+    mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# merge fidelity and error for correlation
+plant_analysis <- plant_fid %>%
+  inner_join(plant_error, by = "node_from")
+
+poll_analysis  <- poll_fid %>%
+  inner_join(poll_error,  by = "node_to")
+
+poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
+
+# plot
+
+# Plants:
+make_simple_correlation_plot(
+  data        = plant_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "mean_error",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "Mean prediction error",
+  plot_title  = "Plants",
+  point_color = "darkseagreen3",
+  trend_color = "steelblue"
+)
+
+# Pollinators:
+make_simple_correlation_plot(
+  data        = poll_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "mean_error",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "Mean prediction error",
+  plot_title  = "Pollinators",
+  point_color = "thistle",
+  trend_color = "steelblue"
+)
 
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
