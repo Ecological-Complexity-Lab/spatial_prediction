@@ -1711,15 +1711,27 @@ df_fid <- df %>%
          itr              == 1)
 
 # compute parner sets for each species in a specific layer
+# 1) build your plant‐by‐layer partner‐sets as before
 plant_partners <- df_fid %>%
   distinct(node_from, train_layer, node_to) %>%
   group_by(node_from, train_layer) %>%
-  summarise(partners = list(node_to), .groups = "drop")
+  summarise(partners = list(node_to), .groups="drop")
+
+# 2) keep only plants in ≥3 layers
+plant_partners <- plant_partners %>%
+  group_by(node_from) %>%
+  filter(n() >= 3) %>%
+  ungroup()
 
 poll_partners <- df_fid %>%
   distinct(node_to, train_layer, node_from) %>%
   group_by(node_to, train_layer) %>%
-  summarise(partners = list(node_from), .groups = "drop")
+  summarise(partners = list(node_from), .groups="drop")
+
+poll_partners <- poll_partners %>%
+  group_by(node_to) %>%
+  filter(n() >= 3) %>%
+  ungroup()
 
 # calculate the average similarity between partner composition in each pair of layers for each species
 
@@ -1751,27 +1763,45 @@ poll_fid  <- compute_fidelity(poll_partners,    "node_to")
 # for each species, calculate the average difference between observed and predicted values for each species
 # if we want to look only at off-diagonals:
 df_error <- df_removed %>% filter(test_layer != train_layer) # (it does not change the results much)
+# 
+# plant_error <- df_error %>%
+#   group_by(node_from) %>%
+#   summarise(
+#     mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+#     .groups = "drop"
+#   )
+# 
+# poll_error <- df_error %>%
+#   group_by(node_to) %>%
+#   summarise(
+#     mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+#     .groups = "drop"
+#   )
 
-plant_error <- df_error %>%
+# try rmse
+
+# One‐row‐per‐plant with pooled RMSE
+plant_rmse <- df %>%
   group_by(node_from) %>%
   summarise(
-    mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
     .groups = "drop"
   )
 
-poll_error <- df_error %>%
+
+poll_rmse <- df %>%
   group_by(node_to) %>%
   summarise(
-    mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
     .groups = "drop"
   )
 
 # merge fidelity and error for correlation
 plant_analysis <- plant_fid %>%
-  inner_join(plant_error, by = "node_from")
+  inner_join(plant_rmse, by = "node_from")
 
 poll_analysis  <- poll_fid %>%
-  inner_join(poll_error,  by = "node_to")
+  inner_join(poll_rmse,  by = "node_to")
 
 poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
 
@@ -1781,9 +1811,9 @@ poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # 
 make_simple_correlation_plot(
   data        = plant_analysis,
   x_var       = "partner_fidelity",
-  evaluator   = "mean_error",
+  evaluator   = "rmse",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "Mean prediction error",
+  y_lab       = "RMSE",
   plot_title  = "Plants",
   point_color = "darkseagreen3",
   trend_color = "steelblue"
@@ -1793,14 +1823,65 @@ make_simple_correlation_plot(
 make_simple_correlation_plot(
   data        = poll_analysis,
   x_var       = "partner_fidelity",
-  evaluator   = "mean_error",
+  evaluator   = "rmse",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "Mean prediction error",
+  y_lab       = "RMSE",
   plot_title  = "Pollinators",
   point_color = "thistle",
   trend_color = "steelblue"
 )
 
+# inspect species
+make_simple_correlation_plot <- function(data, x_var, evaluator, label_var,
+                                         x_lab = NULL, y_lab = NULL,
+                                         plot_title, point_color,
+                                         trend_color = "steelblue",
+                                         text_size = 3) {
+  
+  # run correlation as before…
+  correlation <- cor.test(data[[evaluator]], data[[x_var]],
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(correlation$p.value < 0.001,
+                    formatC(correlation$p.value, format="e", digits=2),
+                    formatC(correlation$p.value, format="f", digits=3))
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  ggplot(data, aes_string(x = x_var, y = evaluator)) +
+    geom_point(color = point_color, alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = trend_color) +
+    # this is the new bit: map your species‐column into label
+    geom_text(aes_string(label = label_var),
+              hjust = -0.1, vjust =  0,
+              size  = text_size,
+              check_overlap = TRUE) +  
+    labs(x = x_lab, y = y_lab, title = plot_title) + tme +
+    annotate("text", x = Inf, y = Inf,
+             hjust = 1.1, vjust = 1.2,
+             label = label_text, size = 3.5) 
+}
+
+make_simple_correlation_plot(
+  data        = plant_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "rmse",
+  label_var   = "node_from",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "Mean RMSE",
+  plot_title  = "Plants",
+  point_color = "darkseagreen3"
+)
+
+make_simple_correlation_plot(
+  data        = poll_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "rmse",
+  label_var   = "node_to",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "Mean RMSE",
+  plot_title  = "Pollinators",
+  point_color = "thistle"
+)
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
