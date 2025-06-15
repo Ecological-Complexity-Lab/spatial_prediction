@@ -1867,7 +1867,7 @@ make_simple_correlation_plot(
   evaluator   = "rmse",
   label_var   = "node_from",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "Mean RMSE",
+  y_lab       = "RMSE",
   plot_title  = "Plants",
   point_color = "darkseagreen3"
 )
@@ -1878,7 +1878,7 @@ make_simple_correlation_plot(
   evaluator   = "rmse",
   label_var   = "node_to",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "Mean RMSE",
+  y_lab       = "RMSE",
   plot_title  = "Pollinators",
   point_color = "thistle"
 )
