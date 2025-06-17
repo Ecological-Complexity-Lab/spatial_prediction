@@ -1882,6 +1882,102 @@ make_simple_correlation_plot(
   plot_title  = "Pollinators",
   point_color = "thistle"
 )
+
+# checking fidelity for each specific combination of layers
+# for each unique layer combination
+
+library(dplyr)
+
+compute_sorensen_long <- function(df_part, species_col) {
+  df_part %>%
+    # rename once so we can refer to layer1/pset1 and layer2/pset2
+    rename(layer1 = train_layer, pset1 = partners) %>%
+    inner_join(
+      df_part %>% rename(layer2 = train_layer, pset2 = partners),
+      by            = species_col,
+      relationship  = "many-to-many"      # silence the warning intentionally
+    ) %>%
+    filter(layer1 < layer2) %>%           # only unordered pairs, no self-pairs
+    rowwise() %>%
+    mutate(
+      a   = length(intersect(pset1, pset2)),
+      b   = length(setdiff(pset1, pset2)),
+      c   = length(setdiff(pset2, pset1)),
+      sor = if (2*a + b + c == 0) NA_real_ else 2*a / (2*a + b + c)
+    ) %>%
+    ungroup()
+}
+
+# apply to your pre-filtered partner-sets
+plant_sor <- compute_sorensen_long(plant_partners, "node_from")
+poll_sor  <- compute_sorensen_long(poll_partners,  "node_to")
+
+# compure error
+
+plant_error_pair <- df_error %>%
+  filter(original_links != 0, train_layer != test_layer) %>%
+  group_by(node_from, train_layer, test_layer) %>%
+  summarise(
+    error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+poll_error_pair <- df_error %>%
+  filter(original_links != 0, train_layer != test_layer) %>%
+  group_by(node_to, train_layer, test_layer) %>%
+  summarise(
+    error = mean(abs(predicted_values - original_links), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# combine
+plant_combo <- plant_sor %>%
+  left_join(
+    plant_error_pair,
+    by = c(
+      "node_from" = "node_from",
+      "layer1"    = "train_layer",
+      "layer2"    = "test_layer"
+    )
+  )
+
+poll_combo <- poll_sor %>%
+  left_join(
+    poll_error_pair,
+    by = c(
+      "node_to" = "node_to",
+      "layer1"  = "train_layer",
+      "layer2"  = "test_layer"
+    )
+  )
+
+# plot
+
+make_simple_correlation_plot(
+  data        = plant_combo,
+  x_var       = "sor",
+  evaluator   = "error",
+  label_var   = "node_from",        # ← here you provide it
+  x_lab       = "Sorensen index",
+  y_lab       = "Mean error",
+  plot_title  = "Plants (all layer-pairs)",
+  point_color = "darkseagreen3",
+  trend_color = "steelblue"
+)
+
+make_simple_correlation_plot(
+  data        = poll_combo,
+  x_var       = "sor",
+  evaluator   = "error",
+  label_var   = "node_to",          # ← here
+  x_lab       = "Sorensen index",
+  y_lab       = "Mean error",
+  plot_title  = "Pollinators (all layer-pairs)",
+  point_color = "thistle",
+  trend_color = "steelblue"
+)
+
+
 ## ---- degree impact and correlation with evaluators ----
 ### ---- calculate overall degree ----
 # Step 1: Filter the data
