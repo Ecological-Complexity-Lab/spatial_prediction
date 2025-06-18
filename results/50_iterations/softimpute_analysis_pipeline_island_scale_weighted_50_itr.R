@@ -1234,8 +1234,8 @@ make_facet_scatter_plot <- function(data,
     theme(
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
-      axis.ticks = element_line(color = "black")
-    )
+      axis.ticks = element_line(color = "black"),
+      axis.text.x     = element_text(size = 9)                          )
   
   return(plot)
 }
@@ -3365,6 +3365,173 @@ t_test_f1_scales <- t.test(f1_score ~ scale,
 
 # 3. Print the full test
 print(t_test_f1_scales)
+
+# for paper
+
+df_long <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island")
+) %>%
+  pivot_longer(
+    cols      = c("f1_score", "rmse"),
+    names_to  = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = factor(metric, levels = c(
+    "f1_score", "rmse"
+  )))
+
+# 2. Pretty facet titles with units:
+metric_labels <- c(
+  f1_score          = "F1 score",
+  rmse              = "RMSE"
+  
+)
+
+# make sure your metric_labels is something like
+# metric_labels <- c(f1 = "F1 score", rmse = "RMSE")
+
+rmse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+  geom_boxplot(
+    notch        = TRUE,
+    outlier.size = 1,
+    position     = position_dodge(width = 0.75)
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales        = "free_y",
+    labeller      = as_labeller(metric_labels),
+    ncol          = 4,
+    switch        = "y"             # move the strip to the left side
+  ) +
+  stat_compare_means(
+    method         = "t.test",
+    label          = "p.format",    # print the full p‐value
+    p.format.args  = list(
+      digits     = 2,               # two digits after decimal
+      scientific = TRUE             # use e-notation for small p’s
+    ),
+    label.y        = Inf,
+    vjust          = 1.5,
+    label.x        = 1.45,
+    tip.length     = 0.01,
+    size           = 3.5              # adjust this for font size
+  ) +
+  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
+                               "Island" = "wheat2")) +
+  labs(
+    x = NULL,
+    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.placement       = "outside",           # draw strips outside the plot panel
+    strip.text.y.left     = element_text(
+      angle = 90,          # horizontal text
+      face  = "bold",
+      size  = 12
+    ),
+    axis.text.x           = element_blank(),
+    axis.ticks.x          = element_blank(),
+    legend.position       = "bottom"
+  ) + tme
+
+rmse_f1_scales
+
+# Base‐R PDF device
+pdf(
+  file   = "scales_fig2.pdf",
+  width  = 7,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(rmse_f1_scales)
+dev.off()     # close the file
+
+# supp figure S1
+
+df_long <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island")
+) %>%
+  pivot_longer(
+    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc"),
+    names_to  = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = factor(metric, levels = c(
+    "balanced_accuracy", "recall", "precision", "specificity", "mcc"
+  )))
+
+# 2. Pretty facet titles with units:
+metric_labels <- c(
+  balanced_accuracy = "Balanced accuracy",
+  recall            = "Recall",
+  precision         = "Precision",
+  specificity       = "Specificity",
+  mcc               = "MCC"
+  
+)
+
+
+s1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+  geom_boxplot(
+    notch        = TRUE,
+    outlier.size = 1,
+    position     = position_dodge(width = 0.75)
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales        = "free_y",
+    labeller      = as_labeller(metric_labels),
+    ncol          = 3,
+    switch        = "y"             # move the strip to the left side
+  ) +
+  stat_compare_means(
+    method         = "t.test",
+    label          = "p.format",    # print the full p‐value
+    p.format.args  = list(
+      digits     = 2,               # two digits after decimal
+      scientific = TRUE             # use e-notation for small p’s
+    ),
+    label.y        = Inf,
+    vjust          = 1.5,
+    label.x        = 1.45,
+    tip.length     = 0.01,
+    size           = 3.5              # adjust this for font size
+  ) +
+  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
+                               "Island" = "wheat2")) +
+  labs(
+    x = NULL,
+    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.placement       = "outside",           # draw strips outside the plot panel
+    strip.text.y.left     = element_text(
+      angle = 90,          
+      face  = "bold",
+      size  = 12
+    ),
+    axis.text.x           = element_blank(),
+    axis.ticks.x          = element_blank(),
+    legend.position       = "bottom"
+  ) + tme
+
+s1_scales
+
+# Base‐R PDF device
+pdf(
+  file   = "s1_scales.pdf",
+  width  = 8,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(s1_scales)
+dev.off()     # close the file
+
+
 #> 
 #> Welch Two Sample t-test
 #> 
