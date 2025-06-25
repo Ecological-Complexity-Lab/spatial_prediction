@@ -613,6 +613,13 @@ hist_f1 <- plot_hist(result_summary, metric = "f1_score",
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) + 
   theme(axis.title.y = element_blank())
 
+hist_f1_density <- plot_hist_density(result_summary, metric = "f1_score", 
+                     y_axis_label = "Density",
+                     x_axis_label = "F1 score") + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) + 
+  theme(axis.title.y = element_blank())
+
+
 hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
                      y_axis_label = "Count of instances",
                      x_axis_label = "F1 score") + 
@@ -725,6 +732,22 @@ png(
 )
 grid::grid.draw(hist_f1p)
 dev.off() 
+
+# some stats
+
+# Define the columns you want to summarize
+eval_metrics <- c("specificity", "precision", "recall", "f1_score",
+                  "balanced_accuracy", "mcc", "mse", "rmse")
+
+# Summarize by layer_comparison
+summary_stats <- result_summary %>%
+  group_by(layer_comparison) %>%
+  summarise(across(all_of(eval_metrics),
+                   list(mean = mean,
+                        sd   = sd,
+                        max  = max,
+                        min  = min),
+                   .names = "{.col}_{.fn}"))
 
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
@@ -1553,7 +1576,7 @@ make_simple_correlation_plot <- function(data,
              x = Inf, y = Inf,
              hjust = 1.1, vjust = 1.2,
              label = label_text,
-             size = 3.5,
+             size = 5,
              color = "black")
   
   # Optionally remove axis titles
@@ -1808,7 +1831,7 @@ poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # 
 # plot
 
 # Plants:
-make_simple_correlation_plot(
+per_plant_fidelity <- make_simple_correlation_plot(
   data        = plant_analysis,
   x_var       = "partner_fidelity",
   evaluator   = "rmse",
@@ -1820,7 +1843,7 @@ make_simple_correlation_plot(
 )
 
 # Pollinators:
-make_simple_correlation_plot(
+per_poll_fidelity <- make_simple_correlation_plot(
   data        = poll_analysis,
   x_var       = "partner_fidelity",
   evaluator   = "rmse",
@@ -1830,6 +1853,109 @@ make_simple_correlation_plot(
   point_color = "thistle",
   trend_color = "steelblue"
 )
+
+# assume you already have:
+#   per_plant_fidelity  ← a ggplot for Plants
+#   per_poll_fidelity   ← a ggplot for Pollinators
+#   rmse_fidelity       ← the output of make_full_correlation_plot()
+
+
+# 1) Remove axis titles from each plot
+per_plant_clean <- per_plant_fidelity +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+per_poll_clean <- per_poll_fidelity +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+rmse_clean <- rmse_fidelity +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+# 2) Combine in a 2×2 layout (bottom row spans both columns)
+rmse_fidelity_species_island <- grid.arrange(
+  per_plant_clean, per_poll_clean, rmse_clean,
+  layout_matrix = rbind(c(1,2), c(3,3)),
+  heights       = c(1,1),
+  left   = textGrob("RMSE", 
+                    rot =  90,
+                    gp  = gpar(fontsize=16, fontface="bold")),
+  bottom = textGrob("Partner fidelity (mean Sorensen)",
+                    gp = gpar(fontsize=16, fontface="bold"))
+)
+
+pdf(
+  file   = "rmse_fidelity_species_island.pdf",
+  width  = 7,
+  height = 5.5,
+  family = "Helvetica"
+)
+
+grid::grid.draw(rmse_fidelity_species_island)
+
+dev.off()
+
+
+# combine_plots_fidelity <- function(p1, p2,
+#                           bottom_label = "Mean Sorensen similarity",
+#                           left_label = "RMSE",
+#                           plot_margin = c(0.5, 0.5, 1, 0.3),
+#                           label_fontsize = 16,
+#                           label_fontface = "bold",
+#                           widths_subplots = c(1, 1),
+#                           final_widths = c(2, 0.3)) {
+#   
+#   # Load required packages
+#   require(ggplot2)
+#   require(gridExtra)
+#   require(grid)
+#   
+#   # Adjust individual plots
+#   p1_mod <- p1 +
+#     theme(legend.position = "none",
+#           axis.title = element_blank(),
+#           plot.margin = unit(plot_margin, "cm"))
+#   
+#   p2_mod <- p2 +
+#     theme(legend.position = "none",
+#           axis.title = element_blank(),
+#           plot.margin = unit(plot_margin, "cm"))
+#   
+#   # Arrange the two plots side-by-side
+#   combined_plots <- arrangeGrob(p1_mod, p2_mod, 
+#                                 ncol = 2, 
+#                                 widths = widths_subplots)
+#   
+#   # Add axis labels using arrangeGrob (the bottom and left text grobs)
+#   combined_with_axes <- arrangeGrob(
+#     combined_plots,
+#     bottom = textGrob(bottom_label, 
+#                       gp = gpar(fontsize = label_fontsize, fontface = label_fontface), 
+#                       vjust = -1.5),
+#     left   = textGrob(left_label, 
+#                       rot = 90, 
+#                       gp = gpar(fontsize = label_fontsize, fontface = label_fontface))
+#   )
+#   
+#   # Finally, arrange the whole thing with additional spacing if needed
+#   final_plot <- grid.arrange(
+#     combined_with_axes,
+#     ncol = 2,
+#     widths = final_widths
+#   )
+#   
+#   return(final_plot)
+# }
+# per_species_fidelity <- combine_plots_fidelity(per_plant_fidelity, per_poll_fidelity)
+# 
+# final_fidelity <- per_species_fidelity / rmse_fidelity
 
 # inspect species
 make_simple_correlation_plot <- function(data, x_var, evaluator, label_var,
@@ -2238,11 +2364,11 @@ predicted_links <- df_all_itr_zero %>%
     .groups   = "drop"
   )
 
-predicted_links %>%
+most_probable_20 <- predicted_links %>%
   arrange(desc(mean_pred)) %>%
-  head(10)
+  head(20)
 
-#write.csv(predicted_links, 'links_probability_to_be_non_zeros.csv')
+#write.csv(most_probable_20, 'most_probable_20_unobserved_links.csv')
 
 df_summary_sign <- predicted_links %>% filter(p_value < 0.05)
 
