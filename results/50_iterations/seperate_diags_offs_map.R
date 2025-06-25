@@ -378,10 +378,9 @@ diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < 0.6 & avg_sigm_pre
 
 # plot the differences
 
-# 1. define your threshold and make a category
-best_discrete_threshold <- 0.6
 
 df_plot <- diff_df %>%
+  filter(avg_prop_diag == 0) %>% 
   mutate(
     sigm_cat = case_when(
       avg_sigm_predicted_diag < best_discrete_threshold &
@@ -450,3 +449,10 @@ ggplot(df_plot, aes(x = node_to, y = node_from)) +
   ) +
   tme
 
+# how many links did each category add?
+df_plot %>%
+  filter(avg_prop_diag == 0) %>% 
+  group_by(sigm_cat) %>%
+  summarise(
+    n_links = n()
+  )
