@@ -2730,7 +2730,7 @@ df_plot <- diff_df %>%
   )
 
 # 2. build the plot
-ggplot(df_plot, aes(x = node_to, y = node_from)) +
+map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
   
   # # background = observed proportion
   # geom_tile(aes(fill = avg_prop_offs)) +
@@ -2758,9 +2758,9 @@ ggplot(df_plot, aes(x = node_to, y = node_from)) +
     na.value = NA,
     name   = "Difference in \npredicted probability",
     labels = c(
-      "offs↑ only" = "offs ≥ 0.6\n& diag < 0.6",
-      "diag↑ only" = "diag ≥ 0.6\n& offs < 0.6",
-      "both↑"       = "both ≥ 0.6"
+      "offs↑ only" = "Added location ≥ 0.6\n& single location < 0.6",
+      "diag↑ only" = "Single location ≥ 0.6\n& added location < 0.6",
+      "both↑"       = "Both ≥ 0.6"
     )
   ) +
   
@@ -2782,13 +2782,91 @@ ggplot(df_plot, aes(x = node_to, y = node_from)) +
   ) +
   tme
 
-# how many links did each category add?
+pdf(
+  file   = "map_missing_links_diags_offs.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_missing_links_diags_offs)
+dev.off()     # close the file
+
+ # how many links did each category add?
 df_plot %>%
   filter(avg_prop_diag == 0) %>% 
   group_by(sigm_cat) %>%
   summarise(
     n_links = n()
   )
+
+# use this to mark cells predicted only by off-diags in the original heatmap:
+
+# 1) Make sure df_summary and df_plot share the same key & then grab only the offs↑-only cells
+
+border_df <- df_plot %>%
+  # only missing links, and only off-only category
+  filter(
+    avg_prop_offs           == 0,
+    avg_sigm_predicted_offs  >  best_discrete_threshold,
+    avg_sigm_predicted_diag  <  best_discrete_threshold
+  ) %>%
+  select(node_from, node_to)
+
+
+# 2) Join that back onto df_summary so we keep the same tile positions
+df_summary_borders <- df_summary %>%
+  inner_join(border_df, by = c("node_from","node_to"))
+
+# 3) Rebuild your heatmap, and add a border layer last
+map_missing_links_marked_offs <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+  
+  # background fill
+  geom_tile(aes(fill = avg_prop)) +
+  scale_fill_gradient(low = "white", high = "steelblue", 
+                      name = "Proportion\nof islands\nobserved") +
+  
+  new_scale_fill() +
+  
+  # overlay for high‐predicted, never observed
+  geom_tile(
+    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2", 
+                      name = "Average \npredicted \nprobability") +
+  
+  # border layer for offs↑ only
+  geom_tile(
+    data  = df_summary_borders,
+    fill  = NA,
+    color = "black",
+    size  = 0.6
+  ) +
+  
+  # final theme tweaks
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom",
+    legend.box = "horizontal"
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+map_missing_links_marked_offs
+
+pdf(
+  file   = "map_missing_links_marked_offs.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_missing_links_marked_offs)
+dev.off()     # close the file
 
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
 # filter the interactions that were always observed as zeros yet predicted to exist
@@ -3074,6 +3152,7 @@ missing_links_diag <- ggplot(df_diag,
 # 5. Put them side by side
 (missing_links_offs + missing_links_diag) &
   theme(axis.text.y = element_text(size = 7))
+
 ## ---- distance effect ----
 ### ---- add distances and location names ----
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
