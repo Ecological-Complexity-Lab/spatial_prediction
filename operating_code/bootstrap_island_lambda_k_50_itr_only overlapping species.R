@@ -218,8 +218,6 @@ for (layers_to_train in 1:num_layers) {
       P[P > 0] <- 1  # Make binary
     }
     
-    P_original <- P # save it for later
-    
     # 1) find the species they have in common
     shared_pollinators <- intersect(rownames(A), rownames(P))
     shared_plants      <- intersect(colnames(A), colnames(P))
@@ -229,6 +227,7 @@ for (layers_to_train in 1:num_layers) {
     P <- P[shared_pollinators, shared_plants, drop = FALSE]
     
     # now A and P have identical dimnames, and you can safely combine them:
+    P_original <- P # save it for later
     
     ### ---- remove some links in P ----
     # map out the 0s and 1s in P
@@ -247,6 +246,10 @@ for (layers_to_train in 1:num_layers) {
     print(paste("all zeros   :", nrow(zeros_in_P)))
     print(paste("prop of zeros removed   : ", prop_0_removed))
     
+    if (num_1_to_remove < 2 | num_0_to_remove < 2) {
+      print("1s or 0s too low; moving to the next layer pair")
+      next
+    }
     # # remove 1s
     # remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
     # P[remove_indices] <- NA  # Set removed links to NA
