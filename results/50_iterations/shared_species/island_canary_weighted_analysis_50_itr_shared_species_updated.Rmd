@@ -1,3 +1,16 @@
+---
+title: "softimpute analysis pipeline - island scale (50 iterations) - only share species"
+author: "Kesem Abramov"
+date: "2025-04-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r all}
 # ---- softImpute analysis pipeline for island scale ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
@@ -260,7 +273,7 @@ combine_plots <- function(p1, p2,
 }
 
 ## ---- load data ----
-setwd("~/Documents/github/softimpute/results/50_iterations/shared_species")
+#setwd("~/Documents/github/softimpute/results/50_iterations/shared_species")
 df <- read_csv('weighted__scaled_island_net_60_50_itr_shared_species.csv') # weighted, scaled
 
 ## ---- selecting optimal threshold ----
@@ -4963,3 +4976,8 @@ print(summary(result_summary_site))
 # unique(df$node_from)
 # unique(df$node_to)
 # ## ---- pca of latent traits ----
+
+## ---- pca of latent traits ----
+
+```
+
