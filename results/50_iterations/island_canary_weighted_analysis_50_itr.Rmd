@@ -2795,14 +2795,16 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   ) +
   tme
 
-pdf(
-  file   = "map_missing_links_diags_offs.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links_diags_offs)
-dev.off()     # close the file
+map_missing_links_diags_offs
+
+# pdf(
+#   file   = "map_missing_links_diags_offs.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links_diags_offs)
+# dev.off()     # close the file
 
  # how many links did each category add?
 df_plot %>%
