@@ -1,4 +1,5 @@
 # ---- softImpute for predicting removed links in empirical networks - all layer combinations ----
+# including removal of zeros and ones. no bootstrapping yet
 # in this code we remove zeros and ones and get the predicted values (not labels but values based on the svd from the softImpute fit function) in a dataframe for further exploration. We get results for a range of k and lambdas.
 ## ---- load libraries ----
 library(softImpute)
@@ -8,8 +9,8 @@ library(pheatmap)
 library(gridExtra)
 library(dplyr)
 
-# # ------------- parsing arguments -----------
-# # read args given in command line:
+# ------------- parsing arguments -----------
+# read args given in command line:
 # if (length(commandArgs(trailingOnly=TRUE))==0) { # make sure we have commands
 #   stop('No arguments were found!') # the script will not run without arguments
 # } else {
@@ -168,34 +169,8 @@ A_l <- A_l %>%
                                    paste0("layer_", layer_num, "_", layer_num + 1),
                                    paste0("layer_", layer_num - 1, "_", layer_num)))
 
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Save the mapping to CSV
-# write_csv(layer_mapping, "layer_mapping.csv")
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
-
 # Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from))
+num_layers <- length(unique(A_l$layer_from))
 
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
@@ -211,6 +186,10 @@ for (layers_to_train in 1:num_layers) {
     # Build the layer to predict matrix P
     P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
     
+    # # # crop to make toy example matrices
+    #A <- A[1:8, 1:7]
+    #P <- P[1:8, 1:7]
+    
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
     if (is_binary == 1) {
@@ -219,12 +198,11 @@ for (layers_to_train in 1:num_layers) {
     }
     
     # 1) find the species they have in common
-    shared_pollinators <- intersect(rownames(A), rownames(P))
     shared_plants      <- intersect(colnames(A), colnames(P))
     
     # 2) subset both matrices to exactly those shared species
-    A <- A[shared_pollinators, shared_plants, drop = FALSE]
-    P <- P[shared_pollinators, shared_plants, drop = FALSE]
+    A <- A[ , shared_plants, drop = FALSE]
+    P <- P[ , shared_plants, drop = FALSE]
     
     # now A and P have identical dimnames, and you can safely combine them:
     P_original <- P # save it for later
@@ -246,18 +224,14 @@ for (layers_to_train in 1:num_layers) {
     print(paste("all zeros   :", nrow(zeros_in_P)))
     print(paste("prop of zeros removed   : ", prop_0_removed))
     
+    
     if (num_1_to_remove < 2 | num_0_to_remove < 2) {
       print("1s or 0s too low; moving to the next layer pair")
       next
     }
-    # # remove 1s
-    # remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
-    # P[remove_indices] <- NA  # Set removed links to NA
-    # P_no_1 <- P # save it for later
-    
     bootstrapping_results <- NULL
     
-    # Randomly select zeros to remove - bootstrapping
+    # Randomly select zeros and ones to remove - bootstrapping
     for (i in 1:n_sim) {
       # remove 1s
       remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
@@ -269,10 +243,10 @@ for (layers_to_train in 1:num_layers) {
       
       ### ---- creating a combined matrix C ----
       # Combine A and P into a single matrix C with NAs representing missing data
-      C <- matrix(NA,
-                  nrow = length(shared_pollinators),
-                  ncol = length(shared_plants),
-                  dimnames = list(shared_pollinators, shared_plants))
+      all_row_ids <- unique(c(rownames(A), rownames(P)))
+      all_col_ids <- unique(c(colnames(A), colnames(P)))
+      C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                  dimnames = list(all_row_ids, all_col_ids))
       
       # Place A into C
       C[rownames(A), colnames(A)] <- A
@@ -288,14 +262,21 @@ for (layers_to_train in 1:num_layers) {
       }
       
       # Apply biScale to center matrices
-      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-      
+      should_break <- tryCatch( 
+        { C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE, trace=TRUE) }, 
+        error = function(e) {bootstrapping_results <- NULL; return(TRUE) })
+      if (length(should_break) == 1) {
+        if (should_break) {
+          print("Error happened when using biScale. moving to next layer pair.")
+          break
+        }
+      }      
       sum(is.na(C))
       # might need to convert C into a binary matrix
       
       ### ---- transfer learning with SVD ----
       # Define the grid of k and lambda values to search over
-      #k_values <- c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
+      #k_values <- c(2,10)#c(2, 3, 4, 5, 10, 15, 20)            # Adjust as needed
       # lambda_values <- c(0, 0.001, 0.01, 0.05, 0.1)  # Adjust as needed
       
       k_values <- c(2)
@@ -352,8 +333,11 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # View combined results
-print(combined_results)
+#print(combined_results)
 
 # Save the combined results dataframe to a CSV file
-output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"_itr_shared_species.csv")
+#output_name <- paste0("binary_equal_0_1_removal_scaling_site_",emln_id,"_",is_binary,".csv")
+
+output_name <- paste0("canary_weighted_scaled_site_net_",emln_id,"_",n_sim,"_itr_overlapping_plants.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
+#write.csv(df, file = "duplicate_check.csv", row.names = FALSE)
