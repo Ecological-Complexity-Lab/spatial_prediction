@@ -733,7 +733,7 @@ png(
 grid::grid.draw(hist_f1p)
 dev.off() 
 
-# some stats
+# some stats and info
 
 # Define the columns you want to summarize
 eval_metrics <- c("specificity", "precision", "recall", "f1_score",
@@ -749,6 +749,22 @@ summary_stats <- result_summary %>%
                         min  = min),
                    .names = "{.col}_{.fn}"))
 
+# Assuming your data is in a dataframe called `df`
+
+# Combine and clean the species names
+plant_species <- unique(df$node_from)           # get unique names
+pollinator_species <- unique(df$node_to)
+plant_species_clean <- gsub("_", " ", plant_species)             # replace underscores with spaces
+pollinator_species_clean <- gsub("_", " ", pollinator_species)             # replace underscores with spaces
+
+# Optionally, store as a dataframe
+plants_df <- data.frame(species = plant_species_clean)
+pollinator_df <- data.frame(species = pollinator_species_clean)
+
+# View result
+print(plants_df)
+#write.csv(pollinator_df, "pollinators_in_canaries.csv")
+print(pollinator_df)
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
 # Initialize a data frame to store combined results for all layer combinations
