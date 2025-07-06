@@ -415,7 +415,10 @@ result_summary <- df_removed %>%
     balanced_accuracy = (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse)
+    rmse = sqrt(mse),
+    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
+    nnse = 1 / (2 - nse)
   ) %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
@@ -431,7 +434,9 @@ result_summary <- df_removed %>%
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE)
+    rmse = mean(rmse, na.rm = TRUE),
+    nse  = mean(nse,  na.rm = TRUE),
+    nnse = mean(nnse, na.rm = TRUE)
   ) %>%
   ungroup()
 
@@ -501,6 +506,20 @@ island_mse <- ggplot(result_summary, aes(x = mse)) +
        y = "Count") +
   tme
 
+island_nse <- ggplot(result_summary, aes(x = nse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "NSE",
+       y = "Count") +
+  tme
+
+island_nnse <- ggplot(result_summary, aes(x = nnse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "nNSE",
+       y = "Count") +
+  tme
+
 p1 <- island_f1 +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
@@ -536,9 +555,19 @@ p7 <- island_mse +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p8 <- island_nse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p9 <- island_nnse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5, p6, p7,
-  ncol = 4, 
+  p1, p2, p3, p4, p5, p6, p7, p8, p9,
+  ncol = 5, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
@@ -746,7 +775,7 @@ png(
 grid::grid.draw(hist_f1p)
 dev.off() 
 
-# some stats
+# some stats and info
 
 # Define the columns you want to summarize
 eval_metrics <- c("specificity", "precision", "recall", "f1_score",
@@ -762,6 +791,22 @@ summary_stats <- result_summary %>%
                         min  = min),
                    .names = "{.col}_{.fn}"))
 
+# Assuming your data is in a dataframe called `df`
+
+# Combine and clean the species names
+plant_species <- unique(df$node_from)           # get unique names
+pollinator_species <- unique(df$node_to)
+plant_species_clean <- gsub("_", " ", plant_species)             # replace underscores with spaces
+pollinator_species_clean <- gsub("_", " ", pollinator_species)             # replace underscores with spaces
+
+# Optionally, store as a dataframe
+plants_df <- data.frame(species = plant_species_clean)
+pollinator_df <- data.frame(species = pollinator_species_clean)
+
+# View result
+print(plants_df)
+#write.csv(pollinator_df, "pollinators_in_canaries.csv")
+print(pollinator_df)
 ## ---- network size and density correlation with evaluators ----
 # first we need to calculate the size and density of our networks
 # Initialize a data frame to store combined results for all layer combinations
@@ -2795,16 +2840,14 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   ) +
   tme
 
-map_missing_links_diags_offs
-
-# pdf(
-#   file   = "map_missing_links_diags_offs.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links_diags_offs)
-# dev.off()     # close the file
+pdf(
+  file   = "map_missing_links_diags_offs.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_missing_links_diags_offs)
+dev.off()     # close the file
 
  # how many links did each category add?
 df_plot %>%
@@ -4851,8 +4894,6 @@ print(stats)
 
 unique(df$node_from)
 unique(df$node_to)
-## ---- pca of latent traits ----
-
 ## ---- pca of latent traits ----
 
 ```

@@ -402,7 +402,10 @@ result_summary <- df_removed %>%
     balanced_accuracy = (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse)
+    rmse = sqrt(mse),
+    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
+    nnse = 1 / (2 - nse)
   ) %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
@@ -418,7 +421,9 @@ result_summary <- df_removed %>%
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE)
+    rmse = mean(rmse, na.rm = TRUE),
+    nse  = mean(nse,  na.rm = TRUE),
+    nnse = mean(nnse, na.rm = TRUE)
   ) %>%
   ungroup()
 

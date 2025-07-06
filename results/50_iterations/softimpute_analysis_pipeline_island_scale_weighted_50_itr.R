@@ -402,7 +402,10 @@ result_summary <- df_removed %>%
     balanced_accuracy = (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse)
+    rmse = sqrt(mse),
+    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
+    nnse = 1 / (2 - nse)
   ) %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
@@ -418,7 +421,9 @@ result_summary <- df_removed %>%
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE)
+    rmse = mean(rmse, na.rm = TRUE),
+    nse  = mean(nse,  na.rm = TRUE),
+    nnse = mean(nnse, na.rm = TRUE)
   ) %>%
   ungroup()
 
@@ -488,6 +493,20 @@ island_mse <- ggplot(result_summary, aes(x = mse)) +
        y = "Count") +
   tme
 
+island_nse <- ggplot(result_summary, aes(x = nse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "NSE",
+       y = "Count") +
+  tme
+
+island_nnse <- ggplot(result_summary, aes(x = nnse)) +
+  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+  labs(x = "nNSE",
+       y = "Count") +
+  tme
+
 p1 <- island_f1 +
   theme(legend.position = "none",
         axis.title.y = element_blank(),
@@ -523,9 +542,19 @@ p7 <- island_mse +
         axis.title.y = element_blank(),
         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
 
+p8 <- island_nse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
+p9 <- island_nnse +
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+
 combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5, p6, p7,
-  ncol = 4, 
+  p1, p2, p3, p4, p5, p6, p7, p8, p9,
+  ncol = 5, 
   nrow = 2
 )
 combined_with_axes <- arrangeGrob(
