@@ -260,7 +260,7 @@ combine_plots <- function(p1, p2,
 }
 
 ## ---- load data ----
-setwd("~/Documents/github/softimpute/results/50_iterations/shared_species")
+#setwd("~/Documents/github/softimpute/results/50_iterations/shared_species")
 df <- read_csv('weighted__scaled_island_net_60_50_itr_shared_species.csv') # weighted, scaled
 
 ## ---- selecting optimal threshold ----
