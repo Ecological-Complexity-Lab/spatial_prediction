@@ -6,7 +6,6 @@
 results/.DS_Store
 .Rproj.user/
 results/10_iterations/canary/binary_equal_0_1_removal_scaling_island_60_1.csv
-*.csv
 results/50_iterations/S2_map_missing_links_diags_offs.pdf
 results/50_iterations/s1_scales.pdf
 results/50_iterations/rmse_scales.pdf
