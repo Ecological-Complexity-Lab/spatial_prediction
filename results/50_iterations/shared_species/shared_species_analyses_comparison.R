@@ -3,6 +3,9 @@
 library(dplyr)
 library(ggplot2)
 library(ggpubr)
+library(tidyverse)
+library(VennDiagram)
+
 
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
@@ -27,6 +30,7 @@ df_all <- bind_rows(
   result_summary_shared_pollinators %>% mutate(dataset = "shared_pollinators")
 )
 
+## ---- plot distances between analyses ----
 # 2) boxplot with overall ANOVA p-value
 ggplot(df_all, aes(x = dataset, y = nnse)) +
   geom_boxplot(outlier.shape = NA, alpha = 0.7) +
@@ -48,12 +52,62 @@ comparisons <- list(
   c("all","shared_species"), c("all","shared_plants"), c("all","shared_pollinators"),
   c("shared_species","shared_plants"), c("shared_species","shared_pollinators"), c("shared_plants","shared_pollinators")
 )
+
 ggplot(df_all, aes(dataset, nnse)) +
-  geom_boxplot(alpha = 0.7) +
+  geom_boxplot(notch = TRUE, alpha = 0.7) +
   stat_compare_means(
     comparisons = comparisons,
     method      = "wilcox.test",
     label       = "p.signif"
   ) +
+  scale_fill_manual(values = c("all" = "lightsteelblue", "shared_species" = "orange", "shared_plants" = "lightseagreen", "shared_pollinators" = "thistle")) +  # Assign custom colors to groups
   labs(x="Network", y="nNSE") +
   theme_minimal() + tme
+
+## ---- venn diagram ----
+# load more data...
+missing_links_all_species <- read.csv("predicted_non_observed_links.csv", row.names = NULL)
+missing_links_shared_species <- read.csv("predicted_non_observed_links_shared_species.csv", row.names = NULL)
+missing_links_shared_plants <- read.csv("predicted_non_observed_links_plants.csv", row.names = NULL)
+missing_links_shared_pollinators <- read.csv("predicted_non_observed_links_shared_pollinators.csv", row.names = NULL)
+
+# Example: Suppose you have four data frames: df1, df2, df3, df4
+# You will combine `node_to` and `node_from` to create unique interaction identifiers for each data frame
+
+# Combine 'node_to' and 'node_from' columns for each data frame to create interaction sets
+all_species_interactions <- unique(paste(missing_links_all_species$node_to, missing_links_all_species$node_from, sep = "_"))
+shared_species_interactions <- unique(paste(missing_links_shared_species$node_to, missing_links_shared_species$node_from, sep = "_"))
+shared_plants_interactions <- unique(paste(missing_links_shared_plants$node_to, missing_links_shared_plants$node_from, sep = "_"))
+shared_pollinators_interactions <- unique(paste(missing_links_shared_pollinators$node_to, missing_links_shared_pollinators$node_from, sep = "_"))
+
+# Create a list of these sets to pass to the Venn diagram function
+interaction_sets <- list(
+  "All species" = all_species_interactions,
+  "Shared species" = shared_species_interactions,
+  "Shared plants" = shared_plants_interactions,
+  "Shared pollinators" = shared_pollinators_interactions
+)
+
+# Plot the Venn diagram
+venn.plot <- venn.diagram(
+  x = interaction_sets,
+  category.names = c("All species", "Shared species", "Shared plants", "Shared pollinators"),
+  filename = NULL,  # You can save it as a file if needed
+  output = TRUE,
+  col = "transparent",  # Outline color of the circles
+  fill = c("lightsteelblue", "orange", "lightseagreen", "thistle"),  # Colors for each circle
+  alpha = 0.5,  # Transparency level for fill color
+  cex = 1.5,  # Text size
+  fontface = "bold",  # Text boldness
+  fontfamily = "sans",  # Text font
+  cat.cex = 1.5,  # Text size for the category names
+  cat.fontface = "bold",  # Text font for category names
+  cat.pos = 0,  # Positioning of the category names (0 means below)
+  cat.dist = 0.1  # Distance of category names from circles
+)
+
+# Clear the plot window before drawing the Venn diagram
+grid.newpage()  # Clear any existing plot
+
+# Draw the Venn diagram
+grid.draw(venn.plot)
