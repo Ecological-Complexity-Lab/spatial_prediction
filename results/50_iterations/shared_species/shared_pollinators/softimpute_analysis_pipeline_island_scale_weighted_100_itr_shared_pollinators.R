@@ -1330,7 +1330,7 @@ predicted_links <- df_all_itr_zero %>%
     .groups   = "drop"
   )
 
-#write_csv(predicted_links, "predicted_non_observed_links_shared_species.csv")
+#write_csv(predicted_links, "predicted_non_observed_links_shared_pollinators.csv")
 
 most_probable_20 <- predicted_links %>%
   arrange(desc(mean_pred)) %>%
