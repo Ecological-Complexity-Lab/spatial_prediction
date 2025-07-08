@@ -20,6 +20,7 @@ library(vegan)
 library(ggnewscale)
 library(randomForest)
 library(stringr)
+library(purrr)
 
 ## ---- parameters ----
 emln_id <- 60
@@ -106,6 +107,35 @@ tme <-  theme(axis.text = element_text(size = 14, color = "black"),
               panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
               axis.ticks = element_line(color = "black"))
 theme_set(theme_bw())
+
+build_interaction_matrix <- function(data, layers_to_filter) {
+  # Step 1: Filter rows based on specified layers
+  layers <- paste0("layer_", layers_to_filter)
+  filtered_data <- subset(data, layer_from %in% layers)
+  
+  # Step 2: Aggregate weights for identical species pairs
+  
+  aggregated_data <- filtered_data %>%
+    group_by(node_from, node_to) %>%
+    summarise(weight = sum(weight), .groups = 'drop')
+  
+  # Step 3: Create the matrix with specific row and column species
+  species_from <- unique(aggregated_data$node_from)  # Columns
+  species_to <- unique(aggregated_data$node_to)      # Rows
+  
+  # Initialize an empty matrix
+  interaction_matrix <- matrix(0, nrow = length(species_to), ncol = length(species_from),
+                               dimnames = list(species_to, species_from))
+  
+  # Populate the matrix with aggregated weights
+  for (i in 1:nrow(aggregated_data)) {
+    row <- aggregated_data$node_to[i]    # Rows represent 'node_to' species
+    col <- aggregated_data$node_from[i]  # Columns represent 'node_from' species
+    interaction_matrix[row, col] <- aggregated_data$weight[i]
+  }
+  
+  return(interaction_matrix)
+}
 
 ## ---- load data ----
 df_all <- read.csv('weighted__scaled_island_net_60_100_itr.csv')
@@ -693,11 +723,273 @@ for (layers_to_train in 1:num_layers) {
   }
 }
 
-#results %>% write_csv('result_netsize_canaries_island_scale_50_itr.csv')
-
 res_species_summary <- res_species_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
 #### ---- shared plants ----
-res_species_summary <- res_shared_species$result_summary
+res_plant_summary <- res_shared_plants$result_summary
 results <- data.frame()
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+    
+    # Build the aggregated matrix A for training
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    
+    # Build the layer to predict matrix P
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    
+    node_to <- rownames(P) # for the results
+    node_from <- colnames(P)
+    
+    # 1) find the species they have in common
+    shared_plants      <- intersect(colnames(A), colnames(P))
+    
+    # 2) subset both matrices to exactly those shared species
+    A <- A[ , shared_plants, drop = FALSE]
+    P <- P[ , shared_plants, drop = FALSE]
+    
+    ### ---- creating a combined matrix C ----
+    all_row_ids <- unique(c(rownames(A), rownames(P)))
+    C <- matrix(0,
+                nrow = length(all_row_ids),
+                ncol = length(shared_plants),
+                dimnames = list(all_row_ids, shared_plants))
+    
+    # Place A into C
+    C[rownames(A), colnames(A)] <- A
+    
+    # Place P into C
+    # Ensure that existing entries are not overwritten; sum overlapping entries
+    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                          NA, 
+                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    
+    # Compute matrix properties
+    nrow_A <- nrow(A)
+    nrow_P <- nrow(P)
+    nrow_C <- nrow(C)
+    ncol_A <- ncol(A)
+    ncol_P <- ncol(P)
+    ncol_C <- ncol(C)
+    size_A <- length(A)
+    size_P <- length(P)
+    size_C <- length(C)
+    
+    # Calculate density for A, P, and C
+    density_A <- sum(A > 0) / length(A)
+    density_P <- sum(P > 0) / length(P)
+    density_C <- sum(C > 0) / length(C)
+    
+    # Add these values to the results table
+    results <- rbind(results, data.frame(emln_id = emln_id,
+                                         train_layer = layers_to_train,
+                                         test_layer = layer_to_predict,
+                                         nrow_A = nrow_A,
+                                         ncol_A = ncol_A,
+                                         size_A = size_A,
+                                         density_A = density_A,   # Added density
+                                         nrow_P = nrow_P,
+                                         ncol_P = ncol_P,
+                                         size_P = size_P,
+                                         density_P = density_P,   # Added density
+                                         nrow_C = nrow_C,
+                                         ncol_C = ncol_C,
+                                         size_C = size_C,
+                                         density_C = density_C))  # Added density
+    
+    
+  }
+}
+
+res_plant_summary <- res_plant_summary %>%
+  left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+#### ---- shared pollinators ----
+res_pollinator_summary <- res_shared_pollinators$result_summary
+results <- data.frame()
+
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    
+    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+    
+    # Build the aggregated matrix A for training
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    
+    # Build the layer to predict matrix P
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    
+    node_to <- rownames(P) # for the results
+    node_from <- colnames(P)
+    
+    # 1) find the pollinators they have in common
+    shared_pollinators      <- intersect(rownames(A), rownames(P))
+    
+    # 2) subset both matrices to exactly those shared species
+    A <- A[shared_pollinators, , drop = FALSE]
+    P <- P[shared_pollinators, , drop = FALSE]
+    
+    ### ---- creating a combined matrix C ----
+    all_col_ids <- unique(c(colnames(A), colnames(P)))
+    C <- matrix(0,
+                nrow = length(shared_pollinators),
+                ncol = length(all_col_ids),
+                dimnames = list(shared_pollinators, all_col_ids))
+    
+    # Place A into C
+    C[rownames(A), colnames(A)] <- A
+    
+    # Place P into C
+    # Ensure that existing entries are not overwritten; sum overlapping entries
+    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                          NA, 
+                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    
+    # Compute matrix properties
+    nrow_A <- nrow(A)
+    nrow_P <- nrow(P)
+    nrow_C <- nrow(C)
+    ncol_A <- ncol(A)
+    ncol_P <- ncol(P)
+    ncol_C <- ncol(C)
+    size_A <- length(A)
+    size_P <- length(P)
+    size_C <- length(C)
+    
+    # Calculate density for A, P, and C
+    density_A <- sum(A > 0) / length(A)
+    density_P <- sum(P > 0) / length(P)
+    density_C <- sum(C > 0) / length(C)
+    
+    # Add these values to the results table
+    results <- rbind(results, data.frame(emln_id = emln_id,
+                                         train_layer = layers_to_train,
+                                         test_layer = layer_to_predict,
+                                         nrow_A = nrow_A,
+                                         ncol_A = ncol_A,
+                                         size_A = size_A,
+                                         density_A = density_A,   # Added density
+                                         nrow_P = nrow_P,
+                                         ncol_P = ncol_P,
+                                         size_P = size_P,
+                                         density_P = density_P,   # Added density
+                                         nrow_C = nrow_C,
+                                         ncol_C = ncol_C,
+                                         size_C = size_C,
+                                         density_C = density_C))  # Added density
+    
+    
+  }
+}
+
+res_pollinator_summary <- res_pollinator_summary %>%
+  left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+#### ---- plot netsize ----
+
+# 1. Put your four summaries into a named list
+summary_list <- list(
+  All                = res_all_summary,
+  `Shared plants`    = res_plant_summary,
+  `Shared pollinators` = res_pollinator_summary,
+  `Shared species`   = res_species_summary
+)
+
+combined <- imap_dfr(summary_list, ~ .x %>% mutate(subset = .y)) %>%
+  select(subset, f1_score, rmse, nnse, size_P, size_C)
+
+# 2) helper to pivot to long for any 'size_*' column
+make_long <- function(df, size_col) {
+  df %>%
+    select(subset, all_of(size_col), f1_score, rmse, nnse) %>%
+    pivot_longer(c(f1_score, rmse, nnse),
+                 names_to  = "metric",
+                 values_to = "value") %>%
+    mutate(metric = recode(metric,
+                           f1_score = "F1 score",
+                           rmse     = "RMSE",
+                           nnse     = "nNSE"
+    ))
+}
+
+# 3) compute per‐facet correlation & p‐value + label coords
+make_cor_labels <- function(df_long, size_col) {
+  df_long %>%
+    group_by(subset, metric) %>%
+    summarise(
+      cor_test = list(cor.test(.data[[size_col]], value)),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      r     = map_dbl(cor_test, ~ .x$estimate),
+      p     = map_dbl(cor_test, ~ .x$p.value),
+      label = paste0("r = ",   round(r, 3),
+                     "\np = ", signif(p, 2))
+    ) %>%
+    # pick a good spot for the label in each panel:
+    left_join(
+      df_long %>% group_by(subset, metric) %>%
+        summarise(
+          x = max(.data[[size_col]], na.rm=TRUE)*0.7,
+          y = max(value, na.rm=TRUE)*0.9,
+          .groups="drop"
+        ),
+      by = c("subset","metric")
+    )
+}
+
+# ---- Plot 1: vs size_P ----
+long_P     <- make_long(combined, "size_P")
+labels_P   <- make_cor_labels(long_P, "size_P")
+
+ggplot(long_P, aes(x = size_P, y = value)) +
+  geom_point(color = "steelblue", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+  stat_cor(
+    method       = "pearson",
+    label.x.npc  = "right",
+    label.y.npc  = "top",
+    label.sep    = "\n",       # two‐line label: r on line1, p on line2
+    size         = 3,
+    hjust        = 1.05,       # nudge left just a touch
+    vjust        = 1.05        # nudge down just a touch
+  ) +
+  facet_grid(metric ~ subset,
+             scales = "free",    # free x & y per panel
+             switch = "y") +
+  labs(x = "Size of P", y = NULL) +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.placement    = "outside",
+    strip.text.y.left  = element_text(angle = 90),
+    panel.grid.minor   = element_blank()
+  ) + tme
+
+# ---- netsize C ----
+long_C     <- make_long(combined, "size_C")
+labels_C   <- make_cor_labels(long_C, "size_C")
+
+ggplot(long_C, aes(x = size_C, y = value)) +
+  geom_point(color = "steelblue", alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+  stat_cor(
+    method       = "pearson",
+    label.x.npc  = "right",
+    label.y.npc  = "top",
+    label.sep    = "\n",       # two‐line label: r on line1, p on line2
+    size         = 3,
+    hjust        = 1.05,       # nudge left just a touch
+    vjust        = 1.05        # nudge down just a touch
+  ) +
+  facet_grid(metric ~ subset,
+             scales = "free",    # free x & y per panel
+             switch = "y") +
+  labs(x = "Size of C", y = NULL) +
+  theme_minimal(base_size = 13) +
+  theme(
+    strip.placement    = "outside",
+    strip.text.y.left  = element_text(angle = 90),
+    panel.grid.minor   = element_blank()
+  ) + tme

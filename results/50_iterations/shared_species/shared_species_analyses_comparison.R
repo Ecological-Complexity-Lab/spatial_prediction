@@ -19,7 +19,7 @@ theme_set(theme_bw())
 ## ---- load data ----
 result_summary_all <- read.csv('working_df_all_species_island_50_itr.csv')
 result_summary_shared_species <- read.csv('working_df_shared_species_island_50_itr.csv')
-result_summary_shared_plants <- read.csv('working_df_shared_plants_island_50_itr.csv')
+result_summary_shared_plants <- read.csv('working_df_shared_plants_island_100_itr.csv')
 result_summary_shared_pollinators <- read.csv('working_df_shared_pollinators_island_100_itr.csv')
   
 # 1) bind your four tables, giving each an ID
@@ -33,17 +33,32 @@ df_all <- bind_rows(
 ## ---- plot distances between analyses ----
 # 2) boxplot with overall ANOVA p-value
 ggplot(df_all, aes(x = dataset, y = nnse)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_boxplot(notch = TRUE, outlier.shape = NA, alpha = 0.7) +
   geom_jitter(width = 0.15, alpha = 0.5) +
   stat_compare_means(
     method    = "anova",           # overall ANOVA
     label     = "p.format",        # formatted p-value
-    label.y   = max(df_all$nse)*1.05
+    label.y   = max(df_all$nnse)*1.05
   ) +
   labs(
     title = "Distribution of NSE across networks",
     x     = "Network subset",
     y     = "Normalized Nash–Sutcliffe Efficiency (nNSE)"
+  ) +
+  theme_minimal() + tme
+
+ggplot(df_all, aes(x = dataset, y = f1_score)) +
+  geom_boxplot(notch = TRUE, outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.15, alpha = 0.5) +
+  stat_compare_means(
+    method    = "anova",           # overall ANOVA
+    label     = "p.format",        # formatted p-value
+    label.y   = max(df_all$f1_score)*1.05
+  ) +
+  labs(
+    #title = "Distribution of NSE across networks",
+    x     = "Network subset",
+    y     = "F1 score"
   ) +
   theme_minimal() + tme
 
@@ -60,8 +75,8 @@ ggplot(df_all, aes(dataset, nnse)) +
     method      = "wilcox.test",
     label       = "p.signif"
   ) +
-  scale_fill_manual(values = c("all" = "lightsteelblue", "shared_species" = "orange", "shared_plants" = "lightseagreen", "shared_pollinators" = "thistle")) +  # Assign custom colors to groups
-  labs(x="Network", y="nNSE") +
+  #scale_fill_manual(values = c("all" = "lightsteelblue", "shared_species" = "orange", "shared_plants" = "lightseagreen", "shared_pollinators" = "thistle")) +  # Assign custom colors to groups
+  labs(x="Network subset", y="nNSE") +
   theme_minimal() + tme
 
 ## ---- venn diagram ----

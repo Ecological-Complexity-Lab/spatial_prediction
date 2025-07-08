@@ -141,7 +141,7 @@ layers_to_train <- 1
 layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
-n_sim <- 50
+n_sim <- 100
 is_binary <- 0
 set.seed(42)
 
