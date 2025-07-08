@@ -1,14 +1,8 @@
 # ---- softImpute for predicting removed links in empirical networks - all layer combinations ----
-# including removal of zeros and ones. no bootstrapping yet
+# THIS IS THE UPDATED CODE USED FOR THE ANALYSIS
+# including removal of zeros and ones.
 # in this code we remove zeros and ones and get the predicted values (not labels but values based on the svd from the softImpute fit function) in a dataframe for further exploration. We get results for a range of k and lambdas.
-## ---- to do ----
-#   CHECK IF COORDINATES IMPLY WHAT SHOULD BE INSTEAD OF NA - AND THEN WHAT IS THE MEANING OF REMOVING LINKS?
-# check that there are no duplicates
-# bootstrapping
-# add aggregation (same format, different file)
-# fix combined_results to include all k and lambda values for non-removed links
-# ---- results so far -----
-# results for all links and layer to layer predictions in combined_results_0.2_rem_values_nonbinary_all_edges2.csv.
+
 ## ---- load libraries ----
 library(softImpute)
 library(ggplot2)
@@ -17,16 +11,16 @@ library(pheatmap)
 library(gridExtra)
 library(dplyr)
 
-# ------------- parsing arguments -----------
-# read args given in command line:
-if (length(commandArgs(trailingOnly=TRUE))==0) { # make sure we have commands
-  stop('No arguments were found!') # the script will not run without arguments
-} else {
-  args <- commandArgs(trailingOnly=TRUE)
-  emln_id <- as.numeric(args[1])
-  is_binary <- as.numeric(args[2])
-  
-}
+# # ------------- parsing arguments -----------
+# # read args given in command line:
+# if (length(commandArgs(trailingOnly=TRUE))==0) { # make sure we have commands
+#   stop('No arguments were found!') # the script will not run without arguments
+# } else {
+#   args <- commandArgs(trailingOnly=TRUE)
+#   emln_id <- as.numeric(args[1])
+#   is_binary <- as.numeric(args[2])
+#   
+# }
 
 ## ---- functions ----
 build_interaction_matrix <- function(data, layers_to_filter) {
@@ -150,7 +144,7 @@ layers_to_train <- 1
 layer_to_predict <- 7
 prop_ones_to_remove <- 0.2
 # prop_zeros_to_remove <- 0.2
-n_sim <- 50
+n_sim <- 100
 is_binary <- 0
 set.seed(42)
 
