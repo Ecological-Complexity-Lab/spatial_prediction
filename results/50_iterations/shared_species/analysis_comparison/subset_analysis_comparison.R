@@ -995,3 +995,100 @@ ggplot(long_C, aes(x = size_C, y = value)) +
   ) + tme
 
 # ---- heatmap of per island interactions ----
+df <- read.csv('weighted__scaled_island_net_60_100_itr.csv')
+
+best_discrete_threshold <- res_all$best_threshold
+
+df_filtered <- df %>%
+  filter(itr == 1, original_links != 0)
+
+df <- df %>%
+  mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values))
+
+# Step 1: For each island and interaction, determine if the interaction was observed.
+# Here we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
+df_island <- df %>%
+  group_by(node_from, node_to, island_id) %>%
+  summarise(
+    observed = as.integer(any(original_links != 0)),
+    # For predicted_prob_sigm, you might take the average across iterations per island.
+    island_sigm_predicted = mean(predicted_prob_sigm, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+table(df_island$observed)
+
+
+overall_plant_degree <- df_filtered %>% 
+  group_by(node_from) %>% 
+  summarise(overall_plant_degree = length(unique(node_to)), .groups = "drop")
+
+overall_poll_degree <- df_filtered %>% 
+  group_by(node_to) %>% 
+  summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
+
+## Step 2: Now, for each unique interaction, compute:
+# - The proportion of islands where it was observed.
+# - The average predicted probability (averaged over islands).
+df_summary <- df_island %>%
+  group_by(node_from, node_to) %>%
+  summarise(
+    avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+    n_islands = n(),  # number of islands contributing
+    .groups = "drop"
+  )
+
+#order species by their degree
+df_summary <- df_summary %>% left_join(overall_poll_degree, by="node_to")
+df_summary <- df_summary %>% left_join(overall_plant_degree, by="node_from")
+
+# Determine the order for plants based on overall_plant_degree
+plant_order <- df_summary %>%
+  distinct(node_from, overall_plant_degree) %>%
+  arrange(desc(overall_plant_degree)) %>%
+  pull(node_from)
+
+# Determine the order for pollinators based on overall_poll_degree
+poll_order <- df_summary %>%
+  distinct(node_to, overall_poll_degree) %>%
+  arrange(desc(overall_poll_degree)) %>%
+  pull(node_to)
+
+# Reset the levels for the species factors
+df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
+df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
+
+map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop)) +
+  scale_fill_gradient(low = "white", high = "steelblue", 
+                      name = "Proportion\nof islands\nobserved") +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but have high predicted value
+  geom_tile(
+    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2", 
+                      name = "Average \npredicted \nprobability") +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 8),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_missing_links)
