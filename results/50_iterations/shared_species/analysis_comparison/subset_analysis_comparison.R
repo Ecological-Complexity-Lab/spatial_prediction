@@ -435,26 +435,111 @@ comparisons <- list(
 )
 
 # pairwise nnse
-ggplot(df_all_combined, aes(x = dataset, y = nnse)) +
-  geom_boxplot(notch = TRUE, alpha = 0.7) +
+# ggplot(df_all_combined, aes(x = dataset, y = nnse)) +
+#   geom_boxplot(notch = TRUE, alpha = 0.7) +
+#   stat_compare_means(
+#     comparisons = comparisons,
+#     method      = "wilcox.test",
+#     label       = "p.signif"
+#   ) +
+#   labs(x = "Network subset", y = "nNSE") +
+#   theme_minimal() + tme
+
+# 1) Tidy up + rename the groups
+df_plot <- df_all_combined %>%
+  mutate(
+    dataset = factor(
+      dataset,
+      # original names in the data
+      levels = c("all", "shared_plants", "shared_pollinators", "shared_species"),
+      # how they should appear on the plot
+      labels = c("All", "Shared plants", "Shared pollinators", "Shared species")
+    )
+  )
+
+# your pairwise comparisons
+comparisons <- list(
+  c("All","Shared plants"),
+  c("All","Shared pollinators"),
+  c("Shared species","Shared plants"),
+  c("Shared species","Shared pollinators"),
+  c("Shared plants","Shared pollinators"),
+  c("All","Shared species")
+)
+
+# 2) Define a custom palette (4 colours)
+my_palette <- c(
+  "All"                = "lightsteelblue",
+  "Shared plants"      = "seagreen",
+  "Shared pollinators" = "thistle",
+  "Shared species"     = "orange"
+)
+
+# 3) Plot
+ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
+  geom_boxplot(
+    notch     = TRUE,
+    alpha     = 0.8
+  ) +
   stat_compare_means(
     comparisons = comparisons,
     method      = "wilcox.test",
-    label       = "p.signif"
+    label       = "p.signif",
+    tip.length  = 0.01
   ) +
-  labs(x = "Network subset", y = "nNSE") +
-  theme_minimal() + tme
+  scale_fill_manual(
+    values = my_palette,
+    guide  = FALSE   # drop the legend
+  ) +
+  labs(
+    x = "Network subset",
+    y = "nNSE"
+  ) +
+  theme_minimal() +
+  tme + 
+  theme(
+    axis.text.x  = element_text(angle = 25, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+
 
 # pairwise f1
-ggplot(df_all_combined, aes(x = dataset, y = f1_score)) +
-  geom_boxplot(notch = TRUE, alpha = 0.7) +
+# ggplot(df_all_combined, aes(x = dataset, y = f1_score)) +
+#   geom_boxplot(notch = TRUE, alpha = 0.7) +
+#   stat_compare_means(
+#     comparisons = comparisons,
+#     method      = "wilcox.test",
+#     label       = "p.signif"
+#   ) +
+#   labs(x = "Network subset", y = "F1 score") +
+#   theme_minimal() + tme
+
+ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
+  geom_boxplot(
+    notch     = TRUE,
+    alpha     = 0.8
+  ) +
   stat_compare_means(
     comparisons = comparisons,
     method      = "wilcox.test",
-    label       = "p.signif"
+    label       = "p.signif",
+    tip.length  = 0.01
   ) +
-  labs(x = "Network subset", y = "F1 score") +
-  theme_minimal() + tme
+  scale_fill_manual(
+    values = my_palette,
+    guide  = FALSE   # drop the legend
+  ) +
+  labs(
+    x = "Network subset",
+    y = "F1 score"
+  ) +
+  theme_minimal() +
+  tme + 
+  theme(
+    axis.text.x  = element_text(angle = 25, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+
 
 ### ---- missing interactions and venn ----
 
