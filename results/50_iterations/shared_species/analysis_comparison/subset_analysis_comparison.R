@@ -993,3 +993,5 @@ ggplot(long_C, aes(x = size_C, y = value)) +
     strip.text.y.left  = element_text(angle = 90),
     panel.grid.minor   = element_blank()
   ) + tme
+
+# ---- heatmap of per island interactions ----

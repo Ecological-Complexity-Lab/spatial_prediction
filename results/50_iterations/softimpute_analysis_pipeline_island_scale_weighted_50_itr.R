@@ -654,15 +654,15 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
-# Base‐R PDF device
-pdf(
-  file   = "hist_f1a.pdf",
-  width  = 5,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(hist_f1a)
-dev.off()     # close the file
+# # Base‐R PDF device
+# pdf(
+#   file   = "hist_f1a.pdf",
+#   width  = 5,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(hist_f1a)
+# dev.off()     # close the file
 
 combined_plot <- hist_ba + hist_f1 + 
   plot_layout(guides = "collect") +
@@ -752,15 +752,15 @@ hist_f1p <- plot_hist(result_summary, metric = "f1_score",
         axis.text.y = element_text(size = 18),
         axis.text.x = element_text(size = 18))
 
-png(
-  filename = "hist_f1p.png",
-  width    = 8,           # width in inches
-  height   = 5,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-grid::grid.draw(hist_f1p)
-dev.off() 
+# png(
+#   filename = "hist_f1p.png",
+#   width    = 8,           # width in inches
+#   height   = 5,           # height in inches
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# grid::grid.draw(hist_f1p)
+# dev.off() 
 
 # some stats and info
 
@@ -1162,14 +1162,14 @@ df_f1_rmse_size <- result_summary %>%
 
 netsize_f1_rmse <- plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
 
-pdf(
-  file   = "netsize_f1_rmse.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(netsize_f1_rmse)
-dev.off()     # close the file
+# pdf(
+#   file   = "netsize_f1_rmse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netsize_f1_rmse)
+# dev.off()     # close the file
 
 ## ---- Jaccard correlation with evaluators ----
 
@@ -1344,24 +1344,24 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags,
 jaccard_isl_f1
 
 # Base‐R PDF device
-pdf(
-  file   = "jaccard_isl_f1.pdf",
-  width  = 7,    # inches
-  height = 3.5,
-  family = "Helvetica"   # or another installed font
-)
-print(jaccard_isl_f1)
-dev.off()     # close the file
+# pdf(
+#   file   = "jaccard_isl_f1.pdf",
+#   width  = 7,    # inches
+#   height = 3.5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(jaccard_isl_f1)
+# dev.off()     # close the file
 
-png(
-  filename = "jaccard_isl_f1.png",
-  width    = 7,           # width in inches
-  height   = 3.5,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-print(jaccard_isl_f1)
-dev.off() 
+# png(
+#   filename = "jaccard_isl_f1.png",
+#   width    = 7,           # width in inches
+#   height   = 3.5,           # height in inches
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# print(jaccard_isl_f1)
+# dev.off() 
 
 offs_isl_ba <- make_facet_scatter_plot(data = canary_results_diags, 
                                         evaluator = "balanced_accuracy",
@@ -1410,24 +1410,24 @@ jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags,
 jaccard_isl_rmse
 
 # Base‐R PDF device
-pdf(
-  file   = "jaccard_isl_rmse.pdf",
-  width  = 7,    # inches
-  height = 3.5,
-  family = "Helvetica"   # or another installed font
-)
-print(jaccard_isl_rmse)
-dev.off()     # close the file
-
-png(
-  filename = "jaccard_isl_rmse.png",
-  width    = 7,           # width in inches
-  height   = 3.5,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-print(jaccard_isl_rmse)
-dev.off() 
+# pdf(
+#   file   = "jaccard_isl_rmse.pdf",
+#   width  = 7,    # inches
+#   height = 3.5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(jaccard_isl_rmse)
+# dev.off()     # close the file
+# 
+# png(
+#   filename = "jaccard_isl_rmse.png",
+#   width    = 7,           # width in inches
+#   height   = 3.5,           # height in inches
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# print(jaccard_isl_rmse)
+# dev.off() 
 
 offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
                                          evaluator = "mse",
@@ -1710,26 +1710,26 @@ f1_fidelity <- make_full_correlation_plot(working_df_offs,
                            shared_y_lab = "F1 score")
 
 # Base‐R PDF device
-pdf(
-  file   = "f1_fidelity.pdf",
-  width  = 7,
-  height = 4,
-  family = "Helvetica"
-)
+# pdf(
+#   file   = "f1_fidelity.pdf",
+#   width  = 7,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(f1_fidelity)
+# 
+# dev.off()
 
-grid::grid.draw(f1_fidelity)
-
-dev.off()
-
-png(
-  filename = "f1_fidelity.png",
-  width    = 7,           # width in inches
-  height   = 4,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-grid::grid.draw(f1_fidelity)
-dev.off() 
+# png(
+#   filename = "f1_fidelity.png",
+#   width    = 7,           # width in inches
+#   height   = 4,           # height in inches
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# grid::grid.draw(f1_fidelity)
+# dev.off() 
 
 # For recall
 make_full_correlation_plot(working_df_offs, evaluator = "recall")
@@ -1747,26 +1747,26 @@ rmse_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "rmse",
                            shared_y_lab = "RMSE")
 
-pdf(
-  file   = "rmse_fidelity.pdf",
-  width  = 7,
-  height = 4,
-  family = "Helvetica"
-)
+# pdf(
+#   file   = "rmse_fidelity.pdf",
+#   width  = 7,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(rmse_fidelity)
+# 
+# dev.off()
 
-grid::grid.draw(rmse_fidelity)
-
-dev.off()
-
-png(
-  filename = "rmse_fidelity.png",
-  width    = 7,           # width in inches
-  height   = 4,           # height in inches
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-grid::grid.draw(rmse_fidelity)
-dev.off() 
+# png(
+#   filename = "rmse_fidelity.png",
+#   width    = 7,           # width in inches
+#   height   = 4,           # height in inches
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# grid::grid.draw(rmse_fidelity)
+# dev.off() 
 
 make_full_correlation_plot(working_df_offs,
                            evaluator = "mse",
@@ -1936,16 +1936,16 @@ rmse_fidelity_species_island <- grid.arrange(
                     gp = gpar(fontsize=16, fontface="bold"))
 )
 
-pdf(
-  file   = "rmse_fidelity_species_island.pdf",
-  width  = 7,
-  height = 5.5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(rmse_fidelity_species_island)
-
-dev.off()
+# pdf(
+#   file   = "rmse_fidelity_species_island.pdf",
+#   width  = 7,
+#   height = 5.5,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(rmse_fidelity_species_island)
+# 
+# dev.off()
 
 
 # combine_plots_fidelity <- function(p1, p2,
@@ -2305,16 +2305,16 @@ poll_degree
 
 final_plot <- combine_plots(plant_degree, poll_degree)
 
-pdf(
-  file   = "degree.pdf",
-  width  = 8,
-  height = 5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(final_plot)
-
-dev.off()
+# pdf(
+#   file   = "degree.pdf",
+#   width  = 8,
+#   height = 5,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(final_plot)
+# 
+# dev.off()
 
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
@@ -2373,14 +2373,14 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   }))
 
 print(map_missing_links)
-pdf(
-  file   = "map_missing_links.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links)
-dev.off()     # close the file
+# pdf(
+#   file   = "map_missing_links.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links)
+# dev.off()     # close the file
 
 ### ---- difference in added links: diag vs. off-diags ----
 # missing links map for diag and off-daigonal seperately
@@ -2827,14 +2827,14 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   ) +
   tme
 
-pdf(
-  file   = "map_missing_links_diags_offs.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links_diags_offs)
-dev.off()     # close the file
+# pdf(
+#   file   = "map_missing_links_diags_offs.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links_diags_offs)
+# dev.off()     # close the file
 
  # how many links did each category add?
 df_plot %>%
@@ -2904,14 +2904,14 @@ map_missing_links_marked_offs <- ggplot(df_summary, aes(x = node_to, y = node_fr
 
 map_missing_links_marked_offs
 
-pdf(
-  file   = "map_missing_links_marked_offs.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links_marked_offs)
-dev.off()     # close the file
+# pdf(
+#   file   = "map_missing_links_marked_offs.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links_marked_offs)
+# dev.off()     # close the file
 
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
 # filter the interactions that were always observed as zeros yet predicted to exist
@@ -2981,15 +2981,15 @@ missing_links <- ggplot(df_top_10,
     #title = "Mean predicted value and significance"
   ) +
   theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
-
-pdf(
-  file   = "missing_links.pdf",
-  width  = 9,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(missing_links)
-dev.off()     # close the file
+# 
+# pdf(
+#   file   = "missing_links.pdf",
+#   width  = 9,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(missing_links)
+# dev.off()     # close the file
 
 # do the most probable interactions differ between diags and off-diags?
 # most probable - diag
@@ -3490,28 +3490,28 @@ cor_plot_site_f1 <- make_cor_plot(result_summary_site, evaluator = "f1_score", e
 cor_plot_isl_f1  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
 distance_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
 
-pdf(
-  file   = "distance_plot_f1.pdf",
-  width  = 8,
-  height = 4,
-  family = "Helvetica"
-)
-
-grid::grid.draw(distance_plot_f1)
-
-dev.off()
-
-png(
-  file   = "distance_plot_f1.png",
-  width  = 8,
-  height = 4,
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300          # resolution in dots per inch
-)
-
-grid::grid.draw(distance_plot_f1)
-
-dev.off()
+# pdf(
+#   file   = "distance_plot_f1.pdf",
+#   width  = 8,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(distance_plot_f1)
+# 
+# dev.off()
+# 
+# png(
+#   file   = "distance_plot_f1.png",
+#   width  = 8,
+#   height = 4,
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300          # resolution in dots per inch
+# )
+# 
+# grid::grid.draw(distance_plot_f1)
+# 
+# dev.off()
 
 cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
 cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
@@ -3617,28 +3617,28 @@ cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1
 distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
 
 # run the previous make_cor_plot again
-pdf(
-  file   = "distance_plot_f1_different_isl.pdf",
-  width  = 7,
-  height = 4,
-  family = "Helvetica"
-)
-
-grid::grid.draw(distance_dif_plot_f1)
-
-dev.off()
-
-png(
-  file   = "distance_plot_f1_different_isl.png",
-  width  = 7,
-  height = 4,
-  units    = "in",        # could also be "px", "cm", etc.
-  res      = 300   
-)
-
-grid::grid.draw(distance_dif_plot_f1)
-
-dev.off()
+# pdf(
+#   file   = "distance_plot_f1_different_isl.pdf",
+#   width  = 7,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(distance_dif_plot_f1)
+# 
+# dev.off()
+# 
+# png(
+#   file   = "distance_plot_f1_different_isl.png",
+#   width  = 7,
+#   height = 4,
+#   units    = "in",        # could also be "px", "cm", etc.
+#   res      = 300   
+# )
+# 
+# grid::grid.draw(distance_dif_plot_f1)
+# 
+# dev.off()
 
 # use MRM test
 # 1. Install & load ecodist
@@ -3830,14 +3830,14 @@ island_heatmap_f1 <-
 
 print(island_heatmap_f1)
 
-pdf(
-  file   = "island_heatmap_f1.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(island_heatmap_f1)
-dev.off()     # close the file
+# pdf(
+#   file   = "island_heatmap_f1.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(island_heatmap_f1)
+# dev.off()     # close the file
 
 island_heatmap_ba <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
@@ -4258,14 +4258,14 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   ) + tme
 
 # Base‐R PDF device
-pdf(
-  file   = "rmse_scales.pdf",
-  width  = 4,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(rmse_scales)
-dev.off()     # close the file
+# pdf(
+#   file   = "rmse_scales.pdf",
+#   width  = 4,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(rmse_scales)
+# dev.off()     # close the file
 
 # stats
 df_scales <- bind_rows(
@@ -4352,14 +4352,14 @@ rmse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 rmse_f1_scales
 
 # Base‐R PDF device
-pdf(
-  file   = "scales_fig2.pdf",
-  width  = 7,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(rmse_f1_scales)
-dev.off()     # close the file
+# pdf(
+#   file   = "scales_fig2.pdf",
+#   width  = 7,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(rmse_f1_scales)
+# dev.off()     # close the file
 
 # supp figure S1
 
@@ -4435,14 +4435,14 @@ s1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 s1_scales
 
 # Base‐R PDF device
-pdf(
-  file   = "s1_scales.pdf",
-  width  = 8,    # inches
-  height = 5,
-  family = "Helvetica"   # or another installed font
-)
-print(s1_scales)
-dev.off()     # close the file
+# pdf(
+#   file   = "s1_scales.pdf",
+#   width  = 8,    # inches
+#   height = 5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(s1_scales)
+# dev.off()     # close the file
 
 
 #> 
