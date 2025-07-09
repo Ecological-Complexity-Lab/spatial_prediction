@@ -1031,6 +1031,9 @@ overall_poll_degree <- df_filtered %>%
 ## Step 2: Now, for each unique interaction, compute:
 # - The proportion of islands where it was observed.
 # - The average predicted probability (averaged over islands).
+
+
+
 df_summary <- df_island %>%
   group_by(node_from, node_to) %>%
   summarise(
@@ -1092,3 +1095,116 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   }))
 
 print(map_missing_links)
+
+## ---- for an island each time ----
+# Function to generate a list of heatmaps, one per suffix level
+
+plot_heatmaps_by_suffix <- function(df_island,
+                                    overall_poll_degree,
+                                    overall_plant_degree,
+                                    threshold,
+                                    suffix_levels = 1:7,
+                                    tme             # your ggplot theme object
+) {
+  # 1) global summary to get ordering
+  df_global <- df_island %>%
+    group_by(node_from, node_to) %>%
+    summarise(
+      avg_prop           = mean(observed, na.rm = TRUE),
+      avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+      n_islands          = n(),
+      .groups = "drop"
+    ) %>%
+    left_join(overall_poll_degree,  by = "node_to") %>%
+    left_join(overall_plant_degree, by = "node_from")
+  
+  plant_order <- df_global %>%
+    distinct(node_from, overall_plant_degree) %>%
+    arrange(desc(overall_plant_degree)) %>%
+    pull(node_from)
+  
+  poll_order <- df_global %>%
+    distinct(node_to, overall_poll_degree) %>%
+    arrange(desc(overall_poll_degree)) %>%
+    pull(node_to)
+  
+  plots <- vector("list", length(suffix_levels))
+  names(plots) <- paste0("suffix_", suffix_levels)
+  
+  for (i in suffix_levels) {
+    # subset & re-summarise
+    df_sub_sum <- df_island %>%
+      filter(str_detect(island_id, paste0("_", i, "$"))) %>%
+      group_by(node_from, node_to) %>%
+      summarise(
+        avg_prop           = mean(observed, na.rm = TRUE),
+        avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+        n_islands          = n(),
+        .groups = "drop"
+      ) %>%
+      left_join(overall_poll_degree,  by = "node_to") %>%
+      left_join(overall_plant_degree, by = "node_from") %>%
+      # enforce the global factor levels here
+      mutate(
+        node_from = factor(node_from, levels = plant_order),
+        node_to   = factor(node_to,   levels = poll_order)
+      )
+    
+    # build the plot
+    p <- ggplot(df_sub_sum, aes(x = node_to, y = node_from)) +
+      # background layer
+      geom_tile(aes(fill = avg_prop)) +
+      scale_fill_gradient(
+        low  = "white", high = "steelblue",
+        name = "Proportion\nof islands\nobserved"
+      ) +
+      new_scale_fill() +
+      # overlay layer
+      geom_tile(
+        data = df_sub_sum %>% filter(avg_prop == 0, avg_sigm_predicted > threshold),
+        aes(fill = avg_sigm_predicted),
+        alpha = 0.6
+      ) +
+      scale_fill_gradient(
+        low  = "tan1", high = "tomato2",
+        name = "Average\npredicted\nprobability"
+      ) +
+      # **force all species to appear** (even if no tiles for them)
+      scale_x_discrete(limits = poll_order, drop = FALSE) +
+      scale_y_discrete(
+        limits = plant_order,
+        labels = function(x) {
+          lapply(strsplit(x, "_"), function(parts) {
+            bquote(italic(.(paste(parts, collapse = " "))))
+          })
+        },
+        drop = FALSE
+      ) +
+      theme_minimal() +
+      labs(x = "Pollinator", y = "Plant") +
+      theme(
+        axis.text.x    = element_blank(),
+        axis.text.y    = element_text(size = 8),
+        legend.position = "bottom",
+        legend.box      = "horizontal"
+      ) +
+      tme
+    
+    plots[[paste0("suffix_", i)]] <- p
+  }
+  
+  plots
+}
+
+heatmap_list <- plot_heatmaps_by_suffix(
+  df_island,
+  overall_poll_degree,
+  overall_plant_degree,
+  threshold     = best_discrete_threshold,
+  suffix_levels = 1:7,
+  tme           = tme
+)
+
+# to print them:
+for(p in heatmap_list) print(p)
+
