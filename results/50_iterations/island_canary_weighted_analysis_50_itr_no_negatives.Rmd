@@ -1,3 +1,16 @@
+---
+title: "softimpute analysis pipeline - island scale (50 iterations): negative values are converted to zeros"
+author: "Kesem Abramov"
+date: "2025-07-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r all}
 # ---- softImpute analysis pipeline for island scale ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
@@ -4977,3 +4990,6 @@ print(stats)
 unique(df$node_from)
 unique(df$node_to)
 ## ---- pca of latent traits ----
+
+```
+

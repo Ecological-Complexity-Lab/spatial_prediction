@@ -1,8 +1,9 @@
-# ---- softImpute analysis pipeline for island scale ----
+# ---- softImpute analysis pipeline for island scale: predictions are scaled to range of location combination observed values ----
 # this pipeline allows us to take the predictions of the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # for a first time run, run first site scale and then island scale to get the working dfs with evaluators. they are both needed for scale somparison.
- 
-### this is the most up to date code ###
+
+# THE RESULTS are similar to the ones obtained using the non-scaled predictions. differences: trends with f1 are not significant. thresholt increases to 0.9. very difficult to differentiate between 0s and 1s. 
+
 ## ---- load libraries ----
 library(tidyverse)
 library(ggplot2)
@@ -263,11 +264,17 @@ combine_plots <- function(p1, p2,
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
 df <- read_csv('weighted__scaled_island_net_60_50_itr.csv') # weighted, scaled
 
-summary(df)
-
-# convert negatives to zeros
-df <- df %>%
-  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
+# scale the predictions
+df <- df %>% 
+  group_by(train_layer, test_layer) %>% 
+  mutate(
+    predicted_values = rescale(
+      predicted_values,
+      to   = range(original_links, na.rm = TRUE),
+      from = range(predicted_values, na.rm = TRUE)
+    )
+  ) %>% 
+  ungroup()
 
 ## ---- selecting optimal threshold ----
 
@@ -1093,7 +1100,7 @@ netsize_island_mse <- plot_netsize(
 netsize_island_mse
 
 
-plot_f1_nnse_vs_size_free_both <- function(data) {
+plot_f1_rmse_vs_size_free_both <- function(data) {
   # build correlation table
   cor_table <- data %>%
     group_by(evaluator, measure_type) %>%
@@ -1121,7 +1128,7 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
       cols   = vars(measure_type),
       scales = "free",     # ← free both x and y per facet
       labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        evaluator    = c(f1_score = "F1 score", rmse = "RMSE"),
         measure_type = c(size_P  = "Size of matrix P",
                          size_C  = "Size of matrix C")
       ),
@@ -1161,20 +1168,20 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
 }
 
 
-df_f1_nnse_size <- result_summary %>%
-  select(f1_score, nnse, size_P, size_C) %>%
+df_f1_rmse_size <- result_summary %>%
+  select(f1_score, rmse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
-  pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
+  pivot_longer(cols = c(f1_score, rmse), names_to = "evaluator", values_to = "evaluator_value")
 
-netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme
+netsize_f1_rmse <- plot_f1_rmse_vs_size_free_both(df_f1_rmse_size) + tme
 
 # pdf(
-#   file   = "netsize_f1_nnse.pdf",
+#   file   = "netsize_f1_rmse.pdf",
 #   width  = 6,    # inches
 #   height = 6,
 #   family = "Helvetica"   # or another installed font
 # )
-# print(netsize_f1_nnse)
+# print(netsize_f1_rmse)
 # dev.off()     # close the file
 
 ## ---- Jaccard correlation with evaluators ----
@@ -1415,15 +1422,6 @@ jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags,
                                           facet_scales = "free_x")
 jaccard_isl_rmse
 
-
-jaccard_isl_nse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                            evaluator = "nse",
-                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                            x_lab = "Jaccard similarity",
-                                            y_lab = "NSE",
-                                            #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
-                                            facet_scales = "free_x")
-jaccard_isl_nse
 # Base‐R PDF device
 # pdf(
 #   file   = "jaccard_isl_rmse.pdf",
@@ -2071,8 +2069,6 @@ make_simple_correlation_plot(
 
 # checking fidelity for each specific combination of layers
 # for each unique layer combination
-
-library(dplyr)
 
 compute_sorensen_long <- function(df_part, species_col) {
   df_part %>%
@@ -3323,10 +3319,7 @@ result_summary_site <- df_removed_site %>%
     balanced_accuracy = (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse),
-    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
-      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
-    nnse = 1 / (2 - nse)
+    rmse = sqrt(mse)
   ) %>%
   ungroup() %>%
   group_by(emln_id, train_layer, test_layer) %>%
@@ -3342,9 +3335,7 @@ result_summary_site <- df_removed_site %>%
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE),
-    nse  = mean(nse,  na.rm = TRUE),
-    nnse = mean(nnse, na.rm = TRUE)
+    rmse = mean(rmse, na.rm = TRUE)
   ) %>%
   ungroup()
 
@@ -4154,14 +4145,14 @@ df_long <- bind_rows(
 ) %>%
   pivot_longer(
     cols      = c("f1_score","recall","precision",
-                  "balanced_accuracy","mcc","specificity", "nnse",
+                  "balanced_accuracy","mcc","specificity",
                   "rmse","mse"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
   mutate(metric = factor(metric, levels = c(
     "f1_score","recall","precision","balanced_accuracy",
-    "mcc","specificity", "nnse", "rmse","mse"
+    "mcc","specificity","rmse","mse"
   )))
 
 # 2. Pretty facet titles with units:
@@ -4173,8 +4164,7 @@ metric_labels <- c(
   mcc               = "MCC",
   specificity       = "Specificity",
   rmse              = "RMSE",
-  mse               = "MSE",
-  nnse              = "NNSE"
+  mse               = "MSE"
 )
 
 # 3. Plot with free_y, custom labels, and centered stars at the top:
@@ -4288,80 +4278,7 @@ rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 # print(rmse_scales)
 # dev.off()     # close the file
 
-
-# nnse separately
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("nnse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "nnse"
-  )))
-
-# 2. Pretty facet titles with units:
-metric_labels <- c(
-  nnse              = "NNSE"
-  
-)
-
-# 3. Plot with free_y, custom labels, and centered stars at the top:
-nnse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales   = "free_y",
-    labeller = as_labeller(metric_labels),
-    ncol     = 4
-  ) +
-  stat_compare_means(
-    method    = "t.test",
-    label     = "p.format",
-    # put label at the very top of each facet:
-    label.y   = Inf,
-    vjust     = 1.5,
-    # center between the two boxes (position 1 & 2):
-    label.x   = 1.45,
-    tip.length= 0.01,
-    size      = 4
-  ) +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    title = NULL,
-    x     = NULL,
-    y     = "NNSE"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    #strip.text      = element_text(face = "bold", size = 12),
-    axis.text.x     = element_blank(),
-    axis.ticks.x    = element_blank(),
-    legend.position = "bottom",
-    strip.text = element_blank()
-  ) + tme
-
-# Base‐R PDF device
-# pdf(
-#   file   = "nnse_scales.pdf",
-#   width  = 4,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(nnse_scales)
-# dev.off()     # close the file
-
 # stats
-
 df_scales <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
   result_summary_island %>% mutate(scale = "Island"))
@@ -4380,25 +4297,25 @@ df_long <- bind_rows(
   result_summary_island %>% mutate(scale = "Island")
 ) %>%
   pivot_longer(
-    cols      = c("f1_score", "nnse"),
+    cols      = c("f1_score", "rmse"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
   mutate(metric = factor(metric, levels = c(
-    "f1_score", "nnse"
+    "f1_score", "rmse"
   )))
 
 # 2. Pretty facet titles with units:
 metric_labels <- c(
   f1_score          = "F1 score",
-  nnse              = "NNSE"
+  rmse              = "RMSE"
   
 )
 
 # make sure your metric_labels is something like
 # metric_labels <- c(f1 = "F1 score", rmse = "RMSE")
 
-nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+rmse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
     notch        = TRUE,
     outlier.size = 1,
@@ -4443,7 +4360,7 @@ nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     legend.position       = "bottom"
   ) + tme
 
-nnse_f1_scales
+rmse_f1_scales
 
 # Base‐R PDF device
 # pdf(
@@ -4452,7 +4369,7 @@ nnse_f1_scales
 #   height = 4,
 #   family = "Helvetica"   # or another installed font
 # )
-# print(nnse_f1_scales)
+# print(rmse_f1_scales)
 # dev.off()     # close the file
 
 # supp figure S1
@@ -4462,12 +4379,12 @@ df_long <- bind_rows(
   result_summary_island %>% mutate(scale = "Island")
 ) %>%
   pivot_longer(
-    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc", "rmse"),
+    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
   mutate(metric = factor(metric, levels = c(
-    "balanced_accuracy", "recall", "precision", "specificity", "mcc", "rmse"
+    "balanced_accuracy", "recall", "precision", "specificity", "mcc"
   )))
 
 # 2. Pretty facet titles with units:
@@ -4476,8 +4393,7 @@ metric_labels <- c(
   recall            = "Recall",
   precision         = "Precision",
   specificity       = "Specificity",
-  mcc               = "MCC",
-  rmse              = "RMSE"
+  mcc               = "MCC"
   
 )
 
