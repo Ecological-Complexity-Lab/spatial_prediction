@@ -1843,7 +1843,7 @@ compute_fidelity <- function(df_part, species_col) {
 plant_fid <- compute_fidelity(plant_partners,   "node_from")
 poll_fid  <- compute_fidelity(poll_partners,    "node_to")
 
-# for each species, calculate the average difference between observed and predicted values for each species
+# for each species, calculate the average difference between observed and predicted values
 # if we want to look only at off-diagonals:
 df_error <- df_removed %>% filter(test_layer != train_layer) # (it does not change the results much)
 # 
@@ -1961,6 +1961,59 @@ rmse_fidelity_species_island <- grid.arrange(
 # grid::grid.draw(rmse_fidelity_species_island)
 # 
 # dev.off()
+
+# try nnse
+# One‐row‐per‐plant with pooled RMSE
+plant_nnse <- df %>%
+  group_by(node_from) %>%
+  summarise(
+    nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE))),
+    .groups = "drop"
+  )
+
+poll_nnse <- df %>%
+  group_by(node_to) %>%
+  summarise(
+    nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+                       sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE))),
+    .groups = "drop"
+  )
+
+# merge fidelity and error for correlation
+plant_analysis <- plant_fid %>%
+  inner_join(plant_nnse, by = "node_from")
+
+poll_analysis  <- poll_fid %>%
+  inner_join(poll_nnse,  by = "node_to")
+
+poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
+
+# plot
+
+# Plants:
+per_plant_fidelity <- make_simple_correlation_plot(
+  data        = plant_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "nnse",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "NNSE",
+  plot_title  = "Plants",
+  point_color = "darkseagreen3",
+  trend_color = "steelblue"
+)
+
+# Pollinators:
+per_poll_fidelity <- make_simple_correlation_plot(
+  data        = poll_analysis,
+  x_var       = "partner_fidelity",
+  evaluator   = "nnse",
+  x_lab       = "Partner fidelity (mean Sorensen)",
+  y_lab       = "NNSE",
+  plot_title  = "Pollinators",
+  point_color = "thistle",
+  trend_color = "steelblue"
+)
 
 
 # combine_plots_fidelity <- function(p1, p2,
@@ -3302,6 +3355,10 @@ distance_table <- distance_table %>%
 # Assuming your lookup tibble is called net_name and has columns layer_id and name
 #result_summary_site <- read_csv('working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
 result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
+
+# convert negatives to zeros
+result_site <- result_site %>%
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
 df_removed_site <- result_site %>%
   filter(removed == 1) %>% 
