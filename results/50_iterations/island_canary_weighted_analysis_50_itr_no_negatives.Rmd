@@ -3316,6 +3316,10 @@ distance_table <- distance_table %>%
 #result_summary_site <- read_csv('working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
 result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
 
+# convert negatives to zeros
+result_site <- result_site %>%
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
+
 df_removed_site <- result_site %>%
   filter(removed == 1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
