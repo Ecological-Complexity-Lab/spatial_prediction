@@ -386,6 +386,21 @@ ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_bin
        fill = "Original Link") +
   theme_minimal() + tme
 
+df_removed %>% 
+  filter(test_layer==4) %>% 
+ggplot(aes(x = original_links, y = predicted_values)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "lightsteelblue", linetype = "dashed") +
+  stat_cor(method = "spearman", label.x = 20, label.y = 50) +  # change method to "spearman" if needed
+  labs(
+    x = "Original links",
+    y = "Predicted values",
+    title = "Correlation between predictions and original links"
+  ) +
+  geom_abline (slope=1, linetype = "dashed", color="Red")+
+  coord_equal()+
+  theme_minimal(base_size = 14)
+
 ### ---- weighted version ----
 
 df_removed <- df %>%
@@ -1350,14 +1365,14 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags,
 jaccard_isl_f1
 
 # Base‐R PDF device
-# pdf(
-#   file   = "jaccard_isl_f1.pdf",
-#   width  = 7,    # inches
-#   height = 3.5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(jaccard_isl_f1)
-# dev.off()     # close the file
+pdf(
+  file   = "jaccard_isl_f1.pdf",
+  width  = 7,    # inches
+  height = 3.5,
+  family = "Helvetica"   # or another installed font
+)
+print(jaccard_isl_f1)
+dev.off()     # close the file
 
 # png(
 #   filename = "jaccard_isl_f1.png",
@@ -1424,6 +1439,15 @@ jaccard_isl_nse <- make_facet_scatter_plot(data = canary_results_diags,
                                             #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
                                             facet_scales = "free_x")
 jaccard_isl_nse
+
+jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_diags, 
+                                           evaluator = "nnse",
+                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                           x_lab = "Jaccard similarity",
+                                           y_lab = "NNSE",
+                                           #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
+                                           facet_scales = "free_x")
+jaccard_isl_nnse
 # Base‐R PDF device
 # pdf(
 #   file   = "jaccard_isl_rmse.pdf",
@@ -1987,7 +2011,8 @@ plant_analysis <- plant_fid %>%
 poll_analysis  <- poll_fid %>%
   inner_join(poll_nnse,  by = "node_to")
 
-poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
+#poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
+poll_analysis <- poll_analysis %>% filter(node_to != "Urelliosoma_guimari") # tried removing outlayer
 
 # plot
 
@@ -2103,10 +2128,10 @@ make_simple_correlation_plot <- function(data, x_var, evaluator, label_var,
 make_simple_correlation_plot(
   data        = plant_analysis,
   x_var       = "partner_fidelity",
-  evaluator   = "rmse",
+  evaluator   = "nnse",
   label_var   = "node_from",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "RMSE",
+  y_lab       = "NNSE",
   plot_title  = "Plants",
   point_color = "darkseagreen3"
 )
@@ -2114,10 +2139,10 @@ make_simple_correlation_plot(
 make_simple_correlation_plot(
   data        = poll_analysis,
   x_var       = "partner_fidelity",
-  evaluator   = "rmse",
+  evaluator   = "nnse",
   label_var   = "node_to",
   x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "RMSE",
+  y_lab       = "NNSE",
   plot_title  = "Pollinators",
   point_color = "thistle"
 )
