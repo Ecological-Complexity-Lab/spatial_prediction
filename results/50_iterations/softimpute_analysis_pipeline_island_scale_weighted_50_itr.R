@@ -1748,6 +1748,11 @@ f1_fidelity <- make_full_correlation_plot(working_df_offs,
                            evaluator = "f1_score",
                            shared_y_lab = "F1 score")
 
+nnse_fidelity <- make_full_correlation_plot(working_df_offs,
+                                          evaluator = "nnse",
+                                          shared_y_lab = "NNSE")
+
+
 # Base‐R PDF device
 # pdf(
 #   file   = "f1_fidelity.pdf",
@@ -1817,7 +1822,7 @@ df_fid <- df %>%
          original_links   != 0,
          itr              == 1)
 
-# compute parner sets for each species in a specific layer
+# compute partner sets for each species in a specific layer
 # 1) build your plant‐by‐layer partner‐sets as before
 plant_partners <- df_fid %>%
   distinct(node_from, train_layer, node_to) %>%
@@ -2012,16 +2017,15 @@ poll_analysis  <- poll_fid %>%
   inner_join(poll_nnse,  by = "node_to")
 
 #poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
-poll_analysis <- poll_analysis %>% filter(node_to != "Urelliosoma_guimari") # tried removing outlayer
+#poll_analysis <- poll_analysis %>% filter(node_to != "Urelliosoma_guimari") # tried removing outlayer
 
 # plot
 
-# Plants:
 per_plant_fidelity <- make_simple_correlation_plot(
   data        = plant_analysis,
   x_var       = "partner_fidelity",
   evaluator   = "nnse",
-  x_lab       = "Partner fidelity (mean Sorensen)",
+  x_lab       = NULL,
   y_lab       = "NNSE",
   plot_title  = "Plants",
   point_color = "darkseagreen3",
@@ -2033,14 +2037,38 @@ per_poll_fidelity <- make_simple_correlation_plot(
   data        = poll_analysis,
   x_var       = "partner_fidelity",
   evaluator   = "nnse",
-  x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "NNSE",
+  x_lab       = NULL,
+  y_lab       = NULL,
   plot_title  = "Pollinators",
   point_color = "thistle",
   trend_color = "steelblue"
 )
 
+per_plant_fidelity <- per_plant_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
+per_poll_fidelity <- per_poll_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
 
+
+# Arrange plots side by side with equal widths
+plots_side_by_side <- arrangeGrob(
+  per_plant_fidelity, per_poll_fidelity,
+  ncol = 2,
+  widths = unit.c(unit(1.13, "null"), unit(1, "null"))  # Equal widths
+)
+
+
+per_species_fidelity <- per_plant_fidelity + per_poll_fidelity
+
+# 
+# pdf(
+#   file   = "per_species_fidelity.pdf",
+#   width  = 8,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(per_species_fidelity)
+# 
+# dev.off()
 # combine_plots_fidelity <- function(p1, p2,
 #                           bottom_label = "Mean Sorensen similarity",
 #                           left_label = "RMSE",
@@ -4236,14 +4264,14 @@ df_long <- bind_rows(
 ) %>%
   pivot_longer(
     cols      = c("f1_score","recall","precision",
-                  "balanced_accuracy","mcc","specificity", "nnse",
+                  "balanced_accuracy","mcc","specificity", "nnse", "nse",
                   "rmse","mse"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
   mutate(metric = factor(metric, levels = c(
     "f1_score","recall","precision","balanced_accuracy",
-    "mcc","specificity", "nnse", "rmse","mse"
+    "mcc","specificity", "nnse", "nse", "rmse","mse"
   )))
 
 # 2. Pretty facet titles with units:
@@ -4256,7 +4284,8 @@ metric_labels <- c(
   specificity       = "Specificity",
   rmse              = "RMSE",
   mse               = "MSE",
-  nnse              = "NNSE"
+  nnse              = "NNSE",
+  nse               = "NSE" 
 )
 
 # 3. Plot with free_y, custom labels, and centered stars at the top:

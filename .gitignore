@@ -94,3 +94,4 @@ results/10_iterations/canary/island_canary_weighted_analysis_cache/html/distribu
 results/10_iterations/canary/island_canary_weighted_analysis_cache/html/evaluation_5f8fd83ecc7dbe43bcf1d5ca357f4338.RData
 results/10_iterations/canary/island_canary_weighted_analysis_cache/html/__packages
 results/50_iterations/missing_links.pdf
+*.csv
