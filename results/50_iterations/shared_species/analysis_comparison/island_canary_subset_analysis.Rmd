@@ -1,3 +1,16 @@
+---
+title: "subset analysis"
+author: "Kesem Abramov"
+date: "2025-07-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r all}
 # ---- comparing analyses quality ----
 ## ---- load libraries ----
 library(dplyr)
@@ -1303,4 +1316,7 @@ for(p in heatmap_list) print(p)
 
 #
 t.test(res_all_summary$f1_score, res_species_summary$f1_score)
+
+
+```
 
