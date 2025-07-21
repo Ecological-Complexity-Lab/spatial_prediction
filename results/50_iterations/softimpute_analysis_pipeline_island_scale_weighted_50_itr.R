@@ -943,7 +943,7 @@ result_summary <- result_summary %>%
 # if we want to use all of the results
 
 df_long_1off <- result_summary %>%
-  select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, size_P, density_P, size_C, density_C) %>%
+  select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, nnse, mse, size_P, density_P, size_C, density_C) %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",
@@ -1107,6 +1107,18 @@ netsize_island_mse <- plot_netsize(
 )
 netsize_island_mse
 
+netsize_island_nnse <- plot_netsize(
+  data = df_long_1off,
+  evaluator = "nnse",
+  facet_labels = c(
+    "size_C" = "Size of matrix C",
+    "density_C" = "Density of matrix C",
+    "size_P" = "Size of matrix P",
+    "density_P" = "Density of matrix P"
+  ),
+  evaluator_label = "NNSE"
+)
+netsize_island_nnse
 
 plot_f1_nnse_vs_size_free_both <- function(data) {
   # build correlation table
@@ -3061,7 +3073,7 @@ predicted_links <- df_all_itr_zero %>%
     .groups   = "drop"
   )
 
-write_csv(predicted_links, "predicted_non_observed_links.csv")
+# write_csv(predicted_links, "predicted_non_observed_links.csv")
 
 most_probable_20 <- predicted_links %>%
   arrange(desc(mean_pred)) %>%

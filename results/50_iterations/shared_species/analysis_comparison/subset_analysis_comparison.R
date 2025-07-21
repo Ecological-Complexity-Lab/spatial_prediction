@@ -1301,6 +1301,7 @@ heatmap_list <- plot_heatmaps_by_suffix(
 # to print them:
 for(p in heatmap_list) print(p)
 
-#
+# ---- t tests ----
 t.test(res_all_summary$f1_score, res_species_summary$f1_score)
+t.test(res_all_summary$nnse, res_species_summary$nnse)
 
