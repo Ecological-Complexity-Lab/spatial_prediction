@@ -55,9 +55,8 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 implement_impute <- function(C, k, lambda) {
   # Apply softImpute
   
-  # fit <- softImpute(C, rank.max = k, lambda = lambda, type = "svd", maxit = 600)
-  fit <- softImpute(C, rank.max = 7, lambda = 0, type = "svd", maxit = 600)
-
+  fit <- softImpute(C, rank.max = k, lambda = lambda, type = "svd", maxit = 600)
+  
   # Debias the fit to remove regularization effects
   # fit <- deBias(C, fit)
   
@@ -149,8 +148,6 @@ n_sim <- 50
 is_binary <- 0
 set.seed(42)
 
-DEBUG = FALSE
-
 ## ---- create a folder for the results ----
 # setwd("~/softimpute/results")
 # 
@@ -239,13 +236,11 @@ for (layers_to_train in 1:num_layers) {
     zeros_in_P <- which(P == 0, arr.ind = TRUE)
     
     # debug print
-    if (DEBUG==TRUE){
-      print(paste("1 remove:", num_1_to_remove))
-      print(paste("all 1   :", nrow(ones_in_P)))
-      print(paste("0s to remove:", num_0_to_remove))
-      print(paste("all zeros   :", nrow(zeros_in_P)))
-      print(paste("prop of zeros removed   : ", prop_0_removed))
-    }
+    print(paste("1 remove:", num_1_to_remove))
+    print(paste("all 1   :", nrow(ones_in_P)))
+    print(paste("0s to remove:", num_0_to_remove))
+    print(paste("all zeros   :", nrow(zeros_in_P)))
+    print(paste("prop of zeros removed   : ", prop_0_removed))
     
     # # remove 1s
     # remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
@@ -286,7 +281,7 @@ for (layers_to_train in 1:num_layers) {
       }
       
       # Apply biScale to center matrices
-      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=TRUE, col.scale=TRUE)
       
       sum(is.na(C))
       # might need to convert C into a binary matrix
@@ -300,24 +295,22 @@ for (layers_to_train in 1:num_layers) {
       
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
-
+      
       # Initialize variables to store the best results
       results <- data.frame(k = integer(),
                             lambda = numeric(),
                             original_links = numeric(),
                             predicted_values = numeric())
-      
       not_removed_all <- NULL
       
       # Loop over all combinations of k and lambda
       for (k in k_values) {
         for (lambda in lambda_values) {
-            
-            # imputation
-            r <- implement_impute(C, k, lambda)
-
-            results <- rbind(results, r$results)
-            not_removed_all <- rbind(not_removed_all, r$not_removed)
+          # imputation
+          r <- implement_impute(C, k, lambda)
+          
+          results <- rbind(results, r$results)
+          not_removed_all <- rbind(not_removed_all, r$not_removed)
         }
       }
       
@@ -356,6 +349,6 @@ print(combined_results)
 
 # Save the combined results dataframe to a CSV file
 #output_name <- paste0("binary_equal_0_1_removal_scaling_island_",emln_id,"_",is_binary,".csv")
-output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"_itr_test_kminus1_lamplus1.csv")
+output_name <- paste0("weighted__scaled_island_net_",emln_id,"_",n_sim,"_itr_biscale_test.csv")
 write.csv(combined_results, file = output_name, row.names = FALSE)
 #write.csv(df, file = "duplicate_check.csv", row.names = FALSE)

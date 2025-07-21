@@ -261,7 +261,7 @@ combine_plots <- function(p1, p2,
 
 ## ---- load data ----
 #setwd("~/softimpute/results/results_net_60_weighted_50_itr")
-df <- read_csv('weighted__scaled_island_net_60_50_itr.csv') # weighted, scaled
+df <- read_csv('weighted__scaled_island_net_60_50_itr_test_kminus1_lamplus1.csv') # weighted, scaled
 
 summary(df)
 
