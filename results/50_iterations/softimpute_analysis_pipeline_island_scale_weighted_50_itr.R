@@ -2088,6 +2088,23 @@ per_species_fidelity <- per_plant_fidelity + per_poll_fidelity
 # grid::grid.draw(per_species_fidelity)
 # 
 # dev.off()
+
+### ---- pairwise F1 ----
+# One‐row‐per‐plant with pooled f1
+plant_f1 <- df %>%
+  filter(train_layer != test_layer) %>% 
+  group_by(node_from) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    .groups = "drop"
+  )
+
 # combine_plots_fidelity <- function(p1, p2,
 #                           bottom_label = "Mean Sorensen similarity",
 #                           left_label = "RMSE",
@@ -2394,6 +2411,25 @@ r_value <- round(correlation_plants$estimate, 2)
 p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
 label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
+# specify the three you want to label
+from_label <- c("Euphorbia_balsamifera_m",
+              "Euphorbia_balsamifera_f",
+              "Launaea_arborescens")
+
+# build a little data‐frame just for the labels
+df_labels <- df_to_correlate %>%
+  filter(node_from %in% from_label) %>%
+  distinct(node_from, .keep_all = TRUE) %>%
+  mutate(
+    label = paste0(
+      'italic("',
+      gsub("_", " ", node_from),
+      '")'
+    )
+  )
+
+library(ggrepel)
+
 plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
@@ -2413,6 +2449,17 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            color = "black")
 plant_degree
 
+# add repel‐text layer
+plant_degree <- plant_degree +
+  geom_text_repel(
+    data      = df_labels,
+    aes(label = label),
+    parse     = TRUE,       # interpret the label as an expression
+    size      = 4,          # tweak text size as needed
+    box.padding   = 0.35,   # how much to push labels away from each other
+    point.padding = 0.5,    # how much to push labels away from the points
+    nudge_y       = -0.2     # optional small shift upward
+  )
 df_to_correlate <- never_poll_degree_overall
 df_to_correlate$x <- df_to_correlate$overall_poll_degree
 df_to_correlate$y <- df_to_correlate$count_never_observed
@@ -2445,16 +2492,16 @@ poll_degree
 
 final_plot <- combine_plots(plant_degree, poll_degree)
 
-# pdf(
-#   file   = "degree.pdf",
-#   width  = 8,
-#   height = 5,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(final_plot)
-# 
-# dev.off()
+pdf(
+  file   = "degree.pdf",
+  width  = 8,
+  height = 5,
+  family = "Helvetica"
+)
+
+grid::grid.draw(final_plot)
+
+dev.off()
 
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
@@ -2841,7 +2888,7 @@ map_missing_links_offs <- ggplot(df_summary_offs, aes(x = node_to, y = node_from
 
 map_missing_links_offs
 
-# what's the difference?
+## ---- what's the difference? ----
 identical(df_summary_offs$node_from, df_summary_diag$node_from)
 
 # 1. Which links only appear in one of the two data-frames?
@@ -2875,7 +2922,7 @@ diff_df <- full_join(
     diff_overall_plant_degree= overall_plant_degree_offs- overall_plant_degree_diag
   )
 
-view(diff_df)
+#view(diff_df)
 
 # these are interactions that were predicted to exist in the off-diagonals but not in the diagonal
 diff_df_filtered <- diff_df %>% filter(avg_sigm_predicted_diag < 0.6 & avg_sigm_predicted_offs >= 0.6)
@@ -2941,11 +2988,11 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
       "both↑"       = "lightsteelblue"
     ),
     na.value = NA,
-    name   = "Difference in \npredicted probability",
+    name   = "Difference in \nprediction approach",
     labels = c(
-      "offs↑ only" = "Added location ≥ 0.6\n& single location < 0.6",
-      "diag↑ only" = "Single location ≥ 0.6\n& added location < 0.6",
-      "both↑"       = "Both ≥ 0.6"
+      "offs↑ only" = "Predicted only by \nadding external location",
+      "diag↑ only" = "Predicted only by \nsingle location",
+      "both↑"       = "Predicted by both"
     )
   ) +
   
@@ -2967,6 +3014,7 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   ) +
   tme
 
+map_missing_links_diags_offs
 # pdf(
 #   file   = "map_missing_links_diags_offs.pdf",
 #   width  = 11,    # inches
@@ -3053,6 +3101,62 @@ map_missing_links_marked_offs
 # print(map_missing_links_marked_offs)
 # dev.off()     # close the file
 
+# pie chart
+
+# 1. Count how many interactions fall into each category
+df_counts <- df_plot %>%
+  filter(sigm_cat != "NA") %>% 
+  count(sigm_cat, name = "n") %>%
+  arrange(desc(sigm_cat)) %>%          # optional: control legend/order
+  mutate(
+    frac = n / sum(n),                 # fraction of total
+    pct  = percent(frac)               # human‑readable percent
+  )
+
+# 2. Define your colors
+my_cols <- c(
+  "offs↑ only"  = "salmon",
+  "diag↑ only"  = "plum3",
+  "both↑"       = "lightsteelblue"
+)
+
+new_labels <- c(
+  "offs↑ only" = "Predicted only by external location" ,
+  "diag↑ only" = "Predicted only by single location" ,
+  "both↑"      = "Predicted by both approaches"
+)
+# 3. Make the pie
+pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
+  geom_col(width = 1, color = "white") +      # white border between slices
+  coord_polar(theta = "y") +                  # convert bar → pie
+  scale_fill_manual(values = my_cols,
+                    labels = new_labels) +
+  theme_void() +                              # remove axes/background
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 17),
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    legend.position  = "bottom",
+    legend.direction = "vertical"
+  ) +
+  #labs(title = "Interactions by Significance Category") +
+  geom_text(
+    aes(label = n),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    size = 7
+  )
+
+pie_chart
+# pdf(
+#   file   = "pie_chart.pdf",
+#   width  = 7,    # inches
+#   height = 7,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(pie_chart)
+# dev.off()     # close the file
+
 ### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
 # filter the interactions that were always observed as zeros yet predicted to exist
 df_all_itr_zero <- df %>%
@@ -3121,6 +3225,8 @@ missing_links <- ggplot(df_top_10,
     #title = "Mean predicted value and significance"
   ) +
   theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
+
+missing_links
 # 
 # pdf(
 #   file   = "missing_links.pdf",
@@ -4592,12 +4698,12 @@ df_long <- bind_rows(
   result_summary_island %>% mutate(scale = "Island")
 ) %>%
   pivot_longer(
-    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc", "rmse"),
+    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc"),
     names_to  = "metric",
     values_to = "value"
   ) %>%
   mutate(metric = factor(metric, levels = c(
-    "balanced_accuracy", "recall", "precision", "specificity", "mcc", "rmse"
+    "balanced_accuracy", "recall", "precision", "specificity", "mcc"
   )))
 
 # 2. Pretty facet titles with units:
@@ -4606,8 +4712,7 @@ metric_labels <- c(
   recall            = "Recall",
   precision         = "Precision",
   specificity       = "Specificity",
-  mcc               = "MCC",
-  rmse              = "RMSE"
+  mcc               = "MCC"
   
 )
 
