@@ -1530,7 +1530,8 @@ df_sorensen <- df_plant_partners %>%
     }
   )
 
-df_merged <- df %>%
+df_off <- df %>% filter(train_layer != test_layer)
+df_merged <- df_off %>%
   left_join(df_sorensen, by = "node_from")
 
 ### ---- pollinators fidelity ----
@@ -2004,8 +2005,9 @@ rmse_fidelity_species_island <- grid.arrange(
 # dev.off()
 
 # try nnse
-# One‐row‐per‐plant with pooled RMSE
+# One‐row‐per‐plant with pooled nnse
 plant_nnse <- df %>%
+  filter(train_layer != test_layer) %>% 
   group_by(node_from) %>%
   summarise(
     nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
@@ -2014,6 +2016,7 @@ plant_nnse <- df %>%
   )
 
 poll_nnse <- df %>%
+  filter(train_layer != test_layer) %>% 
   group_by(node_to) %>%
   summarise(
     nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
@@ -2044,6 +2047,8 @@ per_plant_fidelity <- make_simple_correlation_plot(
   trend_color = "steelblue"
 )
 
+per_plant_fidelity
+
 # Pollinators:
 per_poll_fidelity <- make_simple_correlation_plot(
   data        = poll_analysis,
@@ -2055,6 +2060,8 @@ per_poll_fidelity <- make_simple_correlation_plot(
   point_color = "thistle",
   trend_color = "steelblue"
 )
+
+per_poll_fidelity
 
 per_plant_fidelity <- per_plant_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
 per_poll_fidelity <- per_poll_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
