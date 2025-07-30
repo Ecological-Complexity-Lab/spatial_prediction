@@ -1510,8 +1510,8 @@ df_sorensen <- df_plant_partners %>%
   summarise(
     mean_sorensen_plants = {
       n_layers <- n()
-      # If the plant is only in one layer, there are no pairs, so return NA
-      if (n_layers < 2) {
+      # If the plant is only in one layer, there are no pairs, so return NA.select only species the occur in at least 3 islands
+      if (n_layers < 3) {
         NA_real_
       } else {
         # Get all pairwise combinations of rows in this group
@@ -1530,7 +1530,13 @@ df_sorensen <- df_plant_partners %>%
     }
   )
 
-df_off <- df %>% filter(train_layer != test_layer)
+# we filter out single-island predictions since what is relevant here is prediction across space
+df_off <- df %>% 
+  filter(train_layer != test_layer) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
 df_merged <- df_off %>%
   left_join(df_sorensen, by = "node_from")
 
@@ -1548,7 +1554,7 @@ df_sorensen_pollinators <- df_pollinators %>%
     mean_sorensen_pollinators = {
       n_layers <- n()
       # If the plant is only in one layer, there are no pairs, so return NA
-      if (n_layers < 2) {
+      if (n_layers < 3) {
         NA_real_
       } else {
         # Get all pairwise combinations of rows in this group
@@ -1571,69 +1577,96 @@ df_merged <- df_merged %>%
   left_join(df_sorensen_pollinators, by = "node_to")
 
 ### --- correlation with evaluators ----
-summary_df <- df_merged %>%
-  group_by(train_layer, test_layer) %>%
+#### ---- per-species f1 ----
+# how many removed 1s and 0s do we have?
+# For plants:
+removed_count_plants <- df_merged %>%
+  filter(removed == 1) %>% 
+  group_by(plant = node_from) %>%
   summarise(
-    avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
-    avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
+    n_removed_0    = sum(original_binary == 0, na.rm = TRUE),
+    n_removed_1    = sum(original_binary == 1, na.rm = TRUE),
+  ) %>%
+  arrange(plant)
+
+# For pollinators:
+removed_count_polls <- df_merged %>%
+  filter(removed == 1) %>% 
+  group_by(pollinator = node_to) %>%
+  summarise(
+    n_removed_0    = sum(original_binary == 0, na.rm = TRUE),
+    n_removed_1    = sum(original_binary == 1, na.rm = TRUE),
+  ) %>%
+  arrange(pollinator)
+
+# pick one column to define the “species” whose performance you want:
+# e.g. evaluate by node_from
+df_performance_plants <- df_merged %>%
+  # keep only rows with non‑missing true & predicted
+  filter(!is.na(original_binary), !is.na(predicted_bin_sigm)) %>%
+  # group by species (node_from or node_to)
+  group_by(species = node_from) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    # compute precision, recall, F1; protect against zero‑division
+    precision = if_else(TP + FP > 0, TP / (TP + FP), NA_real_),
+    recall    = if_else(TP + FN > 0, TP / (TP + FN), NA_real_),
+    f1_score        = if_else(precision + recall > 0,
+                        2 * precision * recall / (precision + recall), 
+                        NA_real_)
   ) %>%
   ungroup()
 
-result_summary <- result_summary %>%
-  left_join(summary_df, by = c("train_layer", "test_layer"))
+df_performance_polls <- df_merged %>%
+  # keep only rows with non‑missing true & predicted
+  filter(!is.na(original_binary), !is.na(predicted_bin_sigm)) %>%
+  # group by species (node_from or node_to)
+  group_by(species = node_to) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    # compute precision, recall, F1; protect against zero‑division
+    precision = if_else(TP + FP > 0, TP / (TP + FP), NA_real_),
+    recall    = if_else(TP + FN > 0, TP / (TP + FN), NA_real_),
+    f1_score        = if_else(precision + recall > 0,
+                        2 * precision * recall / (precision + recall), 
+                        NA_real_)
+  ) %>%
+  ungroup()
 
-working_df_offs <- result_summary %>% filter (train_layer != test_layer)
+# add to partner fidelities from df_merged
+# 1) Compute per‑species average Sorensen for each role
+poll_fid <- df_merged %>%
+  group_by(species = node_to) %>%
+  summarise(
+    avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-# correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
-# correlation
-# # Extract correlation coefficient and p-value
-# r_value <- round(correlation$estimate, 3)
-# p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-# label_text <- paste0("r = ", r_value, ", p = ", p_value)
-# 
-# pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
-#   geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
-#   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-#   labs(x = "Mean Sorensen similarity",
-#        y = "F1 score",
-#        title = "Island scale (pollinators)") +
-#   tme +
-#   annotate("text",
-#               x = Inf,
-#               y = Inf,
-#               hjust = 1.1,
-#               vjust = 1.2,   # Adjust depending on your data range
-#            label = label_text,
-#            size = 3.5,
-#            color = "black")+
-#   theme(axis.title.y = element_blank()) # for the unified plot
-# 
-# correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
-# correlation
-# 
-# # Extract correlation coefficient and p-value
-# r_value <- round(correlation$estimate, 3)
-# p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-# label_text <- paste0("r = ", r_value, ", p = ", p_value)
-# 
-# plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
-#   geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
-#   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-#   labs(x = "Mean Sorensen similarity",
-#        y = "F1 score",
-#        title = "Island scale (plants)") +
-#   tme +
-#   annotate("text", x = Inf, y = Inf, label = label_text,
-#             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
-#   theme(axis.title.y = element_blank()) # for the unified plot
-# 
-# 
-# grid.arrange(
-#   arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
-#   left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
-# )
-#   
+plant_fid <- df_merged %>%
+  group_by(species = node_from) %>%
+  summarise(
+    avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
+    .groups = "drop"
+  )
 
+# 3) Build one “long” data frame that contains:
+#    – For pollinators: species, their f1_score, avg_sorensen_pollinators, NA for the plant‐fidelity column
+#    – For plants:    species, their f1_score, avg_sorensen_plants,     NA for the pollinator‐fidelity column
+df_for_plot <- bind_rows(
+  df_performance_polls %>%
+    left_join(poll_fid, by = "species") %>%
+    mutate(avg_sorensen_plants = NA_real_),
+  
+  df_performance_plants %>%
+    left_join(plant_fid, by = "species") %>%
+    mutate(avg_sorensen_pollinators = NA_real_)
+)
+
+# plot
 # Function to make one correlation plot
 make_simple_correlation_plot <- function(data,
                                          x_var,
@@ -1673,7 +1706,7 @@ make_simple_correlation_plot <- function(data,
              x = Inf, y = Inf,
              hjust = 1.1, vjust = 1.2,
              label = label_text,
-             size = 5,
+             size = 4,
              color = "black")
   
   # Optionally remove axis titles
@@ -1755,6 +1788,184 @@ make_full_correlation_plot <- function(data,
   
   return(final_plot)
 }
+# 4) Now call your master plotting function:
+#    This will automatically split off the two panels,
+#    use avg_sorensen_pollinators vs. f1_score for the “Pollinators” plot,
+#    and avg_sorensen_plants     vs. f1_score for the “Plants” plot.
+make_full_correlation_plot(
+  data            = df_for_plot,
+  evaluator       = "f1_score",
+  pollinator_x    = "avg_sorensen_pollinators",
+  plant_x         = "avg_sorensen_plants",
+  shared_x_lab    = "Mean partner‐fidelity (Sørensen)",
+  shared_y_lab    = "F1 score"
+)
+
+
+# balanced f1 version
+df_clean <- df_merged %>%
+  filter(removed == 1) %>% 
+  filter(!is.na(original_binary), !is.na(predicted_bin_sigm))
+
+set.seed(42)
+
+# 2) A helper that, given one species’ data.frame, 
+#    does one draw of a balanced F₁
+compute_balanced_f1 <- function(df_sp) {
+  # split positives / negatives
+  pos <- df_sp %>% filter(original_binary == 1)
+  neg <- df_sp %>% filter(original_binary == 0)
+  
+  n_pos <- nrow(pos)
+  n_neg <- nrow(neg)
+  
+  # if either class is missing, we can’t compute F1
+  if (n_pos == 0 || n_neg == 0) {
+    return(NA_real_)
+  }
+  
+  # sample size = the smaller of the two
+  n <- min(n_pos, n_neg)
+  
+  # draw one balanced sample
+  samp_pos <- pos %>% sample_n(n)
+  samp_neg <- neg %>% sample_n(n)
+  samp     <- bind_rows(samp_pos, samp_neg)
+  
+  # compute TP, FP, FN
+  TP <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 1)
+  FP <- sum(samp$original_binary == 0 & samp$predicted_bin_sigm == 1)
+  FN <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 0)
+  
+  # precision, recall
+  precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA_real_
+  recall    <- if ((TP + FN) > 0) TP / (TP + FN) else NA_real_
+  
+  # F1
+  if (is.na(precision) || is.na(recall) || (precision + recall) == 0) {
+    return(NA_real_)
+  } else {
+    return(2 * precision * recall / (precision + recall))
+  }
+}
+
+# 3) For pollinators (node_to), bootstrap 50× per species
+df_balanced_f1_polls <- df_clean %>%
+  group_by(species = node_to) %>%
+  group_modify(~ {
+    f1s <- replicate(50, compute_balanced_f1(.x))
+    tibble(
+      mean_f1 = mean(f1s, na.rm = TRUE),
+      sd_f1   = sd(  f1s, na.rm = TRUE)
+    )
+  }) %>%
+  ungroup()
+
+# 4) Do the same for plants (node_from)
+df_balanced_f1_plants <- df_clean %>%
+  group_by(species = node_from) %>%
+  group_modify(~ {
+    f1s <- replicate(50, compute_balanced_f1(.x))
+    tibble(
+      mean_f1 = mean(f1s, na.rm = TRUE),
+      sd_f1   = sd(  f1s, na.rm = TRUE)
+    )
+  }) %>%
+  ungroup()
+
+df_for_plot_balanced <- bind_rows(
+  df_balanced_f1_polls %>%
+    left_join(poll_fid, by = "species") %>%
+    mutate(avg_sorensen_plants = NA_real_),
+  
+  df_balanced_f1_plants %>%
+    left_join(plant_fid, by = "species") %>%
+    mutate(avg_sorensen_pollinators = NA_real_)
+)
+
+balanced_f1_fidelity <- make_full_correlation_plot(
+  data            = df_for_plot_balanced,
+  evaluator       = "mean_f1",
+  pollinator_x    = "avg_sorensen_pollinators",
+  plant_x         = "avg_sorensen_plants",
+  shared_x_lab    = "Mean partner fidelity (Sørensen)",
+  shared_y_lab    = "F1 score per species"
+)
+
+# pdf(
+#   file   = "balanced_f1_fidelity.pdf",
+#   width  = 7,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(balanced_f1_fidelity)
+# 
+# dev.off()
+# #### ---- general ----
+# summary_df <- df_merged %>%
+#   group_by(train_layer, test_layer) %>%
+#   summarise(
+#     avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
+#     avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
+#   ) %>%
+#   ungroup()
+# 
+# result_summary <- result_summary %>%
+#   left_join(summary_df, by = c("train_layer", "test_layer"))
+# 
+# working_df_offs <- result_summary %>% filter (train_layer != test_layer)
+# 
+# # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
+# # correlation
+# # # Extract correlation coefficient and p-value
+# # r_value <- round(correlation$estimate, 3)
+# # p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+# # label_text <- paste0("r = ", r_value, ", p = ", p_value)
+# # 
+# # pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
+# #   geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
+# #   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+# #   labs(x = "Mean Sorensen similarity",
+# #        y = "F1 score",
+# #        title = "Island scale (pollinators)") +
+# #   tme +
+# #   annotate("text",
+# #               x = Inf,
+# #               y = Inf,
+# #               hjust = 1.1,
+# #               vjust = 1.2,   # Adjust depending on your data range
+# #            label = label_text,
+# #            size = 3.5,
+# #            color = "black")+
+# #   theme(axis.title.y = element_blank()) # for the unified plot
+# # 
+# # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
+# # correlation
+# # 
+# # # Extract correlation coefficient and p-value
+# # r_value <- round(correlation$estimate, 3)
+# # p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
+# # label_text <- paste0("r = ", r_value, ", p = ", p_value)
+# # 
+# # plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
+# #   geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
+# #   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
+# #   labs(x = "Mean Sorensen similarity",
+# #        y = "F1 score",
+# #        title = "Island scale (plants)") +
+# #   tme +
+# #   annotate("text", x = Inf, y = Inf, label = label_text,
+# #             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
+# #   theme(axis.title.y = element_blank()) # for the unified plot
+# # 
+# # 
+# # grid.arrange(
+# #   arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
+# #   left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
+# # )
+# #   
+
 
 # For F1 score
 f1_fidelity <- make_full_correlation_plot(working_df_offs,
@@ -2091,19 +2302,19 @@ per_species_fidelity <- per_plant_fidelity + per_poll_fidelity
 
 ### ---- pairwise F1 ----
 # One‐row‐per‐plant with pooled f1
-plant_f1 <- df %>%
-  filter(train_layer != test_layer) %>% 
-  group_by(node_from) %>%
-  summarise(
-    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    .groups = "drop"
-  )
+# plant_f1 <- df %>%
+#   filter(train_layer != test_layer) %>% 
+#   group_by(node_from) %>%
+#   summarise(
+#     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+#     FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+#     TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+#     FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+#     precision = TP / (TP + FP),
+#     recall = TP / (TP + FN),
+#     f1_score = 2 * (precision * recall) / (precision + recall),
+#     .groups = "drop"
+#   )
 
 # combine_plots_fidelity <- function(p1, p2,
 #                           bottom_label = "Mean Sorensen similarity",
