@@ -143,6 +143,7 @@ df_shared_plants <- read.csv('weighted__scaled_island_net_60_100_itr_shared_plan
 df_shared_pollinators <- read.csv('weighted_scaled_island_net_60_100_itr_shared_pollinators.csv')
 df_shared_species <- read.csv('weighted__scaled_island_net_60_100_itr_shared_species.csv')
 
+# convert negative values to zeros
 df_all <- df_all %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 df_shared_plants <- df_shared_plants %>%
@@ -478,10 +479,10 @@ comparisons <- list(
 
 # 2) Define a custom palette (4 colours)
 my_palette <- c(
-  "All"                = "lightsteelblue",
+  "All"                = "rosybrown2",
   "Shared plants"      = "seagreen",
-  "Shared pollinators" = "thistle",
-  "Shared species"     = "orange"
+  "Shared pollinators" = "coral",
+  "Shared species"     = "thistle"
 )
 
 # 3) Plot
@@ -502,7 +503,7 @@ ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
   ) +
   labs(
     x = "Network subset",
-    y = "nNSE"
+    y = "NNSE"
   ) +
   theme_minimal() +
   tme + 
@@ -548,6 +549,68 @@ ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
     axis.text.x  = element_text(angle = 25, hjust = 1),
     panel.grid.major.x = element_blank()
   )
+
+#### ---- f1 and nnse ----
+# your data frame is df_plot; define comparison and palette:
+comparisons <- list(c("All", "Shared species"))
+
+# filter to just the two datasets
+df_sub <- df_plot %>%
+  filter(dataset %in% c("All", "Shared species"))
+
+# — make individual plots ----------------------------------------------------
+p_nnse <- ggplot(df_sub, aes(x = dataset, y = nnse, fill = dataset)) +
+  geom_boxplot(notch = TRUE, alpha = 0.6) +
+  stat_compare_means(
+    comparisons = comparisons,
+    method      = "t.test",
+    label       = "p.format",
+    tip.length  = 0.01
+  ) +
+  scale_fill_manual(values = my_palette, guide = FALSE) +
+  labs(y = "NNSE") +
+  theme_minimal() +
+  tme +  # your custom theme
+  theme(
+    axis.text.x         = element_text(angle = 25, hjust = 1),
+    panel.grid.major.x  = element_blank(),
+    axis.title.x        = element_blank()  # we'll add a shared x‐label later
+  )
+
+p_f1 <- ggplot(df_sub, aes(x = dataset, y = f1_score, fill = dataset)) +
+  geom_boxplot(notch = TRUE, alpha = 0.6) +
+  stat_compare_means(
+    comparisons = comparisons,
+    method      = "t.test",
+    label       = "p.format",
+    tip.length  = 0.01
+  ) +
+  scale_fill_manual(values = my_palette, guide = FALSE) +
+  labs(y = "F1 score") +
+  theme_minimal() +
+  tme +
+  theme(
+    axis.text.x         = element_text(angle = 25, hjust = 1),
+    panel.grid.major.x  = element_blank(),
+    axis.title.x        = element_blank()
+  )
+
+# — combine with a shared x-axis label --------------------------------------
+combined <- (p_nnse | p_f1) +       # side by side
+  plot_layout(ncol = 2) &           # ensure two columns
+  labs(x = "Network subset")     # shared x‐axis label
+
+# — draw it ------------------------------------------------------------------
+print(combined)
+
+pdf(
+  file   = "subset_analysis.pdf",
+  width  = 7,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(combined)
+dev.off()     # close the file
 
 ### ---- missing interactions and venn ----
 
