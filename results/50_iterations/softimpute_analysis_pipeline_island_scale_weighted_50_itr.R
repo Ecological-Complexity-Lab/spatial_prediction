@@ -1376,15 +1376,15 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags,
                                         facet_scales = "free_x")
 jaccard_isl_f1
 
-# Base‐R PDF device
-pdf(
-  file   = "jaccard_isl_f1.pdf",
-  width  = 7,    # inches
-  height = 3.5,
-  family = "Helvetica"   # or another installed font
-)
-print(jaccard_isl_f1)
-dev.off()     # close the file
+# # Base‐R PDF device
+# pdf(
+#   file   = "jaccard_isl_f1.pdf",
+#   width  = 7,    # inches
+#   height = 3.5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(jaccard_isl_f1)
+# dev.off()     # close the file
 
 # png(
 #   filename = "jaccard_isl_f1.png",
@@ -1914,7 +1914,8 @@ balanced_f1_fidelity <- make_full_correlation_plot(
 # result_summary <- result_summary %>%
 #   left_join(summary_df, by = c("train_layer", "test_layer"))
 # 
-# working_df_offs <- result_summary %>% filter (train_layer != test_layer)
+
+#working_df_offs <- result_summary %>% filter (train_layer != test_layer)
 # 
 # # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
 # # correlation
@@ -1967,14 +1968,14 @@ balanced_f1_fidelity <- make_full_correlation_plot(
 # #   
 
 
-# For F1 score
-f1_fidelity <- make_full_correlation_plot(working_df_offs,
-                           evaluator = "f1_score",
-                           shared_y_lab = "F1 score")
-
-nnse_fidelity <- make_full_correlation_plot(working_df_offs,
-                                          evaluator = "nnse",
-                                          shared_y_lab = "NNSE")
+# # For F1 score
+# f1_fidelity <- make_full_correlation_plot(working_df_offs,
+#                            evaluator = "f1_score",
+#                            shared_y_lab = "F1 score")
+# 
+# nnse_fidelity <- make_full_correlation_plot(working_df_offs,
+#                                           evaluator = "nnse",
+#                                           shared_y_lab = "NNSE")
 
 
 # Base‐R PDF device
@@ -2000,21 +2001,21 @@ nnse_fidelity <- make_full_correlation_plot(working_df_offs,
 # dev.off() 
 
 # For recall
-make_full_correlation_plot(working_df_offs, evaluator = "recall")
-
-# For precision
-make_full_correlation_plot(working_df_offs, evaluator = "precision")
-
-make_full_correlation_plot(working_df_offs,
-                           evaluator = "balanced_accuracy",
-                           shared_y_lab = "Balanced accuracy")
-
-make_full_correlation_plot(working_df_offs, evaluator = "specificity")
-
-rmse_fidelity <- make_full_correlation_plot(working_df_offs,
-                           evaluator = "rmse",
-                           shared_y_lab = "RMSE")
-
+# make_full_correlation_plot(working_df_offs, evaluator = "recall")
+#
+# # For precision
+# make_full_correlation_plot(working_df_offs, evaluator = "precision")
+#
+# make_full_correlation_plot(working_df_offs,
+#                            evaluator = "balanced_accuracy",
+#                            shared_y_lab = "Balanced accuracy")
+#
+# make_full_correlation_plot(working_df_offs, evaluator = "specificity")
+#
+# rmse_fidelity <- make_full_correlation_plot(working_df_offs,
+#                            evaluator = "rmse",
+#                            shared_y_lab = "RMSE")
+#
 # pdf(
 #   file   = "rmse_fidelity.pdf",
 #   width  = 7,
@@ -2036,9 +2037,9 @@ rmse_fidelity <- make_full_correlation_plot(working_df_offs,
 # grid::grid.draw(rmse_fidelity)
 # dev.off() 
 
-make_full_correlation_plot(working_df_offs,
-                           evaluator = "mse",
-                           shared_y_lab = "MSE")
+# make_full_correlation_plot(working_df_offs,
+#                            evaluator = "mse",
+#                            shared_y_lab = "MSE")
 
 ### ---- check it for pairwise partner fidelity ----
 df_fid <- df %>%
@@ -2114,96 +2115,96 @@ df_error <- df_removed %>% filter(test_layer != train_layer) # (it does not chan
 #     .groups = "drop"
 #   )
 
-# try rmse
-
-# One‐row‐per‐plant with pooled RMSE
-plant_rmse <- df %>%
-  group_by(node_from) %>%
-  summarise(
-    rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
-    .groups = "drop"
-  )
-
-
-poll_rmse <- df %>%
-  group_by(node_to) %>%
-  summarise(
-    rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
-    .groups = "drop"
-  )
-
-# merge fidelity and error for correlation
-plant_analysis <- plant_fid %>%
-  inner_join(plant_rmse, by = "node_from")
-
-poll_analysis  <- poll_fid %>%
-  inner_join(poll_rmse,  by = "node_to")
-
-poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
-
-# plot
-
-# Plants:
-per_plant_fidelity <- make_simple_correlation_plot(
-  data        = plant_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "rmse",
-  x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "RMSE",
-  plot_title  = "Plants",
-  point_color = "darkseagreen3",
-  trend_color = "steelblue"
-)
-
-# Pollinators:
-per_poll_fidelity <- make_simple_correlation_plot(
-  data        = poll_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "rmse",
-  x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "RMSE",
-  plot_title  = "Pollinators",
-  point_color = "thistle",
-  trend_color = "steelblue"
-)
-
-# assume you already have:
-#   per_plant_fidelity  ← a ggplot for Plants
-#   per_poll_fidelity   ← a ggplot for Pollinators
-#   rmse_fidelity       ← the output of make_full_correlation_plot()
-
-
-# 1) Remove axis titles from each plot
-per_plant_clean <- per_plant_fidelity +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
-
-per_poll_clean <- per_poll_fidelity +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
-
-rmse_clean <- rmse_fidelity +
-  theme(
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
-  )
-
-# 2) Combine in a 2×2 layout (bottom row spans both columns)
-rmse_fidelity_species_island <- grid.arrange(
-  per_plant_clean, per_poll_clean, rmse_clean,
-  layout_matrix = rbind(c(1,2), c(3,3)),
-  heights       = c(1,1),
-  left   = textGrob("RMSE", 
-                    rot =  90,
-                    gp  = gpar(fontsize=16, fontface="bold")),
-  bottom = textGrob("Partner fidelity (mean Sorensen)",
-                    gp = gpar(fontsize=16, fontface="bold"))
-)
-
+# # try rmse
+# 
+# # One‐row‐per‐plant with pooled RMSE
+# plant_rmse <- df %>%
+#   group_by(node_from) %>%
+#   summarise(
+#     rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
+#     .groups = "drop"
+#   )
+# 
+# 
+# poll_rmse <- df %>%
+#   group_by(node_to) %>%
+#   summarise(
+#     rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
+#     .groups = "drop"
+#   )
+# 
+# # merge fidelity and error for correlation
+# plant_analysis <- plant_fid %>%
+#   inner_join(plant_rmse, by = "node_from")
+# 
+# poll_analysis  <- poll_fid %>%
+#   inner_join(poll_rmse,  by = "node_to")
+# 
+# poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
+# 
+# # plot
+# 
+# # Plants:
+# per_plant_fidelity <- make_simple_correlation_plot(
+#   data        = plant_analysis,
+#   x_var       = "partner_fidelity",
+#   evaluator   = "rmse",
+#   x_lab       = "Partner fidelity (mean Sorensen)",
+#   y_lab       = "RMSE",
+#   plot_title  = "Plants",
+#   point_color = "darkseagreen3",
+#   trend_color = "steelblue"
+# )
+# 
+# # Pollinators:
+# per_poll_fidelity <- make_simple_correlation_plot(
+#   data        = poll_analysis,
+#   x_var       = "partner_fidelity",
+#   evaluator   = "rmse",
+#   x_lab       = "Partner fidelity (mean Sorensen)",
+#   y_lab       = "RMSE",
+#   plot_title  = "Pollinators",
+#   point_color = "thistle",
+#   trend_color = "steelblue"
+# )
+# 
+# # assume you already have:
+# #   per_plant_fidelity  ← a ggplot for Plants
+# #   per_poll_fidelity   ← a ggplot for Pollinators
+# #   rmse_fidelity       ← the output of make_full_correlation_plot()
+# 
+# 
+# # 1) Remove axis titles from each plot
+# per_plant_clean <- per_plant_fidelity +
+#   theme(
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank()
+#   )
+# 
+# per_poll_clean <- per_poll_fidelity +
+#   theme(
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank()
+#   )
+# 
+# rmse_clean <- rmse_fidelity +
+#   theme(
+#     axis.title.x = element_blank(),
+#     axis.title.y = element_blank()
+#   )
+# 
+# # 2) Combine in a 2×2 layout (bottom row spans both columns)
+# rmse_fidelity_species_island <- grid.arrange(
+#   per_plant_clean, per_poll_clean, rmse_clean,
+#   layout_matrix = rbind(c(1,2), c(3,3)),
+#   heights       = c(1,1),
+#   left   = textGrob("RMSE", 
+#                     rot =  90,
+#                     gp  = gpar(fontsize=16, fontface="bold")),
+#   bottom = textGrob("Partner fidelity (mean Sorensen)",
+#                     gp = gpar(fontsize=16, fontface="bold"))
+# )
+# 
 # pdf(
 #   file   = "rmse_fidelity_species_island.pdf",
 #   width  = 7,
@@ -2424,8 +2425,6 @@ make_simple_correlation_plot(
 
 # checking fidelity for each specific combination of layers
 # for each unique layer combination
-
-library(dplyr)
 
 compute_sorensen_long <- function(df_part, species_col) {
   df_part %>%
@@ -2701,18 +2700,19 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            color = "black")
 poll_degree
 
+
 final_plot <- combine_plots(plant_degree, poll_degree)
 
-pdf(
-  file   = "degree.pdf",
-  width  = 8,
-  height = 5,
-  family = "Helvetica"
-)
-
-grid::grid.draw(final_plot)
-
-dev.off()
+# pdf(
+#   file   = "degree.pdf",
+#   width  = 8,
+#   height = 5,
+#   family = "Helvetica"
+# )
+# 
+# grid::grid.draw(final_plot)
+# 
+# dev.off()
 
 ## ---- never-observed links ----
 ### ---- heatmap related to island proportion ----
