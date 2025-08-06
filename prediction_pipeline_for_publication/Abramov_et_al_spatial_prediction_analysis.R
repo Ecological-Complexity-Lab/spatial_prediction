@@ -161,6 +161,47 @@ sigmoid <- function(x) {
   1 / (1 + exp(-x))
 }
 
+# calculate balanced per-species f1 score
+# 2) A helper that, given one species’ data.frame, 
+#    does one draw of a balanced F₁
+compute_balanced_f1 <- function(df_sp) {
+  # split positives / negatives
+  pos <- df_sp %>% filter(original_binary == 1)
+  neg <- df_sp %>% filter(original_binary == 0)
+  
+  n_pos <- nrow(pos)
+  n_neg <- nrow(neg)
+  
+  # if either class is missing, we can’t compute F1
+  if (n_pos == 0 || n_neg == 0) {
+    return(NA_real_)
+  }
+  
+  # sample size = the smaller of the two
+  n <- min(n_pos, n_neg)
+  
+  # draw one balanced sample
+  samp_pos <- pos %>% sample_n(n)
+  samp_neg <- neg %>% sample_n(n)
+  samp     <- bind_rows(samp_pos, samp_neg)
+  
+  # compute TP, FP, FN
+  TP <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 1)
+  FP <- sum(samp$original_binary == 0 & samp$predicted_bin_sigm == 1)
+  FN <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 0)
+  
+  # precision, recall
+  precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA_real_
+  recall    <- if ((TP + FN) > 0) TP / (TP + FN) else NA_real_
+  
+  # F1
+  if (is.na(precision) || is.na(recall) || (precision + recall) == 0) {
+    return(NA_real_)
+  } else {
+    return(2 * precision * recall / (precision + recall))
+  }
+}
+
 # function for plotting ROC curve with ggplot2
 plot_roc_curve <- function(true_labels, predicted_scores) {
   # Create the ROC object and compute AUC
@@ -257,6 +298,332 @@ plot_hist <- function(data, metric,
       panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
     ) +
     scale_fill_manual(values = custom_colors) + tme
+}
+
+plot_netsize <- function(data, evaluator = "f1_score",
+                         facet_labels = NULL,
+                         evaluator_label = NULL,
+                         title_text = NULL) {
+  
+  evaluator_sym <- rlang::sym(evaluator)  # Treat evaluator as a column
+  
+  # Calculate correlations
+  cor_table <- data %>%
+    group_by(measure_type) %>%
+    summarise(
+      cor_value = cor(!!evaluator_sym, measure_value, use = "complete.obs", method = "pearson"),
+      p_value   = cor.test(!!evaluator_sym, measure_value, method = "pearson")$p.value,
+      .groups = "drop"
+    )
+  
+  # Create annotation table
+  cor_table_annot <- cor_table %>%
+    mutate(
+      r_fmt = formatC(cor_value, format = "f", digits = 2),
+      p_fmt = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),  # Scientific notation for very small p-values
+        formatC(p_value, format = "f", digits = 3)   # Regular fixed format otherwise
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  
+  # Build the plot
+  plot <- ggplot(data, aes(x = measure_value, y = !!evaluator_sym)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    facet_wrap(
+      ~ measure_type,
+      scales   = "free_x",
+      labeller = as_labeller(facet_labels)
+    ) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    geom_text(
+      data    = cor_table_annot,
+      aes(label = label_text),
+      x       = Inf,
+      y       = Inf,
+      hjust   = 1.1,
+      vjust   = 1.2,
+      size    = 3.2,
+      inherit.aes = FALSE
+    ) +
+    labs(
+      x = "Network feature",
+      y = ifelse(is.null(evaluator_label), evaluator, evaluator_label),
+      title = ifelse(is.null(title_text), paste(evaluator, "vs. network measures"), title_text)
+    ) +
+    theme_minimal() +
+    tme +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks = element_line(color = "black"),
+      strip.text = element_text(size = 12)
+    )
+  
+  return(plot)
+}
+
+plot_f1_nnse_vs_size_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        measure_type = c(size_P  = "Size of matrix P",
+                         size_C  = "Size of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network size",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
+make_facet_scatter_plot <- function(data,
+                                    evaluator = "f1_score", 
+                                    pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                    names_to = "jaccard_type", 
+                                    values_to = "jaccard_value",
+                                    x_lab = "Jaccard similarity",
+                                    y_lab = "F1 score",
+                                    plot_title = NULL,
+                                    facet_scales = "free_x") {
+  
+  # Reshape data from wide to long format for the specified pivot columns
+  df_long <- data %>% 
+    pivot_longer(cols = all_of(pivot_cols), 
+                 names_to = names_to, 
+                 values_to = values_to)
+  
+  # For each facet (jaccard_type), compute correlation between the evaluator and jaccard_value
+  cor_table <- df_long %>%
+    group_by(!!sym(names_to)) %>%
+    summarise(
+      cor_value = cor(.data[[evaluator]], .data[[values_to]], use = "complete.obs", method = "pearson"),
+      p_value   = cor.test(.data[[evaluator]], .data[[values_to]], method = "pearson")$p.value
+    ) %>%
+    ungroup()
+  
+  # Create annotations with formatted correlation coefficients and p-values
+  cor_table_annot <- cor_table %>%
+    mutate(
+      r_fmt = formatC(cor_value, format = "f", digits = 2),
+      p_fmt = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),  # Scientific notation
+        formatC(p_value, format = "f", digits = 3)   # Otherwise
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  # Facet labels (renaming)
+  facet_labels <- c(
+    jaccard_edges = "Interaction overlap",
+    jaccard_plants = "Plants overlap",
+    jaccard_pollinators = "Pollinators overlap"
+  )
+  
+  # Construct the faceted scatter plot
+  plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+    facet_wrap(as.formula(paste("~", names_to)), 
+               scales = facet_scales,
+               labeller = as_labeller(facet_labels)) +
+    scale_x_continuous(labels = number_format(accuracy = 0.02)) +
+    # Place the correlation annotation in the upper-right corner of each facet
+    geom_text(data = cor_table_annot,
+              aes(label = label_text),
+              x = Inf,
+              y = Inf,
+              hjust = 1.1,
+              vjust = 1.2,
+              size = 3.2,
+              color = "black") +
+    labs(x = x_lab, y = y_lab, title = plot_title) +
+    theme_minimal() +
+    tme +
+    theme(
+      strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
+      panel.border = element_rect(color = "black", fill = NA, size = 1),
+      axis.ticks = element_line(color = "black"),
+      axis.text.x     = element_text(size = 9)                          )
+  
+  return(plot)
+}
+
+make_simple_correlation_plot <- function(data,
+                                         x_var,
+                                         evaluator,
+                                         x_lab = NULL,
+                                         y_lab = NULL,
+                                         plot_title,
+                                         point_color,
+                                         trend_color = "steelblue",
+                                         x_axis_blank = FALSE,
+                                         y_axis_blank = FALSE) {
+  
+  # Perform correlation test
+  correlation <- cor.test(data[[evaluator]], data[[x_var]], use = "complete.obs", method = "pearson")
+  
+  # Extract correlation coefficient and p-value
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  )  
+  
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Build the plot
+  p <- ggplot(data, aes_string(x = x_var, y = evaluator)) +
+    geom_point(color = point_color, alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = trend_color) +
+    labs(
+      x = x_lab,
+      y = y_lab,
+      title = plot_title
+    ) +
+    tme +
+    annotate("text",
+             x = Inf, y = Inf,
+             hjust = 1.1, vjust = 1.2,
+             label = label_text,
+             size = 4,
+             color = "black")
+  
+  # Optionally remove axis titles
+  if (y_axis_blank) {
+    p <- p + theme(axis.title.y = element_blank(),
+                   axis.text.y = element_blank())
+  }
+  if (x_axis_blank) {
+    p <- p + theme(axis.title.x = element_blank())
+  }
+  
+  return(p)
+}
+
+# Final master function to make the full double plot
+make_full_correlation_plot <- function(data,
+                                       evaluator = "f1_score",
+                                       pollinator_x = "avg_sorensen_pollinators",
+                                       plant_x = "avg_sorensen_plants",
+                                       shared_x_lab = "Mean Sorensen similarity",
+                                       shared_y_lab = NULL) {
+  
+  if (is.null(shared_y_lab)) {
+    # If user doesn't specify left y-axis label, use the evaluator name nicely formatted
+    shared_y_lab <- gsub("_", " ", evaluator)
+    shared_y_lab <- str_to_title(shared_y_lab)
+  }
+  
+  # Create plots (with no x labels)
+  pollinator_plot <- make_simple_correlation_plot(
+    data = data,
+    x_var = pollinator_x,
+    evaluator = evaluator,
+    x_lab = NULL,  # No individual x-label
+    y_lab = NULL,  # No individual y-label
+    plot_title = "Pollinators",
+    point_color = "thistle",
+    trend_color = "steelblue",
+    x_axis_blank = TRUE,
+    y_axis_blank = TRUE
+  )
+  
+  plant_plot <- make_simple_correlation_plot(
+    data = data,
+    x_var = plant_x,
+    evaluator = evaluator,
+    x_lab = NULL,  # No individual x-label
+    y_lab = NULL,  # No individual y-label
+    plot_title = "Plants",
+    point_color = "darkseagreen3",
+    trend_color = "steelblue",
+    x_axis_blank = TRUE,
+    y_axis_blank = FALSE
+  )
+  
+  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
+  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
+  
+  
+  # Arrange plots side by side
+  # plots_side_by_side <- arrangeGrob(
+  #   plant_plot, pollinator_plot,
+  #   ncol = 2
+  # )
+  # Arrange plots side by side with equal widths
+  plots_side_by_side <- arrangeGrob(
+    plant_plot, pollinator_plot,
+    ncol = 2,
+    widths = unit.c(unit(1.13, "null"), unit(1, "null"))  # Equal widths
+  )
+  
+  
+  # Add shared axis labels
+  final_plot <- grid.arrange(
+    plots_side_by_side,
+    left = textGrob(shared_y_lab, rot = 90, gp = gpar(fontsize = 13, fontface = "bold")),
+    bottom = textGrob(shared_x_lab, gp = gpar(fontsize = 13, fontface = "bold"))
+  )
+  
+  return(final_plot)
 }
 
 # combine plots
@@ -479,6 +846,10 @@ summary(combined_results)
 df <- combined_results %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
+# know thy network - what species do we have in the system?
+plant_species <- unique(df$node_from)           # get unique names
+pollinator_species <- unique(df$node_to)
+
 ### ---- c. evaluation ----
 ### ---- selecting optimal threshold ----
 # select the threshold for classifying links as 1s or 0s based on balance between f1 and balanced accuracy
@@ -648,7 +1019,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-## ---- distribution of evaluators with/without external data ----
+### ---- distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 # for reproducing Fig. 3b in the paper
 result_summary <- result_summary %>%
@@ -667,7 +1038,7 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
-hist_f1a
+hist_f1a # Fig. 3b
 
 # stats
 # run t-test via formula interface
@@ -689,29 +1060,12 @@ data.frame(
   p_value = p_val
 )
 
-# Combine and clean the species names
-plant_species <- unique(df$node_from)           # get unique names
-pollinator_species <- unique(df$node_to)
-plant_species_clean <- gsub("_", " ", plant_species)             # replace underscores with spaces
-pollinator_species_clean <- gsub("_", " ", pollinator_species)             # replace underscores with spaces
-
-# Optionally, store as a dataframe
-plants_df <- data.frame(species = plant_species_clean)
-pollinator_df <- data.frame(species = pollinator_species_clean)
-
-# View result
-print(plants_df)
-#write.csv(pollinator_df, "pollinators_in_canaries.csv")
-print(pollinator_df)
-## ---- network size and density correlation with evaluators ----
-# first we need to calculate the size and density of our networks
+### ---- e. ecological inference ----
+### ---- network size and density correlation with evaluators ----
+# here we calculate the size and density of the networks and correlate them with evaluation metrics.
+#### ---- calculate the size and density of our networks ----
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
-
-# Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
-# Load matrices. this is done differently for site scale and island scale.
-
-### ---- island scale ----
 
 # Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
 # Load matrices
@@ -767,7 +1121,7 @@ for (layers_to_train in 1:num_layers) {
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
     
-    ### ---- creating a combined matrix C ----
+    ### creating a combined matrix C 
     all_row_ids <- unique(c(rownames(A), rownames(P)))
     all_col_ids <- unique(c(colnames(A), colnames(P)))
     C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
@@ -818,93 +1172,25 @@ for (layers_to_train in 1:num_layers) {
   }
 }
 
-# View results
+# view results
 summary(results)
 
-#results %>% write_csv('result_netsize_canaries_island_scale_50_itr.csv')
-
+# add them to the results table
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-### ---- correlate netsize with evaluators ----
+#### ---- correlate network size with evaluators ----
 
-# if we want to use all of the results
-
-df_long_1off <- result_summary %>%
-  select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, nnse, mse, size_P, density_P, size_C, density_C) %>%
+df_netsize <- result_summary %>%
+  select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",
     values_to = "measure_value"
   )
 
-plot_netsize <- function(data, evaluator = "f1_score",
-                         facet_labels = NULL,
-                         evaluator_label = NULL,
-                         title_text = NULL) {
-  
-  evaluator_sym <- rlang::sym(evaluator)  # Treat evaluator as a column
-  
-  # Calculate correlations
-  cor_table <- data %>%
-    group_by(measure_type) %>%
-    summarise(
-      cor_value = cor(!!evaluator_sym, measure_value, use = "complete.obs", method = "pearson"),
-      p_value   = cor.test(!!evaluator_sym, measure_value, method = "pearson")$p.value,
-      .groups = "drop"
-    )
-  
-  # Create annotation table
-  cor_table_annot <- cor_table %>%
-    mutate(
-      r_fmt = formatC(cor_value, format = "f", digits = 2),
-      p_fmt = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),  # Scientific notation for very small p-values
-        formatC(p_value, format = "f", digits = 3)   # Regular fixed format otherwise
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  
-  # Build the plot
-  plot <- ggplot(data, aes(x = measure_value, y = !!evaluator_sym)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    facet_wrap(
-      ~ measure_type,
-      scales   = "free_x",
-      labeller = as_labeller(facet_labels)
-    ) +
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
-    geom_text(
-      data    = cor_table_annot,
-      aes(label = label_text),
-      x       = Inf,
-      y       = Inf,
-      hjust   = 1.1,
-      vjust   = 1.2,
-      size    = 3.2,
-      inherit.aes = FALSE
-    ) +
-    labs(
-      x = "Network feature",
-      y = ifelse(is.null(evaluator_label), evaluator, evaluator_label),
-      title = ifelse(is.null(title_text), paste(evaluator, "vs. network measures"), title_text)
-    ) +
-    theme_minimal() +
-    tme +
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks = element_line(color = "black"),
-      strip.text = element_text(size = 12)
-    )
-  
-  return(plot)
-}
-
 netsize_island_f1 <- plot_netsize(
-  data = df_long_1off,
+  data = df_netsize,
   evaluator = "f1_score",
   facet_labels = c(
     "size_C" = "Size of matrix C",
@@ -916,87 +1202,9 @@ netsize_island_f1 <- plot_netsize(
 )
 netsize_island_f1
 
-netsize_island_ba <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "balanced_accuracy",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "Balanced accuracy"
-)
-netsize_island_ba
-
-netsize_island_precision <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "precision",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "Precision"
-)
-netsize_island_precision
-
-
-netsize_island_recall <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "recall",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "Recall"
-)
-netsize_island_recall
-
-netsize_island_specificity <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "specificity",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "Specificity"
-)
-netsize_island_specificity
-
-netsize_island_rmse <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "rmse",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "RMSE"
-)
-netsize_island_rmse
-
-netsize_island_mse <- plot_netsize(
-  data = df_long_1off,
-  evaluator = "mse",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "MSE"
-)
-netsize_island_mse
 
 netsize_island_nnse <- plot_netsize(
-  data = df_long_1off,
+  data = df_netsize,
   evaluator = "nnse",
   facet_labels = c(
     "size_C" = "Size of matrix C",
@@ -1008,96 +1216,19 @@ netsize_island_nnse <- plot_netsize(
 )
 netsize_island_nnse
 
-plot_f1_nnse_vs_size_free_both <- function(data) {
-  # build correlation table
-  cor_table <- data %>%
-    group_by(evaluator, measure_type) %>%
-    summarise(
-      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
-      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
-      .groups   = "drop"
-    ) %>%
-    mutate(
-      r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),
-        formatC(p_value, format = "f", digits = 3)
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    
-    facet_grid(
-      rows   = vars(evaluator),
-      cols   = vars(measure_type),
-      scales = "free",     # ← free both x and y per facet
-      labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(size_P  = "Size of matrix P",
-                         size_C  = "Size of matrix C")
-      ),
-      switch = "y"
-    ) +
-    
-    geom_text(
-      data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
-      size        = 3.2,
-      inherit.aes = FALSE
-    ) +
-    
-    scale_x_continuous(
-      name   = "Network size",
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    scale_y_continuous(
-      name   = NULL,                # remove y title
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
-    
-    theme_minimal() +
-    theme(
-      strip.placement    = "outside",
-      strip.text.x       = element_text(size = 14),
-      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
-      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank()
-    )
-}
-
-
 df_f1_nnse_size <- result_summary %>%
   select(f1_score, nnse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
-netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme
+netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 4
 
-# pdf(
-#   file   = "netsize_f1_nnse.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(netsize_f1_nnse)
-# dev.off()     # close the file
-
-## ---- Jaccard correlation with evaluators ----
-
+### ---- Jaccard correlation with evaluators ----
+#### ---- calculate Jaccard ----
+# here we calculate the Jaccard index for every pair of networks
 # Initialize a data frame to store combined results for all layer combinations
 results_jaccard <- data.frame()
 
-### ---- island scale ----
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from)) # we have it from netsize calculation
 
@@ -1155,238 +1286,36 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- plot ----
-make_facet_scatter_plot <- function(data,
-                                    evaluator = "f1_score", 
-                                    pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                    names_to = "jaccard_type", 
-                                    values_to = "jaccard_value",
-                                    x_lab = "Jaccard similarity",
-                                    y_lab = "F1 score",
-                                    plot_title = NULL,
-                                    facet_scales = "free_x") {
-  
-  # Reshape data from wide to long format for the specified pivot columns
-  df_long <- data %>% 
-    pivot_longer(cols = all_of(pivot_cols), 
-                 names_to = names_to, 
-                 values_to = values_to)
-  
-  # For each facet (jaccard_type), compute correlation between the evaluator and jaccard_value
-  cor_table <- df_long %>%
-    group_by(!!sym(names_to)) %>%
-    summarise(
-      cor_value = cor(.data[[evaluator]], .data[[values_to]], use = "complete.obs", method = "pearson"),
-      p_value   = cor.test(.data[[evaluator]], .data[[values_to]], method = "pearson")$p.value
-    ) %>%
-    ungroup()
-  
-  # Create annotations with formatted correlation coefficients and p-values
-  cor_table_annot <- cor_table %>%
-    mutate(
-      r_fmt = formatC(cor_value, format = "f", digits = 2),
-      p_fmt = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),  # Scientific notation
-        formatC(p_value, format = "f", digits = 3)   # Otherwise
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  # Facet labels (renaming)
-  facet_labels <- c(
-    jaccard_edges = "Interaction overlap",
-    jaccard_plants = "Plants overlap",
-    jaccard_pollinators = "Pollinators overlap"
-  )
-  
-  # Construct the faceted scatter plot
-  plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "thistle") +
-    facet_wrap(as.formula(paste("~", names_to)), 
-               scales = facet_scales,
-               labeller = as_labeller(facet_labels)) +
-    scale_x_continuous(labels = number_format(accuracy = 0.02)) +
-    # Place the correlation annotation in the upper-right corner of each facet
-    geom_text(data = cor_table_annot,
-              aes(label = label_text),
-              x = Inf,
-              y = Inf,
-              hjust = 1.1,
-              vjust = 1.2,
-              size = 3.2,
-              color = "black") +
-    labs(x = x_lab, y = y_lab, title = plot_title) +
-    theme_minimal() +
-    tme +
-    theme(
-      strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
-      panel.border = element_rect(color = "black", fill = NA, size = 1),
-      axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 9)                          )
-  
-  return(plot)
-}
-
-# all data points
-all_island <- make_facet_scatter_plot(data = result_summary, 
-                                       evaluator = "f1_score",
-                                       pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                       x_lab = "Jaccard similarity",
-                                       y_lab = "F1 score",
-                                       plot_title = "F1 vs. Jaccard - all data (island)",
-                                       facet_scales = "free_x")
-
-all_island
-
-# off-diagonals
-canary_results_diags <- result_summary %>%
-  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
+#### ---- plot Jaccard ----
+# we filter only pairs of different islands for this analysis, since Jaccard index for the same island is 1 for all islands
+canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
 
-# offs_island <- make_facet_scatter_plot(data = canary_results_diags_isl, 
-#                                      evaluator = "f1_score",
-#                                      pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-#                                      x_lab = "Jaccard similarity",
-#                                      y_lab = "F1 score",
-#                                      plot_title = "F1 vs. Jaccard - off-diagonals (island)",
-#                                      facet_scales = "free_x")
-# 
-# offs_island
-
-jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_diags, 
+# Fig. 5
+jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                         evaluator = "f1_score",
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
-                                        #plot_title = "F1 vs. Jaccard - off-diagonals (island)",
                                         facet_scales = "free_x")
 jaccard_isl_f1
 
-# # Base‐R PDF device
-# pdf(
-#   file   = "jaccard_isl_f1.pdf",
-#   width  = 7,    # inches
-#   height = 3.5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(jaccard_isl_f1)
-# dev.off()     # close the file
-
-# png(
-#   filename = "jaccard_isl_f1.png",
-#   width    = 7,           # width in inches
-#   height   = 3.5,           # height in inches
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300          # resolution in dots per inch
-# )
-# print(jaccard_isl_f1)
-# dev.off() 
-
-offs_isl_ba <- make_facet_scatter_plot(data = canary_results_diags, 
-                                        evaluator = "balanced_accuracy",
-                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                        x_lab = "Jaccard similarity",
-                                        y_lab = "Balanced accuracy",
-                                        plot_title = "BA vs. Jaccard - off-diagonals (island)",
-                                        facet_scales = "free_x")
-offs_isl_ba
-
-offs_isl_presicion <- make_facet_scatter_plot(data = canary_results_diags, 
-                                               evaluator = "precision",
-                                               pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                               x_lab = "Jaccard similarity",
-                                               y_lab = "Precision",
-                                               plot_title = "precision vs. Jaccard - off-diagonals (island)",
-                                               facet_scales = "free_x")
-offs_isl_presicion
-
-
-offs_isl_recall <- make_facet_scatter_plot(data = canary_results_diags, 
-                                            evaluator = "recall",
-                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                            x_lab = "Jaccard similarity",
-                                            y_lab = "Recall",
-                                            plot_title = "Recall vs. Jaccard - off-diagonals (island)",
-                                            facet_scales = "free_x")
-offs_isl_recall
-
-offs_isl_specificity <- make_facet_scatter_plot(data = canary_results_diags, 
-                                                 evaluator = "specificity",
-                                                 pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                                 x_lab = "Jaccard similarity",
-                                                 y_lab = "Specificity",
-                                                 plot_title = "Specificity vs. Jaccard - off-diagonals (island)",
-                                                 facet_scales = "free_x")
-offs_isl_specificity
-
-jaccard_isl_rmse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                          evaluator = "rmse",
-                                          pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                          x_lab = "Jaccard similarity",
-                                          y_lab = "RMSE",
-                                          #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
-                                          facet_scales = "free_x")
-jaccard_isl_rmse
-
-
-jaccard_isl_nse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                            evaluator = "nse",
-                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                            x_lab = "Jaccard similarity",
-                                            y_lab = "NSE",
-                                            #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
-                                            facet_scales = "free_x")
-jaccard_isl_nse
-
-jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_diags, 
+jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                            evaluator = "nnse",
                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                            x_lab = "Jaccard similarity",
                                            y_lab = "NNSE",
-                                           #plot_title = "RMSE vs. Jaccard - off-diagonals (island)",
                                            facet_scales = "free_x")
 jaccard_isl_nnse
-# Base‐R PDF device
-# pdf(
-#   file   = "jaccard_isl_rmse.pdf",
-#   width  = 7,    # inches
-#   height = 3.5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(jaccard_isl_rmse)
-# dev.off()     # close the file
-# 
-# png(
-#   filename = "jaccard_isl_rmse.png",
-#   width    = 7,           # width in inches
-#   height   = 3.5,           # height in inches
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300          # resolution in dots per inch
-# )
-# print(jaccard_isl_rmse)
-# dev.off() 
 
-offs_isl_mse <- make_facet_scatter_plot(data = canary_results_diags, 
-                                         evaluator = "mse",
-                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                         x_lab = "Jaccard similarity",
-                                         y_lab = "MSE",
-                                         plot_title = "MSE vs. Jaccard - off-diagonals (island)",
-                                         facet_scales = "free_x")
-offs_isl_mse
+### ---- partner fidelity correlation with evaluators ----
 
-
-## ---- partner fidelity correlation with evaluators ----
-
-# filter existing interactions in cases where train = test layer (we want to calculate the average similarity in partner composition of each species in different sites)
+# filter existing interactions in cases where train = test layer (we want to calculate the average similarity in partner composition of each species in different locations)
 df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
-  filter(original_links != 0) %>% filter(itr == 1)
+  filter(original_links != 0) %>% filter(itr == 1) # all iterations are the same for existing links that were not removed
 
-### ---- plants fidelity ----
-# 1. For each plant (node_from) and layer, gather the pollinators (node_to).
-#    (Assuming 'train_layer' is the relevant layer ID—adapt as needed.)
+#### ---- plants fidelity ----
+# for each plant (node_from) and layer, gather the pollinators (node_to).
 df_plant_partners <- df_fidelity %>%
   distinct(node_from, train_layer, node_to) %>%
   group_by(node_from, train_layer) %>%
@@ -1398,7 +1327,7 @@ df_sorensen <- df_plant_partners %>%
   summarise(
     mean_sorensen_plants = {
       n_layers <- n()
-      # If the plant is only in one layer, there are no pairs, so return NA.select only species the occur in at least 3 islands
+      # If the plant is only in one layer, there are no pairs, so return NA. select only species the occur in at least 3 islands
       if (n_layers < 3) {
         NA_real_
       } else {
@@ -1428,14 +1357,13 @@ df_off <- df %>%
 df_merged <- df_off %>%
   left_join(df_sorensen, by = "node_from")
 
-### ---- pollinators fidelity ----
-
+#### ---- pollinators fidelity ----
 df_pollinators <- df_fidelity %>%
   distinct(node_to, train_layer, node_from) %>%
   group_by(node_to, train_layer) %>%
   summarise(partners = list(unique(node_from)), .groups = "drop")
 
-# 2. For each plant, compute mean Sorensen similarity across all pairs of layers.
+# 2. For each pollinator, compute mean Sorensen similarity across all pairs of layers.
 df_sorensen_pollinators <- df_pollinators %>%
   group_by(node_to) %>%
   summarise(
@@ -1462,11 +1390,10 @@ df_sorensen_pollinators <- df_pollinators %>%
   )
 
 df_merged <- df_merged %>%
-  left_join(df_sorensen_pollinators, by = "node_to")
+  left_join(df_sorensen_pollinators, by = "node_to") # joint plant and pollinator fidelities
 
-### --- correlation with evaluators ----
 #### ---- per-species f1 ----
-# how many removed 1s and 0s do we have?
+# how many removed 1s and 0s do we have for each species?
 # For plants:
 removed_count_plants <- df_merged %>%
   filter(removed == 1) %>% 
@@ -1487,255 +1414,12 @@ removed_count_polls <- df_merged %>%
   ) %>%
   arrange(pollinator)
 
-# pick one column to define the “species” whose performance you want:
-# e.g. evaluate by node_from
-df_performance_plants <- df_merged %>%
-  # keep only rows with non‑missing true & predicted
-  filter(!is.na(original_binary), !is.na(predicted_bin_sigm)) %>%
-  # group by species (node_from or node_to)
-  group_by(species = node_from) %>%
-  summarise(
-    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-    # compute precision, recall, F1; protect against zero‑division
-    precision = if_else(TP + FP > 0, TP / (TP + FP), NA_real_),
-    recall    = if_else(TP + FN > 0, TP / (TP + FN), NA_real_),
-    f1_score        = if_else(precision + recall > 0,
-                        2 * precision * recall / (precision + recall), 
-                        NA_real_)
-  ) %>%
-  ungroup()
-
-df_performance_polls <- df_merged %>%
-  # keep only rows with non‑missing true & predicted
-  filter(!is.na(original_binary), !is.na(predicted_bin_sigm)) %>%
-  # group by species (node_from or node_to)
-  group_by(species = node_to) %>%
-  summarise(
-    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-    # compute precision, recall, F1; protect against zero‑division
-    precision = if_else(TP + FP > 0, TP / (TP + FP), NA_real_),
-    recall    = if_else(TP + FN > 0, TP / (TP + FN), NA_real_),
-    f1_score        = if_else(precision + recall > 0,
-                        2 * precision * recall / (precision + recall), 
-                        NA_real_)
-  ) %>%
-  ungroup()
-
-# add to partner fidelities from df_merged
-# 1) Compute per‑species average Sorensen for each role
-poll_fid <- df_merged %>%
-  group_by(species = node_to) %>%
-  summarise(
-    avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-plant_fid <- df_merged %>%
-  group_by(species = node_from) %>%
-  summarise(
-    avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# 3) Build one “long” data frame that contains:
-#    – For pollinators: species, their f1_score, avg_sorensen_pollinators, NA for the plant‐fidelity column
-#    – For plants:    species, their f1_score, avg_sorensen_plants,     NA for the pollinator‐fidelity column
-df_for_plot <- bind_rows(
-  df_performance_polls %>%
-    left_join(poll_fid, by = "species") %>%
-    mutate(avg_sorensen_plants = NA_real_),
-  
-  df_performance_plants %>%
-    left_join(plant_fid, by = "species") %>%
-    mutate(avg_sorensen_pollinators = NA_real_)
-)
-
-# plot
-# Function to make one correlation plot
-make_simple_correlation_plot <- function(data,
-                                         x_var,
-                                         evaluator,
-                                         x_lab = NULL,
-                                         y_lab = NULL,
-                                         plot_title,
-                                         point_color,
-                                         trend_color = "steelblue",
-                                         x_axis_blank = FALSE,
-                                         y_axis_blank = FALSE) {
-  
-  # Perform correlation test
-  correlation <- cor.test(data[[evaluator]], data[[x_var]], use = "complete.obs", method = "pearson")
-  
-  # Extract correlation coefficient and p-value
-  r_value <- round(correlation$estimate, 2)
-  p_value <- ifelse(
-    correlation$p.value < 0.001,
-    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
-    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
-  )  
-  
-  label_text <- paste0("r = ", r_value, ", p = ", p_value)
-  
-  # Build the plot
-  p <- ggplot(data, aes_string(x = x_var, y = evaluator)) +
-    geom_point(color = point_color, alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = trend_color) +
-    labs(
-      x = x_lab,
-      y = y_lab,
-      title = plot_title
-    ) +
-    tme +
-    annotate("text",
-             x = Inf, y = Inf,
-             hjust = 1.1, vjust = 1.2,
-             label = label_text,
-             size = 4,
-             color = "black")
-  
-  # Optionally remove axis titles
-  if (y_axis_blank) {
-    p <- p + theme(axis.title.y = element_blank(),
-                   axis.text.y = element_blank())
-  }
-  if (x_axis_blank) {
-    p <- p + theme(axis.title.x = element_blank())
-  }
-  
-  return(p)
-}
-
-# Final master function to make the full double plot
-make_full_correlation_plot <- function(data,
-                                       evaluator = "f1_score",
-                                       pollinator_x = "avg_sorensen_pollinators",
-                                       plant_x = "avg_sorensen_plants",
-                                       shared_x_lab = "Mean Sorensen similarity",
-                                       shared_y_lab = NULL) {
-  
-  if (is.null(shared_y_lab)) {
-    # If user doesn't specify left y-axis label, use the evaluator name nicely formatted
-    shared_y_lab <- gsub("_", " ", evaluator)
-    shared_y_lab <- str_to_title(shared_y_lab)
-  }
-  
-  # Create plots (with no x labels)
-  pollinator_plot <- make_simple_correlation_plot(
-    data = data,
-    x_var = pollinator_x,
-    evaluator = evaluator,
-    x_lab = NULL,  # No individual x-label
-    y_lab = NULL,  # No individual y-label
-    plot_title = "Pollinators",
-    point_color = "thistle",
-    trend_color = "steelblue",
-    x_axis_blank = TRUE,
-    y_axis_blank = TRUE
-  )
-  
-  plant_plot <- make_simple_correlation_plot(
-    data = data,
-    x_var = plant_x,
-    evaluator = evaluator,
-    x_lab = NULL,  # No individual x-label
-    y_lab = NULL,  # No individual y-label
-    plot_title = "Plants",
-    point_color = "darkseagreen3",
-    trend_color = "steelblue",
-    x_axis_blank = TRUE,
-    y_axis_blank = FALSE
-  )
-  
-  plant_plot <- plant_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
-  pollinator_plot <- pollinator_plot + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
-  
-  
-  # Arrange plots side by side
-  # plots_side_by_side <- arrangeGrob(
-  #   plant_plot, pollinator_plot,
-  #   ncol = 2
-  # )
-  # Arrange plots side by side with equal widths
-  plots_side_by_side <- arrangeGrob(
-    plant_plot, pollinator_plot,
-    ncol = 2,
-    widths = unit.c(unit(1.13, "null"), unit(1, "null"))  # Equal widths
-  )
-  
-  
-  # Add shared axis labels
-  final_plot <- grid.arrange(
-    plots_side_by_side,
-    left = textGrob(shared_y_lab, rot = 90, gp = gpar(fontsize = 13, fontface = "bold")),
-    bottom = textGrob(shared_x_lab, gp = gpar(fontsize = 13, fontface = "bold"))
-  )
-  
-  return(final_plot)
-}
-# 4) Now call your master plotting function:
-#    This will automatically split off the two panels,
-#    use avg_sorensen_pollinators vs. f1_score for the “Pollinators” plot,
-#    and avg_sorensen_plants     vs. f1_score for the “Plants” plot.
-make_full_correlation_plot(
-  data            = df_for_plot,
-  evaluator       = "f1_score",
-  pollinator_x    = "avg_sorensen_pollinators",
-  plant_x         = "avg_sorensen_plants",
-  shared_x_lab    = "Mean partner‐fidelity (Sørensen)",
-  shared_y_lab    = "F1 score"
-)
-
-
-# balanced f1 version
+# calculate balanced f1 for each species by sampling its removed links 50 times in a balanced subset and calculating f1 for each
 df_clean <- df_merged %>%
   filter(removed == 1) %>% 
   filter(!is.na(original_binary), !is.na(predicted_bin_sigm))
 
 set.seed(42)
-
-# 2) A helper that, given one species’ data.frame, 
-#    does one draw of a balanced F₁
-compute_balanced_f1 <- function(df_sp) {
-  # split positives / negatives
-  pos <- df_sp %>% filter(original_binary == 1)
-  neg <- df_sp %>% filter(original_binary == 0)
-  
-  n_pos <- nrow(pos)
-  n_neg <- nrow(neg)
-  
-  # if either class is missing, we can’t compute F1
-  if (n_pos == 0 || n_neg == 0) {
-    return(NA_real_)
-  }
-  
-  # sample size = the smaller of the two
-  n <- min(n_pos, n_neg)
-  
-  # draw one balanced sample
-  samp_pos <- pos %>% sample_n(n)
-  samp_neg <- neg %>% sample_n(n)
-  samp     <- bind_rows(samp_pos, samp_neg)
-  
-  # compute TP, FP, FN
-  TP <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 1)
-  FP <- sum(samp$original_binary == 0 & samp$predicted_bin_sigm == 1)
-  FN <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 0)
-  
-  # precision, recall
-  precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA_real_
-  recall    <- if ((TP + FN) > 0) TP / (TP + FN) else NA_real_
-  
-  # F1
-  if (is.na(precision) || is.na(recall) || (precision + recall) == 0) {
-    return(NA_real_)
-  } else {
-    return(2 * precision * recall / (precision + recall))
-  }
-}
 
 # 3) For pollinators (node_to), bootstrap 50× per species
 df_balanced_f1_polls <- df_clean %>%
@@ -1761,6 +1445,7 @@ df_balanced_f1_plants <- df_clean %>%
   }) %>%
   ungroup()
 
+# join them together
 df_for_plot_balanced <- bind_rows(
   df_balanced_f1_polls %>%
     left_join(poll_fid, by = "species") %>%
@@ -1771,6 +1456,7 @@ df_for_plot_balanced <- bind_rows(
     mutate(avg_sorensen_pollinators = NA_real_)
 )
 
+#### ---- Fig. S5: plot fidelity ----
 balanced_f1_fidelity <- make_full_correlation_plot(
   data            = df_for_plot_balanced,
   evaluator       = "mean_f1",
@@ -1780,642 +1466,20 @@ balanced_f1_fidelity <- make_full_correlation_plot(
   shared_y_lab    = "F1 score per species"
 )
 
-# pdf(
-#   file   = "balanced_f1_fidelity.pdf",
-#   width  = 7,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(balanced_f1_fidelity)
-# 
-# dev.off()
-# #### ---- general ----
-# summary_df <- df_merged %>%
-#   group_by(train_layer, test_layer) %>%
-#   summarise(
-#     avg_sorensen_plants = mean(mean_sorensen_plants, na.rm = TRUE),
-#     avg_sorensen_pollinators = mean(mean_sorensen_pollinators, na.rm = TRUE)
-#   ) %>%
-#   ungroup()
-# 
-# result_summary <- result_summary %>%
-#   left_join(summary_df, by = c("train_layer", "test_layer"))
-# 
+### ---- degree impact on link assignment ----
+# here we examine if the algorithm assigns more links to species with higher degree.
 
-#working_df_offs <- result_summary %>% filter (train_layer != test_layer)
-# 
-# # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_pollinators, use = "complete.obs", method = "pearson")
-# # correlation
-# # # Extract correlation coefficient and p-value
-# # r_value <- round(correlation$estimate, 3)
-# # p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-# # label_text <- paste0("r = ", r_value, ", p = ", p_value)
-# # 
-# # pollinator_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_pollinators, y = f1_score)) +
-# #   geom_point(color = "thistle", alpha = 0.6, size = 2) +  # Scatter points
-# #   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-# #   labs(x = "Mean Sorensen similarity",
-# #        y = "F1 score",
-# #        title = "Island scale (pollinators)") +
-# #   tme +
-# #   annotate("text",
-# #               x = Inf,
-# #               y = Inf,
-# #               hjust = 1.1,
-# #               vjust = 1.2,   # Adjust depending on your data range
-# #            label = label_text,
-# #            size = 3.5,
-# #            color = "black")+
-# #   theme(axis.title.y = element_blank()) # for the unified plot
-# # 
-# # correlation <- cor.test(working_df_offs$f1_score, working_df_offs$avg_sorensen_plants, use = "complete.obs", method = "pearson")
-# # correlation
-# # 
-# # # Extract correlation coefficient and p-value
-# # r_value <- round(correlation$estimate, 3)
-# # p_value <- formatC(correlation$p.value, digits = 2)  # or round as you prefer
-# # label_text <- paste0("r = ", r_value, ", p = ", p_value)
-# # 
-# # plant_fidelity_cor <- ggplot(working_df_offs, aes(x = avg_sorensen_plants, y = f1_score)) +
-# #   geom_point(color = "darkseagreen3", alpha = 0.6, size = 2) +  # Scatter points
-# #   geom_smooth(method = "lm", se = FALSE, color = "steelblue") +  # Trendline
-# #   labs(x = "Mean Sorensen similarity",
-# #        y = "F1 score",
-# #        title = "Island scale (plants)") +
-# #   tme +
-# #   annotate("text", x = Inf, y = Inf, label = label_text,
-# #             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black") +
-# #   theme(axis.title.y = element_blank()) # for the unified plot
-# # 
-# # 
-# # grid.arrange(
-# #   arrangeGrob(plant_fidelity_cor, pollinator_fidelity_cor, ncol = 2),
-# #   left = textGrob("F1 score", rot = 90, gp = gpar(fontsize = 13, fontface = "bold"))
-# # )
-# #   
-
-
-# # For F1 score
-# f1_fidelity <- make_full_correlation_plot(working_df_offs,
-#                            evaluator = "f1_score",
-#                            shared_y_lab = "F1 score")
-# 
-# nnse_fidelity <- make_full_correlation_plot(working_df_offs,
-#                                           evaluator = "nnse",
-#                                           shared_y_lab = "NNSE")
-
-
-# Base‐R PDF device
-# pdf(
-#   file   = "f1_fidelity.pdf",
-#   width  = 7,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(f1_fidelity)
-# 
-# dev.off()
-
-# png(
-#   filename = "f1_fidelity.png",
-#   width    = 7,           # width in inches
-#   height   = 4,           # height in inches
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300          # resolution in dots per inch
-# )
-# grid::grid.draw(f1_fidelity)
-# dev.off() 
-
-# For recall
-# make_full_correlation_plot(working_df_offs, evaluator = "recall")
-#
-# # For precision
-# make_full_correlation_plot(working_df_offs, evaluator = "precision")
-#
-# make_full_correlation_plot(working_df_offs,
-#                            evaluator = "balanced_accuracy",
-#                            shared_y_lab = "Balanced accuracy")
-#
-# make_full_correlation_plot(working_df_offs, evaluator = "specificity")
-#
-# rmse_fidelity <- make_full_correlation_plot(working_df_offs,
-#                            evaluator = "rmse",
-#                            shared_y_lab = "RMSE")
-#
-# pdf(
-#   file   = "rmse_fidelity.pdf",
-#   width  = 7,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(rmse_fidelity)
-# 
-# dev.off()
-
-# png(
-#   filename = "rmse_fidelity.png",
-#   width    = 7,           # width in inches
-#   height   = 4,           # height in inches
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300          # resolution in dots per inch
-# )
-# grid::grid.draw(rmse_fidelity)
-# dev.off() 
-
-# make_full_correlation_plot(working_df_offs,
-#                            evaluator = "mse",
-#                            shared_y_lab = "MSE")
-
-### ---- check it for pairwise partner fidelity ----
-df_fid <- df %>%
-  filter(train_layer == test_layer,
-         original_links   != 0,
-         itr              == 1)
-
-# compute partner sets for each species in a specific layer
-# 1) build your plant‐by‐layer partner‐sets as before
-plant_partners <- df_fid %>%
-  distinct(node_from, train_layer, node_to) %>%
-  group_by(node_from, train_layer) %>%
-  summarise(partners = list(node_to), .groups="drop")
-
-# 2) keep only plants in ≥3 layers
-plant_partners <- plant_partners %>%
-  group_by(node_from) %>%
-  filter(n() >= 3) %>%
-  ungroup()
-
-poll_partners <- df_fid %>%
-  distinct(node_to, train_layer, node_from) %>%
-  group_by(node_to, train_layer) %>%
-  summarise(partners = list(node_from), .groups="drop")
-
-poll_partners <- poll_partners %>%
-  group_by(node_to) %>%
-  filter(n() >= 3) %>%
-  ungroup()
-
-# calculate the average similarity between partner composition in each pair of layers for each species
-
-compute_fidelity <- function(df_part, species_col) {
-  df_part %>%
-    # rename for convenience
-    rename(layer = train_layer, pset = partners) %>%
-    # self‐join to get all layer‐pairs
-    inner_join(
-      df_part %>% rename(layer2 = train_layer, pset2 = partners),
-      by = species_col
-    ) %>%
-    filter(layer < layer2) %>%               # only once per unordered pair
-    rowwise() %>%
-    mutate(
-      a = length(intersect(pset,  pset2)),
-      b = length(setdiff(pset,  pset2)),
-      c = length(setdiff(pset2, pset)),
-      sor = if (2*a + b + c == 0) NA_real_ else 2*a / (2*a + b + c)
-    ) %>%
-    ungroup() %>%
-    group_by(!!sym(species_col)) %>%
-    summarise(partner_fidelity = mean(sor, na.rm = TRUE), .groups = "drop")
-}
-
-plant_fid <- compute_fidelity(plant_partners,   "node_from")
-poll_fid  <- compute_fidelity(poll_partners,    "node_to")
-
-# for each species, calculate the average difference between observed and predicted values
-# if we want to look only at off-diagonals:
-df_error <- df_removed %>% filter(test_layer != train_layer) # (it does not change the results much)
-# 
-# plant_error <- df_error %>%
-#   group_by(node_from) %>%
-#   summarise(
-#     mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
-#     .groups = "drop"
-#   )
-# 
-# poll_error <- df_error %>%
-#   group_by(node_to) %>%
-#   summarise(
-#     mean_error = mean(abs(predicted_values - original_links), na.rm = TRUE),
-#     .groups = "drop"
-#   )
-
-# # try rmse
-# 
-# # One‐row‐per‐plant with pooled RMSE
-# plant_rmse <- df %>%
-#   group_by(node_from) %>%
-#   summarise(
-#     rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
-#     .groups = "drop"
-#   )
-# 
-# 
-# poll_rmse <- df %>%
-#   group_by(node_to) %>%
-#   summarise(
-#     rmse = sqrt(mean((predicted_values - original_links)^2, na.rm = TRUE)),
-#     .groups = "drop"
-#   )
-# 
-# # merge fidelity and error for correlation
-# plant_analysis <- plant_fid %>%
-#   inner_join(plant_rmse, by = "node_from")
-# 
-# poll_analysis  <- poll_fid %>%
-#   inner_join(poll_rmse,  by = "node_to")
-# 
-# poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
-# 
-# # plot
-# 
-# # Plants:
-# per_plant_fidelity <- make_simple_correlation_plot(
-#   data        = plant_analysis,
-#   x_var       = "partner_fidelity",
-#   evaluator   = "rmse",
-#   x_lab       = "Partner fidelity (mean Sorensen)",
-#   y_lab       = "RMSE",
-#   plot_title  = "Plants",
-#   point_color = "darkseagreen3",
-#   trend_color = "steelblue"
-# )
-# 
-# # Pollinators:
-# per_poll_fidelity <- make_simple_correlation_plot(
-#   data        = poll_analysis,
-#   x_var       = "partner_fidelity",
-#   evaluator   = "rmse",
-#   x_lab       = "Partner fidelity (mean Sorensen)",
-#   y_lab       = "RMSE",
-#   plot_title  = "Pollinators",
-#   point_color = "thistle",
-#   trend_color = "steelblue"
-# )
-# 
-# # assume you already have:
-# #   per_plant_fidelity  ← a ggplot for Plants
-# #   per_poll_fidelity   ← a ggplot for Pollinators
-# #   rmse_fidelity       ← the output of make_full_correlation_plot()
-# 
-# 
-# # 1) Remove axis titles from each plot
-# per_plant_clean <- per_plant_fidelity +
-#   theme(
-#     axis.title.x = element_blank(),
-#     axis.title.y = element_blank()
-#   )
-# 
-# per_poll_clean <- per_poll_fidelity +
-#   theme(
-#     axis.title.x = element_blank(),
-#     axis.title.y = element_blank()
-#   )
-# 
-# rmse_clean <- rmse_fidelity +
-#   theme(
-#     axis.title.x = element_blank(),
-#     axis.title.y = element_blank()
-#   )
-# 
-# # 2) Combine in a 2×2 layout (bottom row spans both columns)
-# rmse_fidelity_species_island <- grid.arrange(
-#   per_plant_clean, per_poll_clean, rmse_clean,
-#   layout_matrix = rbind(c(1,2), c(3,3)),
-#   heights       = c(1,1),
-#   left   = textGrob("RMSE", 
-#                     rot =  90,
-#                     gp  = gpar(fontsize=16, fontface="bold")),
-#   bottom = textGrob("Partner fidelity (mean Sorensen)",
-#                     gp = gpar(fontsize=16, fontface="bold"))
-# )
-# 
-# pdf(
-#   file   = "rmse_fidelity_species_island.pdf",
-#   width  = 7,
-#   height = 5.5,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(rmse_fidelity_species_island)
-# 
-# dev.off()
-
-# try nnse
-# One‐row‐per‐plant with pooled nnse
-plant_nnse <- df %>%
-  filter(train_layer != test_layer) %>% 
-  group_by(node_from) %>%
-  summarise(
-    nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
-      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE))),
-    .groups = "drop"
-  )
-
-poll_nnse <- df %>%
-  filter(train_layer != test_layer) %>% 
-  group_by(node_to) %>%
-  summarise(
-    nnse = 1 / (2 - (1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
-                       sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE))),
-    .groups = "drop"
-  )
-
-# merge fidelity and error for correlation
-plant_analysis <- plant_fid %>%
-  inner_join(plant_nnse, by = "node_from")
-
-poll_analysis  <- poll_fid %>%
-  inner_join(poll_nnse,  by = "node_to")
-
-#poll_analysis <- poll_analysis %>% filter(node_to != "Plagiolepis_schmitzii") # tried removing outlayer
-#poll_analysis <- poll_analysis %>% filter(node_to != "Urelliosoma_guimari") # tried removing outlayer
-
-# plot
-
-per_plant_fidelity <- make_simple_correlation_plot(
-  data        = plant_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "nnse",
-  x_lab       = NULL,
-  y_lab       = "NNSE",
-  plot_title  = "Plants",
-  point_color = "darkseagreen3",
-  trend_color = "steelblue"
-)
-
-per_plant_fidelity
-
-# Pollinators:
-per_poll_fidelity <- make_simple_correlation_plot(
-  data        = poll_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "nnse",
-  x_lab       = NULL,
-  y_lab       = NULL,
-  plot_title  = "Pollinators",
-  point_color = "thistle",
-  trend_color = "steelblue"
-)
-
-per_poll_fidelity
-
-per_plant_fidelity <- per_plant_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
-per_poll_fidelity <- per_poll_fidelity + theme(plot.margin = ggplot2::margin(4, 10, 4, 10))
-
-
-# Arrange plots side by side with equal widths
-plots_side_by_side <- arrangeGrob(
-  per_plant_fidelity, per_poll_fidelity,
-  ncol = 2,
-  widths = unit.c(unit(1.13, "null"), unit(1, "null"))  # Equal widths
-)
-
-
-per_species_fidelity <- per_plant_fidelity + per_poll_fidelity
-
-# 
-# pdf(
-#   file   = "per_species_fidelity.pdf",
-#   width  = 8,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(per_species_fidelity)
-# 
-# dev.off()
-
-### ---- pairwise F1 ----
-# One‐row‐per‐plant with pooled f1
-# plant_f1 <- df %>%
-#   filter(train_layer != test_layer) %>% 
-#   group_by(node_from) %>%
-#   summarise(
-#     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-#     FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-#     TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
-#     FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-#     precision = TP / (TP + FP),
-#     recall = TP / (TP + FN),
-#     f1_score = 2 * (precision * recall) / (precision + recall),
-#     .groups = "drop"
-#   )
-
-# combine_plots_fidelity <- function(p1, p2,
-#                           bottom_label = "Mean Sorensen similarity",
-#                           left_label = "RMSE",
-#                           plot_margin = c(0.5, 0.5, 1, 0.3),
-#                           label_fontsize = 16,
-#                           label_fontface = "bold",
-#                           widths_subplots = c(1, 1),
-#                           final_widths = c(2, 0.3)) {
-#   
-#   # Load required packages
-#   require(ggplot2)
-#   require(gridExtra)
-#   require(grid)
-#   
-#   # Adjust individual plots
-#   p1_mod <- p1 +
-#     theme(legend.position = "none",
-#           axis.title = element_blank(),
-#           plot.margin = unit(plot_margin, "cm"))
-#   
-#   p2_mod <- p2 +
-#     theme(legend.position = "none",
-#           axis.title = element_blank(),
-#           plot.margin = unit(plot_margin, "cm"))
-#   
-#   # Arrange the two plots side-by-side
-#   combined_plots <- arrangeGrob(p1_mod, p2_mod, 
-#                                 ncol = 2, 
-#                                 widths = widths_subplots)
-#   
-#   # Add axis labels using arrangeGrob (the bottom and left text grobs)
-#   combined_with_axes <- arrangeGrob(
-#     combined_plots,
-#     bottom = textGrob(bottom_label, 
-#                       gp = gpar(fontsize = label_fontsize, fontface = label_fontface), 
-#                       vjust = -1.5),
-#     left   = textGrob(left_label, 
-#                       rot = 90, 
-#                       gp = gpar(fontsize = label_fontsize, fontface = label_fontface))
-#   )
-#   
-#   # Finally, arrange the whole thing with additional spacing if needed
-#   final_plot <- grid.arrange(
-#     combined_with_axes,
-#     ncol = 2,
-#     widths = final_widths
-#   )
-#   
-#   return(final_plot)
-# }
-# per_species_fidelity <- combine_plots_fidelity(per_plant_fidelity, per_poll_fidelity)
-# 
-# final_fidelity <- per_species_fidelity / rmse_fidelity
-
-# inspect species
-make_simple_correlation_plot <- function(data, x_var, evaluator, label_var,
-                                         x_lab = NULL, y_lab = NULL,
-                                         plot_title, point_color,
-                                         trend_color = "steelblue",
-                                         text_size = 3) {
-  
-  # run correlation as before…
-  correlation <- cor.test(data[[evaluator]], data[[x_var]],
-                          use = "complete.obs", method = "pearson")
-  r_value <- round(correlation$estimate, 2)
-  p_value <- ifelse(correlation$p.value < 0.001,
-                    formatC(correlation$p.value, format="e", digits=2),
-                    formatC(correlation$p.value, format="f", digits=3))
-  label_text <- paste0("r = ", r_value, ", p = ", p_value)
-  
-  ggplot(data, aes_string(x = x_var, y = evaluator)) +
-    geom_point(color = point_color, alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = trend_color) +
-    # this is the new bit: map your species‐column into label
-    geom_text(aes_string(label = label_var),
-              hjust = -0.1, vjust =  0,
-              size  = text_size,
-              check_overlap = TRUE) +  
-    labs(x = x_lab, y = y_lab, title = plot_title) + tme +
-    annotate("text", x = Inf, y = Inf,
-             hjust = 1.1, vjust = 1.2,
-             label = label_text, size = 3.5) 
-}
-
-make_simple_correlation_plot(
-  data        = plant_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "nnse",
-  label_var   = "node_from",
-  x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "NNSE",
-  plot_title  = "Plants",
-  point_color = "darkseagreen3"
-)
-
-make_simple_correlation_plot(
-  data        = poll_analysis,
-  x_var       = "partner_fidelity",
-  evaluator   = "nnse",
-  label_var   = "node_to",
-  x_lab       = "Partner fidelity (mean Sorensen)",
-  y_lab       = "NNSE",
-  plot_title  = "Pollinators",
-  point_color = "thistle"
-)
-
-# checking fidelity for each specific combination of layers
-# for each unique layer combination
-
-compute_sorensen_long <- function(df_part, species_col) {
-  df_part %>%
-    # rename once so we can refer to layer1/pset1 and layer2/pset2
-    rename(layer1 = train_layer, pset1 = partners) %>%
-    inner_join(
-      df_part %>% rename(layer2 = train_layer, pset2 = partners),
-      by            = species_col,
-      relationship  = "many-to-many"      # silence the warning intentionally
-    ) %>%
-    filter(layer1 < layer2) %>%           # only unordered pairs, no self-pairs
-    rowwise() %>%
-    mutate(
-      a   = length(intersect(pset1, pset2)),
-      b   = length(setdiff(pset1, pset2)),
-      c   = length(setdiff(pset2, pset1)),
-      sor = if (2*a + b + c == 0) NA_real_ else 2*a / (2*a + b + c)
-    ) %>%
-    ungroup()
-}
-
-# apply to your pre-filtered partner-sets
-plant_sor <- compute_sorensen_long(plant_partners, "node_from")
-poll_sor  <- compute_sorensen_long(poll_partners,  "node_to")
-
-# compure error
-
-plant_error_pair <- df_error %>%
-  filter(original_links != 0, train_layer != test_layer) %>%
-  group_by(node_from, train_layer, test_layer) %>%
-  summarise(
-    error = mean(abs(predicted_values - original_links), na.rm = TRUE),
-    .groups = "drop"
-  )
-
-poll_error_pair <- df_error %>%
-  filter(original_links != 0, train_layer != test_layer) %>%
-  group_by(node_to, train_layer, test_layer) %>%
-  summarise(
-    error = mean(abs(predicted_values - original_links), na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# combine
-plant_combo <- plant_sor %>%
-  left_join(
-    plant_error_pair,
-    by = c(
-      "node_from" = "node_from",
-      "layer1"    = "train_layer",
-      "layer2"    = "test_layer"
-    )
-  )
-
-poll_combo <- poll_sor %>%
-  left_join(
-    poll_error_pair,
-    by = c(
-      "node_to" = "node_to",
-      "layer1"  = "train_layer",
-      "layer2"  = "test_layer"
-    )
-  )
-
-# plot
-
-make_simple_correlation_plot(
-  data        = plant_combo,
-  x_var       = "sor",
-  evaluator   = "error",
-  label_var   = "node_from",        # ← here you provide it
-  x_lab       = "Sorensen index",
-  y_lab       = "Mean error",
-  plot_title  = "Plants (all layer-pairs)",
-  point_color = "darkseagreen3",
-  trend_color = "steelblue"
-)
-
-make_simple_correlation_plot(
-  data        = poll_combo,
-  x_var       = "sor",
-  evaluator   = "error",
-  label_var   = "node_to",          # ← here
-  x_lab       = "Sorensen index",
-  y_lab       = "Mean error",
-  plot_title  = "Pollinators (all layer-pairs)",
-  point_color = "thistle",
-  trend_color = "steelblue"
-)
-
-
-## ---- degree impact and correlation with evaluators ----
-### ---- calculate overall degree ----
-# Step 1: Filter the data
+#### ---- calculate overall degree per species ----
+# filter only existing links
 df_filtered <- df %>%
   filter(itr == 1, original_links != 0)
 
-# Step 2a: Calculate degree for each plant species (node_from)
+# calculate degree for each plant species (node_from)
 plant_degree <- df_filtered %>%
   group_by(train_layer, test_layer, node_from) %>%
   summarise(plant_degree = n(), .groups = "drop")
 
-# Average plant degree by train_layer and test_layer
+# average plant degree by train_layer and test_layer
 avg_plant_degree <- plant_degree %>%
   group_by(node_from) %>%
   summarise(avg_plant_degree = mean(plant_degree), .groups = "drop")
@@ -2424,30 +1488,29 @@ overall_plant_degree <- df_filtered %>%
   group_by(node_from) %>% 
   summarise(overall_plant_degree = length(unique(node_to)), .groups = "drop")
 
-overall_poll_degree <- df_filtered %>% 
-  group_by(node_to) %>% 
-  summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
-
-# Step 2b: Calculate degree for each pollinator species (node_to)
+# calculate degree for each pollinator species (node_to)
 pollinator_degree <- df_filtered %>%
   group_by(train_layer, test_layer, node_to) %>%
   summarise(poll_degree = n(), .groups = "drop")
 
-# Average pollinator degree by train_layer and test_layer
+# average pollinator degree by train_layer and test_layer
 avg_pollinator_degree <- pollinator_degree %>%
   group_by(node_to) %>%
   summarise(avg_pollinator_degree = mean(poll_degree), .groups = "drop")
 
-### ---- plot degree vs. number of never observed interactions ----
-# here we examine if the algorithm assigns more links to species with higher degree.
+overall_poll_degree <- df_filtered %>% 
+  group_by(node_to) %>% 
+  summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
+
+#### ---- Fig. 6c: plot degree vs. number of never observed interactions ----
 # here by "island" we refer to a layer pair
 
 df <- df %>%
   mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-# Step 1: For each island and interaction, determine if the interaction was observed.
-# Here we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
+# for each island and interaction, determine if the interaction was observed.
+# we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
 df_island <- df %>%
   group_by(node_from, node_to, island_id) %>%
   summarise(
@@ -2459,7 +1522,7 @@ df_island <- df %>%
 
 table(df_island$observed)
 
-# Step 2: Now, for each unique interaction, compute:
+# now, for each unique interaction, compute:
 # - The proportion of islands where it was observed.
 # - The average predicted probability (averaged over islands).
 df_summary <- df_island %>%
@@ -2471,10 +1534,7 @@ df_summary <- df_island %>%
     .groups = "drop"
   )
 
-# 3. Remove interactions that were never observed and predicted as zero.
-# df_summary <- df_summary %>% 
-#   filter(!(avg_prop == 0 & avg_sigm_predicted < 0.5))
-
+# filter the interactions that were never observed throughout the data set
 df_never_observed <- df_summary %>%
   filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
   group_by(node_from) %>%
@@ -2487,29 +1547,26 @@ df_never_observed_poll <- df_summary %>%
 
 never_plants_degree <- df_never_observed %>% left_join(avg_plant_degree, by="node_from")
 
-# for overall degree
+# for relating to overall degree
 
 never_plants_degree_overall <- df_never_observed %>% left_join(overall_plant_degree, by="node_from")
 
 never_poll_degree_overall <- df_never_observed_poll %>% left_join(overall_poll_degree, by="node_to")
 
-# if we want to omit the Euphorbias
-# never_plants_degree_overall <- never_plants_degree_overall %>%
-#   filter(!node_from %in% c("Euphorbia_balsamifera_m", "Euphorbia_balsamifera_f"))
-
-# correlation
+# calculate correlation
 df_to_correlate <- never_plants_degree_overall
 df_to_correlate$x <- df_to_correlate$overall_plant_degree
 df_to_correlate$y <- df_to_correlate$count_never_observed
 
 correlation_plants <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
 correlation_plants
+
 # Extract correlation coefficient and p-value
 r_value <- round(correlation_plants$estimate, 2)
 p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
 label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
-# specify the three you want to label
+# specify species you want to label, if any
 from_label <- c("Euphorbia_balsamifera_m",
               "Euphorbia_balsamifera_f",
               "Launaea_arborescens")
@@ -2526,8 +1583,7 @@ df_labels <- df_to_correlate %>%
     )
   )
 
-library(ggrepel)
-
+# plot
 plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
@@ -2558,12 +1614,15 @@ plant_degree <- plant_degree +
     point.padding = 0.5,    # how much to push labels away from the points
     nudge_y       = -0.2     # optional small shift upward
   )
+
+# same for pollinators
 df_to_correlate <- never_poll_degree_overall
 df_to_correlate$x <- df_to_correlate$overall_poll_degree
 df_to_correlate$y <- df_to_correlate$count_never_observed
 
 correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
 correlation_poll
+
 # Extract correlation coefficient and p-value
 r_value <- round(correlation_poll$estimate, 2)
 p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
@@ -2590,42 +1649,29 @@ poll_degree
 
 
 final_plot <- combine_plots(plant_degree, poll_degree)
+final_plot # Fig. 6c
 
-# pdf(
-#   file   = "degree.pdf",
-#   width  = 8,
-#   height = 5,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(final_plot)
-# 
-# dev.off()
-
-## ---- never-observed links ----
-### ---- heatmap related to island proportion ----
-# here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of islands in which these interactions were observed.
+### ---- Fig. 6a: mapping never-observed links ----
+# here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
 
 # order species by their degree
 df_summary <- df_summary %>% left_join(overall_poll_degree, by="node_to")
 df_summary <- df_summary %>% left_join(overall_plant_degree, by="node_from")
 
-# Determine the order for plants based on overall_plant_degree
+# determine the order of species in the plot based on their degree
 plant_order <- df_summary %>%
   distinct(node_from, overall_plant_degree) %>%
   arrange(desc(overall_plant_degree)) %>%
   pull(node_from)
 
-# Determine the order for pollinators based on overall_poll_degree
 poll_order <- df_summary %>%
   distinct(node_to, overall_poll_degree) %>%
   arrange(desc(overall_poll_degree)) %>%
   pull(node_to)
 
-# Reset the levels for the species factors
+# reset the levels for the species factors
 df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
-
 
 map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
@@ -2658,25 +1704,17 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     bquote(italic(.(paste(y, collapse = " "))))
   }))
 
-print(map_missing_links)
-# pdf(
-#   file   = "map_missing_links.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links)
-# dev.off()     # close the file
+print(map_missing_links) # Fig 6a
 
-### ---- difference in added links: diag vs. off-diags ----
-# missing links map for diag and off-daigonal seperately
-
+### ---- difference in links predicted with/without external data ----
+# this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
 
 df_island_diag <- df_island_sep %>%
   filter(island1 == island2)
 
+# only within-island data
 df_summary_diag <- df_island_diag %>%
   group_by(node_from, node_to) %>%
   summarise(
@@ -2686,151 +1724,7 @@ df_summary_diag <- df_island_diag %>%
     .groups = "drop"
   )
 
-# 3. Remove interactions that were never observed and predicted as zero.
-# df_summary <- df_summary %>% 
-#   filter(!(avg_prop == 0 & avg_sigm_predicted < 0.5))
-
-df_never_observed <- df_summary_diag %>%
-  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
-  group_by(node_from) %>%
-  summarise(count_never_observed = n(), .groups = "drop")
-
-df_never_observed_poll <- df_summary_diag %>%
-  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
-  group_by(node_to) %>%
-  summarise(count_never_observed = n(), .groups = "drop")
-
-never_plants_degree <- df_never_observed %>% left_join(avg_plant_degree, by="node_from")
-
-# for overall degree
-
-never_plants_degree_overall <- df_never_observed %>% left_join(overall_plant_degree, by="node_from")
-
-never_poll_degree_overall <- df_never_observed_poll %>% left_join(overall_poll_degree, by="node_to")
-
-# if we want to omit the Euphorbias
-# never_plants_degree_overall <- never_plants_degree_overall %>%
-#   filter(!node_from %in% c("Euphorbia_balsamifera_m", "Euphorbia_balsamifera_f"))
-
-# correlation
-df_to_correlate <- never_plants_degree_overall
-df_to_correlate$x <- df_to_correlate$overall_plant_degree
-df_to_correlate$y <- df_to_correlate$count_never_observed
-
-correlation_plants <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
-correlation_plants
-# Extract correlation coefficient and p-value
-r_value <- round(correlation_plants$estimate, 2)
-p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
-label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
-
-plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
-  geom_smooth(method = "lm", se = FALSE, color = "navy") +
-  labs(
-    x = "Overall degree",
-    y = "Number of predicted, non-observed interactions",
-    title = "Plants"
-  ) +
-  theme_minimal() + tme +
-  annotate("text",
-           x = Inf,
-           y = Inf,
-           hjust = 1.1,
-           vjust = 1.2,   # Adjust depending on your data range
-           label = label_text_plants,
-           size = 5,
-           color = "black")
-plant_degree
-
-df_to_correlate <- never_poll_degree_overall
-df_to_correlate$x <- df_to_correlate$overall_poll_degree
-df_to_correlate$y <- df_to_correlate$count_never_observed
-
-correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
-correlation_poll
-# Extract correlation coefficient and p-value
-r_value <- round(correlation_poll$estimate, 2)
-p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
-label_text_polls <- paste0("r = ", r_value, ", p = ", p_value)
-
-poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "thistle") +
-  geom_smooth(method = "lm", se = FALSE, color = "navy") +
-  labs(
-    x = "Overall degree",
-    y = "Number of predicted, /nnon-observed interactions",
-    title = "Pollinators"
-  ) +
-  theme_minimal() + tme +
-  annotate("text",
-           x = Inf,
-           y = Inf,
-           hjust = 1.1,
-           vjust = 1.2,   # Adjust depending on your data range
-           label = label_text_polls,
-           size = 5,
-           color = "black")
-poll_degree
-
-final_plot <- combine_plots(plant_degree, poll_degree)
-
-# order species by their degree
-df_summary_diag <- df_summary_diag %>% left_join(overall_poll_degree, by="node_to")
-df_summary_diag <- df_summary_diag %>% left_join(overall_plant_degree, by="node_from")
-
-# Determine the order for plants based on overall_plant_degree
-plant_order <- df_summary_diag %>%
-  distinct(node_from, overall_plant_degree) %>%
-  arrange(desc(overall_plant_degree)) %>%
-  pull(node_from)
-
-# Determine the order for pollinators based on overall_poll_degree
-poll_order <- df_summary_diag %>%
-  distinct(node_to, overall_poll_degree) %>%
-  arrange(desc(overall_poll_degree)) %>%
-  pull(node_to)
-
-# Reset the levels for the species factors
-df_summary_diag$node_from <- factor(df_summary_diag$node_from, levels = plant_order)
-df_summary_diag$node_to   <- factor(df_summary_diag$node_to, levels = poll_order)
-
-
-map_missing_links_diags <- ggplot(df_summary_diag, aes(x = node_to, y = node_from)) +
-  # First layer: background heatmap for proportion observed (blue gradient)
-  geom_tile(aes(fill = avg_prop)) +
-  scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: overlay only cells that were never observed but have high predicted value
-  geom_tile(
-    data = df_summary_diag %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-    aes(fill = avg_sigm_predicted),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_blank(), 
-    axis.text.y = element_text(size = 8),
-    legend.position = "bottom",         # Place legends at the bottom
-    legend.box = "horizontal" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-
-map_missing_links_diags
-
-# now off-diagonals
-
+# only with extrnal data
 df_island_offs <- df_island_sep %>%
   filter(island1 != island2)
 
@@ -2843,154 +1737,9 @@ df_summary_offs <- df_island_offs %>%
     .groups = "drop"
   )
 
-# 3. Remove interactions that were never observed and predicted as zero.
-# df_summary <- df_summary %>% 
-#   filter(!(avg_prop == 0 & avg_sigm_predicted < 0.5))
+identical(df_summary_offs$node_from, df_summary_diag$node_from) # check
 
-df_never_observed <- df_summary_offs %>%
-  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
-  group_by(node_from) %>%
-  summarise(count_never_observed = n(), .groups = "drop")
-
-df_never_observed_poll <- df_summary_offs %>%
-  filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
-  group_by(node_to) %>%
-  summarise(count_never_observed = n(), .groups = "drop")
-
-never_plants_degree <- df_never_observed %>% left_join(avg_plant_degree, by="node_from")
-
-# for overall degree
-
-never_plants_degree_overall <- df_never_observed %>% left_join(overall_plant_degree, by="node_from")
-
-never_poll_degree_overall <- df_never_observed_poll %>% left_join(overall_poll_degree, by="node_to")
-
-# if we want to omit the Euphorbias
-# never_plants_degree_overall <- never_plants_degree_overall %>%
-#   filter(!node_from %in% c("Euphorbia_balsamifera_m", "Euphorbia_balsamifera_f"))
-
-# correlation
-df_to_correlate <- never_plants_degree_overall
-df_to_correlate$x <- df_to_correlate$overall_plant_degree
-df_to_correlate$y <- df_to_correlate$count_never_observed
-
-correlation_plants <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
-correlation_plants
-# Extract correlation coefficient and p-value
-r_value <- round(correlation_plants$estimate, 2)
-p_value <- formatC(correlation_plants$p.value, digits = 2)  # or round as you prefer
-label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
-
-# plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-#   geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
-#   geom_smooth(method = "lm", se = FALSE, color = "navy") +
-#   labs(
-#     x = "Overall degree",
-#     y = "Number of predicted, non-observed interactions",
-#     title = "Plants"
-#   ) +
-#   theme_minimal() + tme +
-#   annotate("text",
-#            x = Inf,
-#            y = Inf,
-#            hjust = 1.1,
-#            vjust = 1.2,   # Adjust depending on your data range
-#            label = label_text_plants,
-#            size = 5,
-#            color = "black")
-# plant_degree
-
-df_to_correlate <- never_poll_degree_overall
-df_to_correlate$x <- df_to_correlate$overall_poll_degree
-df_to_correlate$y <- df_to_correlate$count_never_observed
-
-correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
-correlation_poll
-# Extract correlation coefficient and p-value
-r_value <- round(correlation_poll$estimate, 2)
-p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
-label_text_polls <- paste0("r = ", r_value, ", p = ", p_value)
-
-# poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-#   geom_point(alpha = 0.6, size = 2, color = "thistle") +
-#   geom_smooth(method = "lm", se = FALSE, color = "navy") +
-#   labs(
-#     x = "Overall degree",
-#     y = "Number of predicted, /nnon-observed interactions",
-#     title = "Pollinators"
-#   ) +
-#   theme_minimal() + tme +
-#   annotate("text",
-#            x = Inf,
-#            y = Inf,
-#            hjust = 1.1,
-#            vjust = 1.2,   # Adjust depending on your data range
-#            label = label_text_polls,
-#            size = 5,
-#            color = "black")
-# poll_degree
-
-# final_plot <- combine_plots(plant_degree, poll_degree)
-
-
-# order species by their degree
-df_summary_offs <- df_summary_offs %>% left_join(overall_poll_degree, by="node_to")
-df_summary_offs <- df_summary_offs %>% left_join(overall_plant_degree, by="node_from")
-
-# Determine the order for plants based on overall_plant_degree
-plant_order <- df_summary_offs %>%
-  distinct(node_from, overall_plant_degree) %>%
-  arrange(desc(overall_plant_degree)) %>%
-  pull(node_from)
-
-# Determine the order for pollinators based on overall_poll_degree
-poll_order <- df_summary_offs %>%
-  distinct(node_to, overall_poll_degree) %>%
-  arrange(desc(overall_poll_degree)) %>%
-  pull(node_to)
-
-# Reset the levels for the species factors
-df_summary_offs$node_from <- factor(df_summary_offs$node_from, levels = plant_order)
-df_summary_offs$node_to   <- factor(df_summary_offs$node_to, levels = poll_order)
-
-
-map_missing_links_offs <- ggplot(df_summary_offs, aes(x = node_to, y = node_from)) +
-  # First layer: background heatmap for proportion observed (blue gradient)
-  geom_tile(aes(fill = avg_prop)) +
-  scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: overlay only cells that were never observed but have high predicted value
-  geom_tile(
-    data = df_summary_offs %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-    aes(fill = avg_sigm_predicted),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_blank(), 
-    axis.text.y = element_text(size = 8),
-    legend.position = "bottom",         # Place legends at the bottom
-    legend.box = "horizontal" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-
-map_missing_links_offs
-
-## ---- what's the difference? ----
-identical(df_summary_offs$node_from, df_summary_diag$node_from)
-
-# 1. Which links only appear in one of the two data-frames?
+# which links only appear in one of the two data-frames?
 only_offs <- df_summary_offs %>%
   select(node_from, node_to) %>%
   anti_join(df_summary_diag, by = c("node_from","node_to")) %>%
@@ -3005,7 +1754,7 @@ bind_rows(only_offs, only_diag) %>%
   arrange(node_from, node_to)
 # → these are the “new” / “dropped” interactions
 
-# 2. For the shared links, compute per-column differences.
+# for the shared links, compute per-column differences.
 
 diff_df <- full_join(
   df_summary_offs,
@@ -3021,28 +1770,14 @@ diff_df <- full_join(
     diff_overall_plant_degree= overall_plant_degree_offs- overall_plant_degree_diag
   )
 
-#view(diff_df)
-
 # these are interactions that were predicted to exist in the off-diagonals but not in the diagonal
 diff_df_filtered <- diff_df %>% filter(avg_sigm_predicted_diag < 0.6 & avg_sigm_predicted_offs >= 0.6)
 
 # and these are interactions that were predicted to exist in the diagonal but not in the off-diagonals
 diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < 0.6 & avg_sigm_predicted_diag >= 0.6)
 
-# # View only those with any non‐zero difference:
-# diff_df %>%
-#   filter(
-#     diff_avg_prop           != 0 |
-#       diff_avg_sigm_predicted != 0 |
-#       diff_n_islands          != 0 |
-#       diff_overall_poll_degree!= 0 |
-#       diff_overall_plant_degree!=0
-#   ) %>%
-#   arrange(desc(abs(diff_avg_sigm_predicted)))
 
 # plot the differences
-
-
 df_plot <- diff_df %>%
   filter(avg_prop_diag == 0) %>% 
   mutate(
@@ -3060,22 +1795,11 @@ df_plot <- diff_df %>%
     )
   )
 
-# 2. build the plot
 map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
-  
-  # # background = observed proportion
-  # geom_tile(aes(fill = avg_prop_offs)) +
-  # scale_fill_gradient(
-  #   low  = "white",
-  #   high = "white",
-  #   name = "Prop\nobserved"
-  # ) +
   
   # allow a second fill scale
   new_scale_fill() +
-  
-  # overlay our three categories, with fixed colours
-  geom_tile(
+    geom_tile(
     data  = filter(df_plot, !is.na(sigm_cat)),
     aes(fill = sigm_cat),
     alpha = 0.6
@@ -3114,16 +1838,8 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   tme
 
 map_missing_links_diags_offs
-# pdf(
-#   file   = "map_missing_links_diags_offs.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links_diags_offs)
-# dev.off()     # close the file
 
- # how many links did each category add?
+# how many links did each category add?
 df_plot %>%
   filter(avg_prop_diag == 0) %>% 
   group_by(sigm_cat) %>%
@@ -3131,77 +1847,8 @@ df_plot %>%
     n_links = n()
   )
 
-# use this to mark cells predicted only by off-diags in the original heatmap:
-
-# 1) Make sure df_summary and df_plot share the same key & then grab only the offs↑-only cells
-
-border_df <- df_plot %>%
-  # only missing links, and only off-only category
-  filter(
-    avg_prop_offs           == 0,
-    avg_sigm_predicted_offs  >  best_discrete_threshold,
-    avg_sigm_predicted_diag  <  best_discrete_threshold
-  ) %>%
-  select(node_from, node_to)
-
-
-# 2) Join that back onto df_summary so we keep the same tile positions
-df_summary_borders <- df_summary %>%
-  inner_join(border_df, by = c("node_from","node_to"))
-
-# 3) Rebuild your heatmap, and add a border layer last
-map_missing_links_marked_offs <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
-  
-  # background fill
-  geom_tile(aes(fill = avg_prop)) +
-  scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
-  
-  new_scale_fill() +
-  
-  # overlay for high‐predicted, never observed
-  geom_tile(
-    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-    aes(fill = avg_sigm_predicted),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
-  
-  # border layer for offs↑ only
-  geom_tile(
-    data  = df_summary_borders,
-    fill  = NA,
-    color = "black",
-    size  = 0.6
-  ) +
-  
-  # final theme tweaks
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_blank(),
-    axis.text.y = element_text(size = 8),
-    legend.position = "bottom",
-    legend.box = "horizontal"
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-
-map_missing_links_marked_offs
-
-# pdf(
-#   file   = "map_missing_links_marked_offs.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links_marked_offs)
-# dev.off()     # close the file
 
 # pie chart
-
 # 1. Count how many interactions fall into each category
 df_counts <- df_plot %>%
   filter(sigm_cat != "NA") %>% 
@@ -3255,295 +1902,6 @@ pie_chart
 # )
 # print(pie_chart)
 # dev.off()     # close the file
-
-### ---- detect interactions that were never observed in the field yet consistently predicted to exist ----
-# filter the interactions that were always observed as zeros yet predicted to exist
-df_all_itr_zero <- df %>%
-  group_by(node_from, node_to) %>%
-  # Check if all rows for that interaction have original_links == 0
-  filter(all(original_links == 0)) %>%
-  filter(removed == 1) %>% 
-  filter(predicted_prob_sigm > best_discrete_threshold) %>% 
-  ungroup()
-
-# filter only links that appear several times for the analysis
-predicted_links <- df_all_itr_zero %>%
-  group_by(node_from, node_to) %>%
-  # Keep only those links/groups with >= 5 observations 
-  filter(n() >= 5) %>%  
-  summarise(
-    n         = n(),
-    mean_pred = mean(predicted_prob_sigm, na.rm = TRUE),
-    sd_pred   = sd(predicted_prob_sigm, na.rm = TRUE),  # to check variance
-    p_value   = if (sd_pred == 0) {
-      NA_real_  # can't run a t-test if there's no variance
-    } else {
-      t.test(predicted_prob_sigm, mu = best_discrete_threshold)$p.value
-    },
-    .groups   = "drop"
-  )
-
-# write_csv(predicted_links, "predicted_non_observed_links.csv")
-
-most_probable_20 <- predicted_links %>%
-  arrange(desc(mean_pred)) %>%
-  head(20)
-
-#write.csv(most_probable_20, 'most_probable_20_unobserved_links.csv')
-
-df_summary_sign <- predicted_links %>% filter(p_value < 0.05)
-
-df_top_10 <- predicted_links %>%
-  # Order by ascending p-value
-  arrange(p_value) %>%
-  # Take the first 10 rows
-  slice(1:10)
-
-missing_links <- ggplot(df_top_10, 
-       aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
-           y = mean_pred,
-           fill = p_value < 0.05)) +
-  geom_col(fill = "lightsteelblue") +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  #scale_fill_manual(name = "Significant?", values = c("gray70", "tomato")) +
-  tme +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      # 1) Replace underscores with a tilde (for spacing in plotmath)
-      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
-      lbl_tilde <- gsub("_", "~", lbl)
-      # 2) Wrap in italic(), so the entire thing is in italics
-      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })) +
-  labs(
-    x = "Link (pollinator - plant)",
-    y = "Mean predicted value"
-    #title = "Mean predicted value and significance"
-  ) +
-  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
-
-missing_links
-# 
-# pdf(
-#   file   = "missing_links.pdf",
-#   width  = 9,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(missing_links)
-# dev.off()     # close the file
-
-# do the most probable interactions differ between diags and off-diags?
-# most probable - diag
-
-df_all_itr_zero_diag <- df %>%
-  group_by(node_from, node_to) %>%
-  # Check if all rows for that interaction have original_links == 0
-  filter(all(original_links == 0)) %>%
-  filter(removed == 1) %>% 
-  filter(train_layer == test_layer) %>% 
-  filter(predicted_prob_sigm > best_discrete_threshold) %>% 
-  ungroup()
-
-# filter only links that appear several times for the analysis
-predicted_links_diag <- df_all_itr_zero_diag %>%
-  group_by(node_from, node_to) %>%
-  # Keep only those links/groups with >= 5 observations 
-  filter(n() >= 5) %>%  
-  summarise(
-    n         = n(),
-    mean_pred = mean(predicted_prob_sigm, na.rm = TRUE),
-    sd_pred   = sd(predicted_prob_sigm, na.rm = TRUE),  # to check variance
-    p_value   = if (sd_pred == 0) {
-      NA_real_  # can't run a t-test if there's no variance
-    } else {
-      t.test(predicted_prob_sigm, mu = best_discrete_threshold)$p.value
-    },
-    .groups   = "drop"
-  )
-
-most_probable_20_diag <- predicted_links_diag %>%
-  arrange(desc(mean_pred)) %>%
-  head(20)
-
-df_summary_sign_diag <- predicted_links_diag %>% filter(p_value < 0.05)
-
-df_top_10_diag <- predicted_links_diag %>%
-  # Order by ascending p-value
-  arrange(p_value) %>%
-  # Take the first 10 rows
-  slice(1:10)
-
-missing_links_diag <- ggplot(df_top_10_diag, 
-                        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
-                            y = mean_pred,
-                            fill = p_value < 0.05)) +
-  geom_col(fill = "thistle") +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  #scale_fill_manual(name = "Significant?", values = c("gray70", "tomato")) +
-  tme +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      # 1) Replace underscores with a tilde (for spacing in plotmath)
-      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
-      lbl_tilde <- gsub("_", "~", lbl)
-      # 2) Wrap in italic(), so the entire thing is in italics
-      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })) +
-  labs(
-    x = "Link (pollinator - plant)",
-    y = "Mean predicted value"
-    #title = "Mean predicted value and significance"
-  ) +
-  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
-
-# most probable - offs
-df_all_itr_zero_offs <- df %>%
-  group_by(node_from, node_to) %>%
-  # Check if all rows for that interaction have original_links == 0
-  filter(all(original_links == 0)) %>%
-  filter(removed == 1) %>% 
-  filter(train_layer != test_layer) %>% 
-  filter(predicted_prob_sigm > best_discrete_threshold) %>% 
-  ungroup()
-
-# filter only links that appear several times for the analysis
-predicted_links_offs <- df_all_itr_zero_offs %>%
-  group_by(node_from, node_to) %>%
-  # Keep only those links/groups with >= 5 observations 
-  filter(n() >= 5) %>%  
-  summarise(
-    n         = n(),
-    mean_pred = mean(predicted_prob_sigm, na.rm = TRUE),
-    sd_pred   = sd(predicted_prob_sigm, na.rm = TRUE),  # to check variance
-    p_value   = if (sd_pred == 0) {
-      NA_real_  # can't run a t-test if there's no variance
-    } else {
-      t.test(predicted_prob_sigm, mu = best_discrete_threshold)$p.value
-    },
-    .groups   = "drop"
-  )
-
-most_probable_20_offs <- predicted_links_offs %>%
-  arrange(desc(mean_pred)) %>%
-  head(20)
-
-df_summary_sign_offs <- predicted_links_offs %>% filter(p_value < 0.05)
-
-df_top_10_offs <- predicted_links_offs %>%
-  # Order by ascending p-value
-  arrange(p_value) %>%
-  # Take the first 10 rows
-  slice(1:10)
-
-missing_links_offs <- ggplot(df_top_10_offs, 
-                             aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
-                                 y = mean_pred,
-                                 fill = p_value < 0.05)) +
-  geom_col(fill = "salmon") +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  #scale_fill_manual(name = "Significant?", values = c("gray70", "tomato")) +
-  tme +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      # 1) Replace underscores with a tilde (for spacing in plotmath)
-      #    e.g., "Euphorbia_balsamifera_f" => "Euphorbia~balsamifera~f"
-      lbl_tilde <- gsub("_", "~", lbl)
-      # 2) Wrap in italic(), so the entire thing is in italics
-      #    expression syntax: parse(text="italic(Euphorbia~balsamifera~f)")
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })) +
-  labs(
-    x = "Link (pollinator - plant)",
-    y = "Mean predicted value"
-    #title = "Mean predicted value and significance"
-  ) +
-  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
-
-
-# 1. Build a “link” identifier in each df
-df_offs <- df_top_10_offs %>%
-  mutate(
-    link      = paste(node_to, node_from, sep = " - ")
-  )
-
-df_diag <- df_top_10_diag %>%
-  mutate(
-    link      = paste(node_to, node_from, sep = " - ")
-  )
-
-# 2. Figure out which links are shared
-shared_links <- intersect(df_offs$link, df_diag$link)
-
-# 3. Add a flag to each data-frame
-df_offs <- df_offs %>%
-  mutate(is_shared = link %in% shared_links)
-
-df_diag <- df_diag %>%
-  mutate(is_shared = link %in% shared_links)
-
-# 4. Rebuild your two plots, mapping fill to that flag
-missing_links_offs <- ggplot(df_offs, 
-                             aes(x = reorder(link, mean_pred),
-                                 y = mean_pred,
-                                 fill = is_shared)) +
-  geom_col() +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  scale_fill_manual(
-    name   = "Shared in both\nplots?",
-    values = c(`FALSE` = "salmon",       # unique to offs
-               `TRUE`  = "lightsteelblue"),        # shared
-    labels = c(`FALSE` = "Offs-only",    # adjust labels if you like
-               `TRUE`  = "Both")
-  ) +
-  tme +
-  labs(x = "Link (pollinator - plant)", y = "Mean predicted value") +
-  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15))) +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      lbl_tilde <- gsub("_", "~", lbl)
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })
-  )
-
-missing_links_diag <- ggplot(df_diag, 
-                             aes(x = reorder(link, mean_pred),
-                                 y = mean_pred,
-                                 fill = is_shared)) +
-  geom_col() +
-  geom_errorbar(aes(ymin = mean_pred - sd_pred, ymax = mean_pred + sd_pred),
-                width = 0.2) +
-  coord_flip() +
-  scale_fill_manual(
-    name   = "Shared in both\nplots?",
-    values = c(`FALSE` = "thistle",      # unique to diag
-               `TRUE`  = "lightsteelblue"),        # shared
-    labels = c(`FALSE` = "Diag-only",
-               `TRUE`  = "Both")
-  ) +
-  tme +
-  labs(x = "Link (pollinator - plant)", y = "Mean predicted value") +
-  theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15))) +
-  scale_x_discrete(
-    labels = function(x) sapply(x, function(lbl) {
-      lbl_tilde <- gsub("_", "~", lbl)
-      parse(text = paste0("italic(", lbl_tilde, ")"))
-    })
-  )
-
-# 5. Put them side by side
-(missing_links_offs + missing_links_diag) &
-  theme(axis.text.y = element_text(size = 7))
 
 ## ---- distance effect ----
 ### ---- add distances and location names ----
@@ -4896,418 +3254,3 @@ data.frame(
   df      = df_val,
   p_value = p_val
 )
-
-# ---- variable importance ----
-# analyze only one off-diagonal
-df_off <- result_summary_island %>%
-  # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
-  filter(train_layer != test_layer)
-# # subset relavant columns
-# df_subset <- df_off %>% select(f1_score, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
-# 
-# ### ---- autocorrelation check ----
-# # 2. Compute correlation matrix
-# cor_mat <- cor(df_subset, use = "complete.obs")
-# #write.csv(cor_mat, "island_autocorrelation.csv")
-# 
-# # 3. Visualize (optional)
-# 
-# corrplot(cor_mat, 
-#          method = "number",      # or "circle", "color", etc.
-#          type = "upper",         # upper/lower/full
-#          tl.cex = 0.7,           # text label size
-#          number.cex = 0.7,       # correlation coefficient size
-#          tl.col = "black"       # text label color (optional)
-# )
-# 
-# ### ---- linear regression ----
-# # Fit a linear model predicting f1_score from all other numeric predictors
-# lm_fit <- lm(f1_score ~ distance_km +	avg_sorensen_plants +	avg_sorensen_pollinators +	jaccard_pollinators +	jaccard_plants +	jaccard_edges + size_P +	density_P + size_C +	density_C,
-#              data = df_subset)
-# 
-# summary(lm_fit)
-# 
-# # Random Forest (only with numeric columns)
-# rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
-# 
-# # Check variable importance
-# importance(rf_fit)
-# varImpPlot(rf_fit)
-# 
-# # Extract importance
-# imp <- importance(rf_fit) 
-# # For regression: imp is a matrix with columns: %IncMSE, IncNodePurity
-# # For classification: imp often has two columns per measure.
-# # We'll assume %IncMSE and IncNodePurity are present.
-# 
-# # Turn it into a data frame for easier plotting
-# imp_df <- as.data.frame(imp)
-# imp_df$f1_score <- rownames(imp_df)  # Keep variable names in a column
-# 
-# # Example for %IncMSE
-# ggplot(imp_df, aes(x = reorder(f1_score, `%IncMSE`), y = `%IncMSE`)) +
-#   geom_bar(stat = "identity", fill = "lightsteelblue") +
-#   coord_flip() +
-#   labs(x = "F1 score", 
-#        y = "% Increase in MSE") +
-#   theme_minimal() + tme +
-#   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#     bquote(italic(.(paste(y, collapse = " "))))
-#   })) +
-#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#     bquote(italic(.(paste(y, collapse = " "))))
-#   }))
-
-# subset relavant columns
-df_subset_cor <- df_off %>% select(f1_score, balanced_accuracy, precision, recall, specificity, rmse, mse, distance_km,	avg_sorensen_plants,	avg_sorensen_pollinators,	jaccard_pollinators,	jaccard_plants,	jaccard_edges, size_P,	density_P, size_C,	density_C)
-
-### ---- autocorrelation check ----
-# 2. Compute correlation matrix
-cor_mat <- cor(df_subset_cor, use = "complete.obs")
-#write.csv(cor_mat, "island_autocorrelation.csv")
-
-# 3. Visualize (optional)
-
-corrplot(cor_mat, 
-         method = "number",      # or "circle", "color", etc.
-         type = "upper",         # upper/lower/full
-         tl.cex = 0.5,           # text label size
-         number.cex = 0.5,       # correlation coefficient size
-         tl.col = "black"       # text label color (optional)
-)
-
-# ### ---- linear regression ----
-# # Fit a linear model predicting f1_score from all other numeric predictors
-# lm_fit <- lm(f1_score ~ distance_km +	avg_sorensen_plants +	avg_sorensen_pollinators +	jaccard_pollinators +	jaccard_plants +	jaccard_edges + size_P +	density_P + size_C +	density_C,
-#              data = df_subset)
-# 
-# summary(lm_fit)
-# 
-# # Random Forest (only with numeric columns)
-# rf_fit <- randomForest(f1_score ~ ., data = df_subset, importance = TRUE)
-# 
-# # Check variable importance
-# importance(rf_fit)
-# varImpPlot(rf_fit)
-# 
-# # Extract importance
-# imp <- importance(rf_fit) 
-# # For regression: imp is a matrix with columns: %IncMSE, IncNodePurity
-# # For classification: imp often has two columns per measure.
-# # We'll assume %IncMSE and IncNodePurity are present.
-# 
-# # Turn it into a data frame for easier plotting
-# imp_df <- as.data.frame(imp)
-# imp_df$f1_score <- rownames(imp_df)  # Keep variable names in a column
-# 
-# # Example for %IncMSE
-# ggplot(imp_df, aes(x = reorder(f1_score, `%IncMSE`), y = `%IncMSE`)) +
-#   geom_bar(stat = "identity", fill = "lightsteelblue") +
-#   coord_flip() +
-#   labs(x = "F1 score", 
-#        y = "% Increase in MSE") +
-#   theme_minimal() + tme +
-#   scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#     bquote(italic(.(paste(y, collapse = " "))))
-#   })) +
-#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#     bquote(italic(.(paste(y, collapse = " "))))
-#   }))
-
-plot_rf_importance <- function(df_off, response_var, tme) {
-  
-  # Step 1: Select predictors + the response variable
-  predictors <- c("distance_km", "avg_sorensen_plants", "avg_sorensen_pollinators",
-                  "jaccard_pollinators", "jaccard_plants", "jaccard_edges",
-                  "size_P", "density_P", "size_C", "density_C")
-  
-  df_subset <- df_off %>% select(all_of(c(response_var, predictors)))
-  
-  # Step 2: Fit Random Forest
-  rf_fit <- randomForest(
-    formula = as.formula(paste(response_var, "~ .")),
-    data = df_subset,
-    importance = TRUE
-  )
-  
-  # Step 3: Extract and prepare importance data
-  imp_df <- as.data.frame(importance(rf_fit))
-  imp_df$variable <- rownames(imp_df)
-  
-  # Plot 1: %IncMSE
-  plot_incMSE <- ggplot(imp_df, aes(x = reorder(variable, `%IncMSE`), y = `%IncMSE`)) +
-    geom_bar(stat = "identity", fill = "lightsteelblue") +
-    coord_flip() +
-    labs(title = "%IncMSE", x = NULL, y = "% Increase in MSE") +
-    theme_minimal() + tme +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-      bquote(italic(.(paste(y, collapse = " "))))
-    }))
-  
-  # Plot 2: IncNodePurity (Gini importance)
-  plot_gini <- ggplot(imp_df, aes(x = reorder(variable, IncNodePurity), y = IncNodePurity)) +
-    geom_bar(stat = "identity", fill = "thistle") +
-    coord_flip() +
-    labs(title = "Gini Importance", x = NULL, y = "IncNodePurity") +
-    theme_minimal() + tme +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-      bquote(italic(.(paste(y, collapse = " "))))
-    }))
-  
-  # Combine both plots side by side
-  combined_plot <- grid.arrange(
-    plot_incMSE,
-    plot_gini,
-    ncol = 2,
-    top = paste("Variable Importance for", response_var)
-  )
-  
-  return(combined_plot)
-}
-
-plot_rf_importance(df_off, "f1_score", tme)
-plot_rf_importance(df_off, "balanced_accuracy", tme)
-plot_rf_importance(df_off, "precision", tme)
-plot_rf_importance(df_off, "recall", tme)
-plot_rf_importance(df_off, "specificity", tme)
-plot_rf_importance(df_off, "rmse", tme)
-plot_rf_importance(df_off, "mse", tme)
-
-
-### ---- table of variable importance ----
-
-summarize_rf_importance_and_correlation <- function(df_off, response_var) {
-  
-  predictors <- c("distance_km", "avg_sorensen_plants", "avg_sorensen_pollinators",
-                  "jaccard_pollinators", "jaccard_plants", "jaccard_edges",
-                  "size_P", "density_P", "size_C", "density_C")
-  
-  df_subset <- df_off %>% select(all_of(c(response_var, predictors)))
-  
-  rf_fit <- randomForest(
-    formula = as.formula(paste(response_var, "~ .")),
-    data = df_subset,
-    importance = TRUE
-  )
-  
-  imp_df <- as.data.frame(importance(rf_fit)) %>%
-    tibble::rownames_to_column("variable") %>%
-    rename(IncMSE = `%IncMSE`, IncNodePurity = IncNodePurity)
-  
-  cor_results <- lapply(predictors, function(var) {
-    test <- cor.test(df_subset[[var]], df_subset[[response_var]])
-    data.frame(
-      variable = var,
-      correlation = test$estimate,
-      p_value = test$p.value,
-      significance = case_when(
-        test$p.value < 0.001 ~ "***",
-        test$p.value < 0.01 ~ "**",
-        test$p.value < 0.05 ~ "*",
-        test$p.value < 0.1 ~ ".",
-        TRUE ~ ""
-      )
-    )
-  }) %>% bind_rows()
-  
-  result_table <- left_join(imp_df, cor_results, by = "variable") %>%
-    mutate(evaluator = response_var) %>%
-    select(variable, evaluator, everything()) %>%
-    arrange(desc(IncMSE))
-  
-  return(result_table)
-}
-
-# for this analysis i use only data from off-diagonals, to control for the issue of information addition (we have none in the diagonal)
-df_offs <- result_summary_island %>% filter(train_layer != test_layer)
-# Assuming your data is in df_off and you want to analyze "f1_score":
-result_f1 <- summarize_rf_importance_and_correlation(df_offs, "f1_score")
-
-# View the table
-print(result_f1)
-
-# several evaluators
-evaluators <- c("f1_score", "balanced_accuracy", "precision", "recall", "specificity", "mcc", "rmse", "mse")
-
-summary_all <- bind_rows(lapply(evaluators, function(ev) {
-  summarize_rf_importance_and_correlation(df_offs, ev)
-}))
-
-# View combined table
-print(summary_all)
-
-# # for both scales
-# summary_island <- summary_all %>% mutate(scale = "island")
-# 
-# df_offs_site <- result_summary_site %>% filter(train_layer != test_layer)
-# 
-# summary_site <- bind_rows(lapply(evaluators, function(ev) {
-#   summarize_rf_importance_and_correlation(df_offs_site, ev)
-# })) %>% mutate(scale = "site") # fix to have all variables
-
-# summary_all_scales <- bind_rows(summary_island, summary_site)
-
-# # for a nice table in html
-# library(gt)
-# 
-# styled_table <- summary_all %>%
-#   mutate(correlation_display = ifelse(
-#     !is.na(significance) & significance != "",
-#     paste0("**", round(correlation, 3), "**"),  # Bold significant
-#     round(correlation, 3)
-#   )) %>%
-#   gt() %>%
-#   data_color(
-#     columns = vars(correlation),
-#     colors = scales::col_numeric(
-#       palette = c("lightsteelblue", "black", "salmon"),
-#       domain = c(-1, 1)
-#     )
-#   ) %>%
-#   cols_label(
-#     variable = "Variable",
-#     evaluator = "Evaluator",
-#     IncMSE = "%IncMSE",
-#     IncNodePurity = "Gini Importance",
-#     correlation = "Correlation",
-#     p_value = "P-value",
-#     significance = "Sig.",
-#     scale = "Scale"
-#   ) %>%
-#   fmt_number(columns = vars(IncMSE, IncNodePurity, correlation, p_value), decimals = 3) %>%
-#   tab_style(
-#     style = cell_text(weight = "bold"),
-#     locations = cells_body(
-#       columns = vars(correlation),
-#       rows = significance != ""
-#     )
-#   ) %>%
-#   tab_options(
-#     table.font.size = "small",
-#     heading.title.font.size = 14,
-#     data_row.padding = px(3)
-#   )
-
-library(knitr)
-library(kableExtra)
-
-summary_all %>%
-  mutate(
-    correlation_fmt = ifelse(
-      significance != "",
-      cell_spec(round(correlation, 3), bold = TRUE,
-                color = ifelse(correlation > 0, "salmon", "lightsteelblue")),
-      cell_spec(round(correlation, 3), color = ifelse(correlation > 0, "red", "blue"))
-    ),
-    p_value = round(p_value, 3),
-    IncMSE = round(IncMSE, 3),
-    IncNodePurity = round(IncNodePurity, 3)
-  ) %>%
-  select(variable, evaluator, IncMSE, IncNodePurity, correlation_fmt, p_value, significance) %>%
-  kable("html", escape = FALSE, col.names = c(
-    "Variable", "Evaluator", "%IncMSE", "Gini", "Correlation", "P-value", "Sig."
-  )) %>%
-  kable_styling(full_width = FALSE, position = "left")
-
-## ---- how many interactions were observed when adding information? ----
-# here we check what's the proportion of links that were not observed with no layer addition but were observed and predicted correctly (to exist) when we add other layers
-
-# 1. Denominator per train_layer & itr
-denom_df <- df_removed %>%
-  filter(test_layer == train_layer, original_links == 0) %>%
-  distinct(train_layer, itr, node_to, node_from) %>%
-  group_by(train_layer, itr) %>%
-  summarise(denominator = n(), .groups = "drop")
-
-# 2. Numerator per train_layer / test_layer / itr
-num_df <- df_removed %>%
-  filter(test_layer != train_layer,
-         original_links > 0,
-         predicted_prob_sigm > 0.6) %>%
-  distinct(train_layer, test_layer, itr, node_to, node_from) %>%
-  group_by(train_layer, test_layer, itr) %>%
-  summarise(numerator = n(), .groups = "drop")
-
-# 3. Compute per-itr proportions
-prop_df <- num_df %>%
-  left_join(denom_df, by = c("train_layer", "itr")) %>%
-  filter(!is.na(denominator) & denominator > 0) %>%
-  mutate(prop = numerator / denominator)
-
-# 4. Average prop over itr for each layer‐combo
-combo_df <- prop_df %>%
-  group_by(train_layer, test_layer) %>%
-  summarise(mean_prop = mean(prop, na.rm = TRUE), .groups = "drop")
-
-# 5. Overall average across all train/test combos
-overall_mean <- mean(combo_df$mean_prop, na.rm = TRUE)
-
-# Inspect
-combo_df
-overall_mean
-
-# how many interactions were observed when we added other layers
-
-# Reuse the same denominator:
-denom_df <- df %>%
-  filter(test_layer == train_layer, original_links == 0) %>%
-  distinct(train_layer, itr, node_to, node_from) %>%
-  group_by(train_layer, itr) %>%
-  summarise(denominator = n(), .groups = "drop")
-
-# New numerator: absent in‐layer but present cross‐layer
-num2_df <- df %>%
-  filter(test_layer != train_layer,
-         original_links > 0) %>%
-  distinct(train_layer, test_layer, itr, node_to, node_from) %>%
-  group_by(train_layer, test_layer, itr) %>%
-  summarise(n_novel = n(), .groups = "drop")
-
-# Compute per‐itr proportions
-prop2_df <- num2_df %>%
-  left_join(denom_df, by = c("train_layer", "itr")) %>%
-  filter(!is.na(denominator) & denominator > 0) %>%
-  mutate(prop_novel = n_novel / denominator)
-
-# Average over itr for each train/test layer combo
-combo2_df <- prop2_df %>%
-  group_by(train_layer, test_layer) %>%
-  summarise(mean_prop_novel = mean(prop_novel, na.rm = TRUE), .groups = "drop")
-
-# Grand mean across all layer‐combos
-overall_mean_novel <- mean(combo2_df$mean_prop_novel, na.rm = TRUE)
-
-# Inspect results
-combo2_df
-overall_mean_novel
-
-## ---- some stats ----
-print(summary(result_summary_island))
-print(summary(result_summary_site))
-
-Sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara")
-summary(Sahara)
-
-no_Sahara <- result_summary_island %>% filter(test_layer_name != "Western Sahara")
-summary(no_Sahara)
-
-# assuming your data.frame is called df
-# first, select only the numeric columns
-num_df <- result_summary_island[sapply(result_summary_island, is.numeric)]
-
-# now compute mean, median, SD and SE for each column
-stats <- data.frame(
-  mean   = sapply(num_df, mean,   na.rm = TRUE),
-  median = sapply(num_df, median, na.rm = TRUE),
-  sd     = sapply(num_df, sd,     na.rm = TRUE),
-  # standard error = sd / sqrt(n_nonNA)
-  se     = sapply(num_df, function(x) sd(x, na.rm=TRUE) / sqrt(sum(!is.na(x))))
-)
-
-print(stats)
-
-unique(df$node_from)
-unique(df$node_to)
-## ---- pca of latent traits ----
