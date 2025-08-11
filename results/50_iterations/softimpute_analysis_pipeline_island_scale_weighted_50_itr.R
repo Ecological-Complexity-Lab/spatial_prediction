@@ -386,20 +386,79 @@ ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_bin
        fill = "Original Link") +
   theme_minimal() + tme
 
-df_removed %>% 
-  filter(test_layer==4) %>% 
+predicted_original <- df_removed %>%
+  # filter(test_layer==4) %>%
 ggplot(aes(x = original_links, y = predicted_values)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = "lm", se = FALSE, color = "lightsteelblue", linetype = "dashed") +
-  stat_cor(method = "spearman", label.x = 20, label.y = 50) +  # change method to "spearman" if needed
+  geom_point(alpha = 0.6, color = "lightsteelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+  stat_cor(method = "spearman", label.x = 55, label.y = 50) +  # change method to "spearman" if needed
   labs(
-    x = "Original links",
-    y = "Predicted values",
-    title = "Correlation between predictions and original links"
+    x = "Weight of original links",
+    y = "Predicted values"
+    #title = "Correlation between predictions and original links"
   ) +
-  geom_abline (slope=1, linetype = "dashed", color="Red")+
+  geom_abline (slope=1, linetype = "dashed", color="salmon")+
   coord_equal()+
+  theme_minimal(base_size = 14) + tme
+
+# assuption check, choose the appropriate correlation method
+ggplot(df_removed, aes(x = original_links, y = predicted_values)) +
+  geom_point(alpha = 0.6, color = "lightsteelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+  geom_smooth(method = "loess", se = FALSE, color = "darkorange") +
+  labs(x = "Weight of original links", y = "Predicted values") +
   theme_minimal(base_size = 14)
+
+# shapiro.test(df_removed$original_links)       # test for normality
+# shapiro.test(df_removed$predicted_values)
+
+# we have too many data point, so visually check it instead
+par(mar = c(4, 4, 2, 1))  # bottom, left, top, right
+hist(df_removed$original_links, main = "Original links", xlab = "")
+qqnorm(df_removed$original_links); qqline(df_removed$original_links)
+
+hist(df_removed$predicted_values, main = "Predicted values", xlab = "")
+qqnorm(df_removed$predicted_values); qqline(df_removed$predicted_values)
+# the distribution is not normal at all, so better use spearman.
+
+# compute Spearman
+ct <- cor.test(df_removed$original_links,
+               df_removed$predicted_values,
+               method = "spearman",
+               exact = FALSE)
+
+rho_val <- unname(ct$estimate)
+p_text <- if (p_val == 0) {
+  "< 2.2e-16"
+} else {
+  format(p_val, scientific = TRUE, digits = 2)
+}
+
+label_text <- paste0(
+  "\u03C1 = ", round(rho_val, 2),
+  ", p  ", p_text
+)
+
+
+# plot (replace stat_cor with annotate)
+predicted_original <- df_removed %>%
+  ggplot(aes(x = original_links, y = predicted_values)) +
+  geom_point(alpha = 0.6, color = "lightsteelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+  annotate("text", x = 60, y = 50, label = label_text, hjust = 0, size = 4) +
+  labs(x = "Weight of original links", y = "Predicted values") +
+  geom_abline(slope = 1, linetype = "dashed", color = "salmon") +
+  coord_equal() +
+  theme_minimal(base_size = 14) + tme
+
+# pdf(
+#   file   = "predicted_original.pdf",
+#   width  = 6,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(predicted_original)
+# dev.off()     # close the file
 
 ### ---- weighted version ----
 
@@ -729,10 +788,21 @@ combined_plot
 # Run the t-test via formula interface
 t_test_f1 <- t.test(f1_score ~ layer_comparison, 
                     data       = result_summary,
-                    var.equal  = FALSE)  # Welch’s test
+                    var.equal  = TRUE)  # No need for Welch’s test
 
 # 3. Print the full test
 print(t_test_f1)
+
+# do we need welch/wilcoxon?
+# first normality check
+result_summary %>%
+  group_by(layer_comparison) %>%
+  shapiro_test(f1_score)
+
+# variance check
+result_summary %>% levene_test(f1_score ~ layer_comparison)
+# all is good, we can use t-test.
+
 #> 
 #> Welch Two Sample t-test
 #> 
@@ -937,6 +1007,21 @@ summary(results)
 
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
+
+# summerize (table ST1)
+
+df_summary <- result_summary %>%
+  group_by(test_layer_name) %>%
+  summarise(
+    size_P   = mean(size_P, na.rm = TRUE),
+    density_P  = mean(density_P, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(size_P))  # change to asc() for smallest first
+
+df_summary
+
+overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 
 ### ---- correlate netsize with evaluators ----
 
@@ -1203,6 +1288,10 @@ netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme
 # )
 # print(netsize_f1_nnse)
 # dev.off()     # close the file
+
+# test assumptions
+shapiro.test(result_summary$f1_score)       # test for normality
+shapiro.test(result_summary$nnse) # f1 is normally distributed but nnse not. better use spearman
 
 ## ---- Jaccard correlation with evaluators ----
 
@@ -2743,7 +2832,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
   geom_tile(aes(fill = avg_prop)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
+                      name = "Observed links: \nproportion\nof islands\nobserved") +
   
   # Reset fill scale so the next layer can have its own gradient
   new_scale_fill() +
@@ -2755,7 +2844,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     alpha = 0.6
   ) +
   scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
+                      name = "Predicted links:\naverage predicted\nprobability") +
   
   # Final adjustments
   theme_minimal() +

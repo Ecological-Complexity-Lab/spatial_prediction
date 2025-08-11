@@ -558,12 +558,30 @@ comparisons <- list(c("All", "Shared species"))
 df_sub <- df_plot %>%
   filter(dataset %in% c("All", "Shared species"))
 
+# do we need welch/wilcoxon?
+# first normality check
+df_sub %>%
+  group_by(dataset) %>%
+  shapiro_test(f1_score)
+
+# variance check
+df_sub %>% levene_test(f1_score ~ dataset)
+
+# nnse
+# first normality check
+df_sub %>%
+  group_by(dataset) %>%
+  shapiro_test(nnse)
+
+# variance check
+df_sub %>% levene_test(nnse ~ dataset)
+
 # — make individual plots ----------------------------------------------------
 p_nnse <- ggplot(df_sub, aes(x = dataset, y = nnse, fill = dataset)) +
   geom_boxplot(notch = TRUE, alpha = 0.6) +
   stat_compare_means(
     comparisons = comparisons,
-    method      = "t.test",
+    method      = "wilcox.test",
     label       = "p.format",
     tip.length  = 0.01
   ) +
@@ -603,14 +621,14 @@ combined <- (p_nnse | p_f1) +       # side by side
 # — draw it ------------------------------------------------------------------
 print(combined)
 
-pdf(
-  file   = "subset_analysis.pdf",
-  width  = 7,    # inches
-  height = 5,
-  family = "Helvetica"   # or another installed font
-)
-print(combined)
-dev.off()     # close the file
+# pdf(
+#   file   = "subset_analysis.pdf",
+#   width  = 7,    # inches
+#   height = 5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(combined)
+# dev.off()     # close the file
 
 ### ---- missing interactions and venn ----
 

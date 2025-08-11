@@ -1019,7 +1019,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- distribution of evaluators with/without external data ----
+### ---- Fig. 3b: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 # for reproducing Fig. 3b in the paper
 result_summary <- result_summary %>%
@@ -1048,6 +1048,16 @@ t_test_f1 <- t.test(f1_score ~ layer_comparison,
 
 # 3. Print the full test
 print(t_test_f1)
+
+# do we need welch/wilcoxon?
+# first normality check
+result_summary %>%
+  group_by(layer_comparison) %>%
+  shapiro_test(f1_score)
+
+# variance check
+result_summary %>% levene_test(f1_score ~ layer_comparison)
+# all is good, we can use t-test.
 
 # 4. Extract just the numbers you want
 t_stat <- unname(t_test_f1$statistic)
@@ -1179,7 +1189,7 @@ summary(results)
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- correlate network size with evaluators ----
+#### ---- Fig. 4: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1286,7 +1296,7 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- plot Jaccard ----
+#### ---- Fig. 5: plot Jaccard ----
 # we filter only pairs of different islands for this analysis, since Jaccard index for the same island is 1 for all islands
 canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
@@ -1456,7 +1466,7 @@ df_for_plot_balanced <- bind_rows(
     mutate(avg_sorensen_pollinators = NA_real_)
 )
 
-#### ---- Fig. S5: plot fidelity ----
+#### ---- Fig. S4: plot fidelity ----
 balanced_f1_fidelity <- make_full_correlation_plot(
   data            = df_for_plot_balanced,
   evaluator       = "mean_f1",
@@ -1706,7 +1716,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
 
 print(map_missing_links) # Fig 6a
 
-### ---- difference in links predicted with/without external data ----
+### ---- Fig. S5: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -1903,7 +1913,7 @@ pie_chart
 # print(pie_chart)
 # dev.off()     # close the file
 
-## ---- distance effect ----
+## ---- distance decay ----
 ### ---- add distances and location names ----
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
@@ -3105,7 +3115,7 @@ nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     switch        = "y"             # move the strip to the left side
   ) +
   stat_compare_means(
-    method         = "t.test",
+    method         = "wilcox.test",
     label          = "p.format",    # print the full p‐value
     p.format.args  = list(
       digits     = 2,               # two digits after decimal
@@ -3138,7 +3148,7 @@ nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 
 nnse_f1_scales
 
-# Base‐R PDF device
+#Base‐R PDF device
 # pdf(
 #   file   = "scales_fig2.pdf",
 #   width  = 7,    # inches
@@ -3148,6 +3158,18 @@ nnse_f1_scales
 # print(nnse_f1_scales)
 # dev.off()     # close the file
 
+# test for assumptions
+# normality
+
+library(rstatix)
+df_long %>%
+  group_by(metric, scale) %>%
+  shapiro_test(value)   # Shapiro-Wilk normality test
+
+df_long %>%
+  ggqqplot(x = "value", facet.by = c("metric", "scale"))
+
+# mostly, data is not normally distributed, so better use wilcoxon 
 # supp figure S1
 
 df_long <- bind_rows(
