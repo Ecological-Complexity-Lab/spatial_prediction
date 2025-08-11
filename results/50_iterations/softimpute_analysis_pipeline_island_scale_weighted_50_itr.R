@@ -391,7 +391,7 @@ predicted_original <- df_removed %>%
 ggplot(aes(x = original_links, y = predicted_values)) +
   geom_point(alpha = 0.6, color = "lightsteelblue") +
   geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
-  stat_cor(method = "spearman", label.x = 55, label.y = 50) +  # change method to "spearman" if needed
+  stat_cor(method = "pearson", label.x = 55, label.y = 50) +  # change method to "spearman" if needed
   labs(
     x = "Weight of original links",
     y = "Predicted values"
@@ -401,56 +401,56 @@ ggplot(aes(x = original_links, y = predicted_values)) +
   coord_equal()+
   theme_minimal(base_size = 14) + tme
 
-# assuption check, choose the appropriate correlation method
-ggplot(df_removed, aes(x = original_links, y = predicted_values)) +
-  geom_point(alpha = 0.6, color = "lightsteelblue") +
-  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
-  geom_smooth(method = "loess", se = FALSE, color = "darkorange") +
-  labs(x = "Weight of original links", y = "Predicted values") +
-  theme_minimal(base_size = 14)
-
-# shapiro.test(df_removed$original_links)       # test for normality
-# shapiro.test(df_removed$predicted_values)
-
-# we have too many data point, so visually check it instead
-par(mar = c(4, 4, 2, 1))  # bottom, left, top, right
-hist(df_removed$original_links, main = "Original links", xlab = "")
-qqnorm(df_removed$original_links); qqline(df_removed$original_links)
-
-hist(df_removed$predicted_values, main = "Predicted values", xlab = "")
-qqnorm(df_removed$predicted_values); qqline(df_removed$predicted_values)
-# the distribution is not normal at all, so better use spearman.
-
-# compute Spearman
-ct <- cor.test(df_removed$original_links,
-               df_removed$predicted_values,
-               method = "spearman",
-               exact = FALSE)
-
-rho_val <- unname(ct$estimate)
-p_text <- if (p_val == 0) {
-  "< 2.2e-16"
-} else {
-  format(p_val, scientific = TRUE, digits = 2)
-}
-
-label_text <- paste0(
-  "\u03C1 = ", round(rho_val, 2),
-  ", p  ", p_text
-)
-
-
-# plot (replace stat_cor with annotate)
-predicted_original <- df_removed %>%
-  ggplot(aes(x = original_links, y = predicted_values)) +
-  geom_point(alpha = 0.6, color = "lightsteelblue") +
-  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
-  annotate("text", x = 60, y = 50, label = label_text, hjust = 0, size = 4) +
-  labs(x = "Weight of original links", y = "Predicted values") +
-  geom_abline(slope = 1, linetype = "dashed", color = "salmon") +
-  coord_equal() +
-  theme_minimal(base_size = 14) + tme
-
+# # assuption check, choose the appropriate correlation method
+# ggplot(df_removed, aes(x = original_links, y = predicted_values)) +
+#   geom_point(alpha = 0.6, color = "lightsteelblue") +
+#   geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+#   geom_smooth(method = "loess", se = FALSE, color = "darkorange") +
+#   labs(x = "Weight of original links", y = "Predicted values") +
+#   theme_minimal(base_size = 14)
+# 
+# # shapiro.test(df_removed$original_links)       # test for normality
+# # shapiro.test(df_removed$predicted_values)
+# 
+# # we have too many data point, so visually check it instead
+# par(mar = c(4, 4, 2, 1))  # bottom, left, top, right
+# hist(df_removed$original_links, main = "Original links", xlab = "")
+# qqnorm(df_removed$original_links); qqline(df_removed$original_links)
+# 
+# hist(df_removed$predicted_values, main = "Predicted values", xlab = "")
+# qqnorm(df_removed$predicted_values); qqline(df_removed$predicted_values)
+# # the distribution is not normal at all, so better use spearman.
+# 
+# # compute Spearman
+# ct <- cor.test(df_removed$original_links,
+#                df_removed$predicted_values,
+#                method = "pearson",
+#                exact = FALSE)
+# 
+# rho_val <- unname(ct$estimate)
+# p_text <- if (p_val == 0) {
+#   "< 2.2e-16"
+# } else {
+#   format(p_val, scientific = TRUE, digits = 2)
+# }
+# 
+# label_text <- paste0(
+#   "\u03C1 = ", round(rho_val, 2),
+#   ", p  ", p_text
+# )
+# 
+# 
+# # plot (replace stat_cor with annotate)
+# predicted_original <- df_removed %>%
+#   ggplot(aes(x = original_links, y = predicted_values)) +
+#   geom_point(alpha = 0.6, color = "lightsteelblue") +
+#   geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+#   annotate("text", x = 60, y = 50, label = label_text, hjust = 0, size = 4) +
+#   labs(x = "Weight of original links", y = "Predicted values") +
+#   geom_abline(slope = 1, linetype = "dashed", color = "salmon") +
+#   coord_equal() +
+#   theme_minimal(base_size = 14) + tme
+# 
 # pdf(
 #   file   = "predicted_original.pdf",
 #   width  = 6,    # inches
@@ -1289,6 +1289,91 @@ netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme
 # print(netsize_f1_nnse)
 # dev.off()     # close the file
 
+# for density
+
+plot_f1_nnse_vs_density_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        measure_type = c(density_P  = "Density of matrix P",
+                         density_C  = "Density of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network density",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
+df_f1_nnse_density <- result_summary %>%
+  select(f1_score, nnse, density_P, density_C) %>%
+  pivot_longer(cols = c(density_P, density_C), names_to = "measure_type", values_to = "measure_value") %>%
+  pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
+
+netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tme
+
+# pdf(
+#   file   = "netdensity_f1_nnse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netdensity_f1_nnse)
+# dev.off()     # close the file
+
 # test assumptions
 shapiro.test(result_summary$f1_score)       # test for normality
 shapiro.test(result_summary$nnse) # f1 is normally distributed but nnse not. better use spearman
@@ -1445,6 +1530,10 @@ all_island
 canary_results_diags <- result_summary %>%
   # Keep rows where train_layer < test_layer (upper triangle) or on the diagonal
   filter(train_layer != test_layer)
+
+# test assumptions
+shapiro.test(canary_results_diags$f1_score)       # test for normality
+shapiro.test(canary_results_diags$nnse) # f1 is normally distributed but nnse not. better use spearman
 
 # offs_island <- make_facet_scatter_plot(data = canary_results_diags_isl, 
 #                                      evaluator = "f1_score",
@@ -4171,6 +4260,11 @@ cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", 
 cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
 distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
 
+# test assumptions
+shapiro.test(filtered_results$f1_score)       # test for normality
+shapiro.test(filtered_results$nnse) 
+shapiro.test(result_summary_island_dif$f1_score)       # test for normality
+shapiro.test(result_summary_island_dif$nnse) 
 # run the previous make_cor_plot again
 # pdf(
 #   file   = "distance_plot_f1_different_isl.pdf",
@@ -4182,7 +4276,7 @@ distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl
 # grid::grid.draw(distance_dif_plot_f1)
 # 
 # dev.off()
-# 
+
 # png(
 #   file   = "distance_plot_f1_different_isl.png",
 #   width  = 7,
