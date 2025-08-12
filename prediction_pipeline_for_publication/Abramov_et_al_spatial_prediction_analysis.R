@@ -966,19 +966,20 @@ ggplot(df_removed, aes(x = predicted_prob_sigm, fill = factor(original_links_bin
        fill = "Original Link") +
   theme_minimal() + tme
 
-df_removed %>% 
-ggplot(aes(x = original_links, y = predicted_values)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = "lm", se = FALSE, color = "lightsteelblue", linetype = "dashed") +
-  stat_cor(method = "spearman", label.x = 20, label.y = 50) +  # change method to "spearman" if needed
+### ---- Fig. S2: predicted vs. observed weights ----
+predicted_original <- df_removed %>%
+  ggplot(aes(x = original_links, y = predicted_values)) +
+  geom_point(alpha = 0.6, color = "lightsteelblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", linetype = "dashed") +
+  stat_cor(method = "pearson", label.x = 55, label.y = 50) +  # change method to "spearman" if needed
   labs(
-    x = "Original links",
-    y = "Predicted values",
-    title = "Correlation between predictions and original links"
+    x = "Weight of original links",
+    y = "Predicted values"
+    #title = "Correlation between predictions and original links"
   ) +
-  geom_abline (slope=1, linetype = "dashed", color="Red")+
+  geom_abline (slope=1, linetype = "dashed", color="salmon")+
   coord_equal()+
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14) + tme
 
 df_removed <- df %>%
   filter(removed == 1) %>% 
@@ -1022,7 +1023,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- Fig. 3b: distribution of evaluators with/without external data ----
+### ---- Fig. 2b: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 # for reproducing Fig. 3b in the paper
 result_summary <- result_summary %>%
@@ -1077,6 +1078,118 @@ data.frame(
 ### ---- network size and density correlation with evaluators ----
 # here we calculate the size and density of the networks and correlate them with evaluation metrics.
 #### ---- calculate the size and density of our networks ----
+# # Initialize a data frame to store combined results for all layer combinations
+# results <- data.frame()
+# 
+# # Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
+# # Load matrices
+# d <- load_emln(emln_id)
+# graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
+# A_l <- d$extended
+# 
+# # aggregate to island scale
+# # Extract numeric layer numbers
+# A_l <- A_l %>%
+#   mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
+#   mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
+#                                    paste0("layer_", layer_num, "_", layer_num + 1),
+#                                    paste0("layer_", layer_num - 1, "_", layer_num)))
+# 
+# # Aggregate data
+# aggregated_df <- A_l %>%
+#   group_by(aggregated_layer, node_from, node_to, type) %>%
+#   summarise(weight = sum(weight), .groups = "drop") %>%
+#   mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
+#   select(layer_from, node_from, layer_to, node_to, weight, type)
+# 
+# # Generate new layer names
+# unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
+# new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
+# 
+# # Create a mapping table
+# layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
+# 
+# # Apply renaming in aggregated_df
+# aggregated_df <- aggregated_df %>%
+#   left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
+#   mutate(layer_from = new_layer, layer_to = new_layer) %>%
+#   select(layer_from, node_from, layer_to, node_to, weight, type)
+# 
+# # View updated aggregated_df
+# print(aggregated_df)
+# 
+# # Total number of layers
+# num_layers <- length(unique(aggregated_df$layer_from))
+# 
+# for (layers_to_train in 1:num_layers) {
+#   for (layer_to_predict in 1:num_layers) {
+#     
+#     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+#     
+#     # Build the aggregated matrix A for training
+#     A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+#     
+#     # Build the layer to predict matrix P
+#     P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+#     
+#     node_to <- rownames(P) # for the results
+#     node_from <- colnames(P)
+#     
+#     ### creating a combined matrix C 
+#     all_row_ids <- unique(c(rownames(A), rownames(P)))
+#     all_col_ids <- unique(c(colnames(A), colnames(P)))
+#     C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+#                 dimnames = list(all_row_ids, all_col_ids))
+#     
+#     # Place A into C
+#     C[rownames(A), colnames(A)] <- A
+#     
+#     # Place P into C
+#     C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+#                                           NA, 
+#                                           C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+#     
+#     # Compute matrix properties
+#     nrow_A <- nrow(A)
+#     nrow_P <- nrow(P)
+#     nrow_C <- nrow(C)
+#     ncol_A <- ncol(A)
+#     ncol_P <- ncol(P)
+#     ncol_C <- ncol(C)
+#     size_A <- length(A)
+#     size_P <- length(P)
+#     size_C <- length(C)
+#     
+#     # Calculate density for A, P, and C
+#     density_A <- sum(A > 0) / length(A)
+#     density_P <- sum(P > 0) / length(P)
+#     density_C <- sum(C > 0) / length(C)
+#     
+#     # Add these values to the results table
+#     results <- rbind(results, data.frame(emln_id = emln_id,
+#                                          train_layer = layers_to_train,
+#                                          test_layer = layer_to_predict,
+#                                          nrow_A = nrow_A,
+#                                          ncol_A = ncol_A,
+#                                          size_A = size_A,
+#                                          density_A = density_A,   # Added density
+#                                          nrow_P = nrow_P,
+#                                          ncol_P = ncol_P,
+#                                          size_P = size_P,
+#                                          density_P = density_P,   # Added density
+#                                          nrow_C = nrow_C,
+#                                          ncol_C = ncol_C,
+#                                          size_C = size_C,
+#                                          density_C = density_C))  # Added density
+#     
+#     
+#   }
+# }
+# 
+# # view results
+# summary(results)
+# 
+
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
 
@@ -1148,6 +1261,11 @@ for (layers_to_train in 1:num_layers) {
                                           NA, 
                                           C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
     
+    # make them all binary for count
+    A[A>0] <- 1
+    P[P>0] <- 1
+    C[C>0] <- 1
+    
     # Compute matrix properties
     nrow_A <- nrow(A)
     nrow_P <- nrow(P)
@@ -1155,9 +1273,9 @@ for (layers_to_train in 1:num_layers) {
     ncol_A <- ncol(A)
     ncol_P <- ncol(P)
     ncol_C <- ncol(C)
-    size_A <- length(A)
-    size_P <- length(P)
-    size_C <- length(C)
+    size_A <- nrow(A) + ncol(A)
+    size_P <- nrow(P) + ncol(P)
+    size_C <- nrow(C) + ncol(C)
     
     # Calculate density for A, P, and C
     density_A <- sum(A > 0) / length(A)
@@ -1188,11 +1306,12 @@ for (layers_to_train in 1:num_layers) {
 # view results
 summary(results)
 
+
 # add them to the results table
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- Fig. 4: correlate network size with evaluators ----
+#### ---- Fig. 5: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1202,39 +1321,111 @@ df_netsize <- result_summary %>%
     values_to = "measure_value"
   )
 
-netsize_island_f1 <- plot_netsize(
-  data = df_netsize,
-  evaluator = "f1_score",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "F1 score"
-)
-netsize_island_f1
-
-
-netsize_island_nnse <- plot_netsize(
-  data = df_netsize,
-  evaluator = "nnse",
-  facet_labels = c(
-    "size_C" = "Size of matrix C",
-    "density_C" = "Density of matrix C",
-    "size_P" = "Size of matrix P",
-    "density_P" = "Density of matrix P"
-  ),
-  evaluator_label = "NNSE"
-)
-netsize_island_nnse
 
 df_f1_nnse_size <- result_summary %>%
   select(f1_score, nnse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
-netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 4
+netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 5
+netsize_f1_nnse
+
+# pdf(
+#   file   = "netsize_f1_nnse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netsize_f1_nnse)
+# dev.off()     # close the file
+
+#### ---- Fig. S6: density ----
+
+plot_f1_nnse_vs_density_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        measure_type = c(density_P  = "Density of matrix P",
+                         density_C  = "Density of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network density",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
+df_f1_nnse_density <- result_summary %>%
+  select(f1_score, nnse, density_P, density_C) %>%
+  pivot_longer(cols = c(density_P, density_C), names_to = "measure_type", values_to = "measure_value") %>%
+  pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
+
+netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tme
+netdensity_f1_nnse
+
+# pdf(
+#   file   = "netdensity_f1_nnse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netdensity_f1_nnse)
+# dev.off()     # close the file
+
+### ---- corrected netsize analysis ----
 
 ### ---- Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
@@ -1299,19 +1490,18 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- Fig. 5: plot Jaccard ----
+#### ---- Fig. 4: plot Jaccard ----
 # we filter only pairs of different islands for this analysis, since Jaccard index for the same island is 1 for all islands
 canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
 
-# Fig. 5
 jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                         evaluator = "f1_score",
                                         pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                         x_lab = "Jaccard similarity",
                                         y_lab = "F1 score",
                                         facet_scales = "free_x")
-jaccard_isl_f1
+jaccard_isl_f1 # Fig. 4
 
 jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                            evaluator = "nnse",
@@ -1517,7 +1707,7 @@ overall_poll_degree <- df_filtered %>%
   group_by(node_to) %>% 
   summarise(overall_poll_degree = length(unique(node_from)), .groups = "drop")
 
-#### ---- Fig. 6c: plot degree vs. number of never observed interactions ----
+#### ---- Fig. 3c: plot degree vs. number of never observed interactions ----
 # here by "island" we refer to a layer pair
 
 df <- df %>%
@@ -1616,7 +1806,6 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            label = label_text_plants,
            size = 5,
            color = "black")
-plant_degree
 
 # add repel‐text layer
 plant_degree <- plant_degree +
@@ -1660,13 +1849,11 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            label = label_text_polls,
            size = 5,
            color = "black")
-poll_degree
-
 
 final_plot <- combine_plots(plant_degree, poll_degree)
 final_plot # Fig. 6c
 
-### ---- Fig. 6a: mapping never-observed links ----
+### ---- Fig. 3a: mapping never-observed links ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
 
 # order species by their degree
@@ -2271,7 +2458,7 @@ mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
 # results
 print(mrm_out_site)
 
-### ---- plot heatmaps ----
+### ---- Fig. 2a heatmap ----
 
 island_heatmap_f1 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
