@@ -22,6 +22,9 @@ library(ggnewscale)
 library(randomForest)
 library(stringr)
 library(softImpute)
+library(ecodist)
+library(rstatix)
+library(ggrepel)
 
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
@@ -1458,11 +1461,11 @@ df_balanced_f1_plants <- df_clean %>%
 # join them together
 df_for_plot_balanced <- bind_rows(
   df_balanced_f1_polls %>%
-    left_join(poll_fid, by = "species") %>%
+    left_join(df_sorensen_pollinators, by = c("species" = "node_to")) %>%
     mutate(avg_sorensen_plants = NA_real_),
   
   df_balanced_f1_plants %>%
-    left_join(plant_fid, by = "species") %>%
+    left_join(df_sorensen, by = c("species" = "node_from")) %>%
     mutate(avg_sorensen_pollinators = NA_real_)
 )
 
@@ -1470,11 +1473,13 @@ df_for_plot_balanced <- bind_rows(
 balanced_f1_fidelity <- make_full_correlation_plot(
   data            = df_for_plot_balanced,
   evaluator       = "mean_f1",
-  pollinator_x    = "avg_sorensen_pollinators",
-  plant_x         = "avg_sorensen_plants",
+  pollinator_x    = "mean_sorensen_pollinators",
+  plant_x         = "mean_sorensen_plants",
   shared_x_lab    = "Mean partner fidelity (Sørensen)",
   shared_y_lab    = "F1 score per species"
 )
+
+balanced_f1_fidelity
 
 ### ---- degree impact on link assignment ----
 # here we examine if the algorithm assigns more links to species with higher degree.
@@ -1482,7 +1487,7 @@ balanced_f1_fidelity <- make_full_correlation_plot(
 #### ---- calculate overall degree per species ----
 # filter only existing links
 df_filtered <- df %>%
-  filter(itr == 1, original_links != 0)
+  filter(itr == 1, original_links != 0) # filter existing interactions
 
 # calculate degree for each plant species (node_from)
 plant_degree <- df_filtered %>%
@@ -1749,47 +1754,27 @@ df_summary_offs <- df_island_offs %>%
 
 identical(df_summary_offs$node_from, df_summary_diag$node_from) # check
 
-# which links only appear in one of the two data-frames?
-only_offs <- df_summary_offs %>%
-  select(node_from, node_to) %>%
-  anti_join(df_summary_diag, by = c("node_from","node_to")) %>%
-  mutate(source = "offs")
-
-only_diag <- df_summary_diag %>%
-  select(node_from, node_to) %>%
-  anti_join(df_summary_offs, by = c("node_from","node_to")) %>%
-  mutate(source = "diag")
-
-bind_rows(only_offs, only_diag) %>%
-  arrange(node_from, node_to)
-# → these are the “new” / “dropped” interactions
-
-# for the shared links, compute per-column differences.
-
+# create a combined table
 diff_df <- full_join(
   df_summary_offs,
   df_summary_diag,
   by     = c("node_from","node_to"),
   suffix = c("_offs","_diag")
-) %>%
-  mutate(
-    diff_avg_prop            = avg_prop_offs            - avg_prop_diag,
-    diff_avg_sigm_predicted  = avg_sigm_predicted_offs  - avg_sigm_predicted_diag,
-    diff_n_islands           = n_islands_offs           - n_islands_diag,
-    diff_overall_poll_degree = overall_poll_degree_offs - overall_poll_degree_diag,
-    diff_overall_plant_degree= overall_plant_degree_offs- overall_plant_degree_diag
-  )
+) 
 
 # these are interactions that were predicted to exist in the off-diagonals but not in the diagonal
-diff_df_filtered <- diff_df %>% filter(avg_sigm_predicted_diag < 0.6 & avg_sigm_predicted_offs >= 0.6)
+diff_df_filtered <- diff_df %>% filter(diff_df$avg_sigm_predicted_diag < best_discrete_threshold & diff_df$avg_sigm_predicted_offs >= best_discrete_threshold)
 
 # and these are interactions that were predicted to exist in the diagonal but not in the off-diagonals
-diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < 0.6 & avg_sigm_predicted_diag >= 0.6)
+diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < best_discrete_threshold & avg_sigm_predicted_diag >= best_discrete_threshold)
 
+# order species by their degree
+diff_df$node_from <- factor(diff_df$node_from, levels = plant_order)
+diff_df$node_to   <- factor(diff_df$node_to, levels = poll_order)
 
 # plot the differences
 df_plot <- diff_df %>%
-  filter(avg_prop_diag == 0) %>% 
+  filter(avg_prop_diag == 0) %>% # non-observed interactions
   mutate(
     sigm_cat = case_when(
       avg_sigm_predicted_diag < best_discrete_threshold &
@@ -1825,7 +1810,7 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
     labels = c(
       "offs↑ only" = "Predicted only by \nadding external location",
       "diag↑ only" = "Predicted only by \nsingle location",
-      "both↑"       = "Predicted by both"
+      "both↑"       = "Predicted by both approaches"
     )
   ) +
   
@@ -1857,7 +1842,6 @@ df_plot %>%
     n_links = n()
   )
 
-
 # pie chart
 # 1. Count how many interactions fall into each category
 df_counts <- df_plot %>%
@@ -1881,6 +1865,7 @@ new_labels <- c(
   "diag↑ only" = "Predicted only by single location" ,
   "both↑"      = "Predicted by both approaches"
 )
+### ---- Fig. 3b: pie chart ----
 # 3. Make the pie
 pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   geom_col(width = 1, color = "white") +      # white border between slices
@@ -1913,18 +1898,18 @@ pie_chart
 # print(pie_chart)
 # dev.off()     # close the file
 
-## ---- distance decay ----
-### ---- add distances and location names ----
+### ---- distance decay ----
+#### ---- add distances and location names ----
 distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
 
 # proceed for both island scale and site scale and compare the trends
-### ---- island scale ----
-# Function to extract island names (removes "_site_X")
+#### ---- island scale ----
+# function to extract island names (removes "_site_X")
 extract_island <- function(name) {
   gsub("_site_[12]", "", name)
 }
 
-# Create new table with averaged distances at the island level
+# create new table with averaged distances at the island level
 distance_island_table <- distance_table %>%
   mutate(
     from_island = extract_island(from),
@@ -1942,15 +1927,15 @@ distance_island_table <- distance_table %>%
   ) %>%
   rename(from = from_island, to = to_island)  # Rename after calculation
 
-# Print result
+# print result
 print(distance_island_table)
 
-# Modify the 'from' and 'to' columns in distance_island_table
+# modify the 'from' and 'to' columns in distance_island_table
 distance_island_table <- distance_island_table %>%
   mutate(from = gsub("_", " ", from),
          to = gsub("_", " ", to))
 
-# Add names and distances to the main table
+# add names and distances to the main table
 net <- emln::load_emln(60) # canary islands
 net$layers
 net_name <- net$layers %>% select(layer_id, name)
@@ -1958,7 +1943,7 @@ net_name
 net_name <- net_name %>%
   mutate(name = gsub("_", " ", name))
 
-# Step 1: Create a new grouped tibble
+# create a new grouped tibble
 new_layer_names <- net_name %>%
   mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
   group_by(group_id) %>%
@@ -1983,8 +1968,8 @@ result_summary_island <- result_summary_island %>%
                                0,              # distance = 0 if same site
                                avg_distance_km))   # otherwise, keep joined distance
 
-### ---- site scale ----
-# Add names and distances to the main table
+#### ---- site scale ----
+# add names and distances to the main table
 net <- emln::load_emln(60) # canary islands
 net$layers
 net_name <- net$layers %>% select(layer_id, name)
@@ -1997,14 +1982,14 @@ distance_table <- distance_table %>%
   mutate(from = gsub("_", " ", from),
          to = gsub("_", " ", to))
 
-# Assuming your lookup tibble is called net_name and has columns layer_id and name
-#result_summary_site <- read_csv('working_df_site_scaled_evaluators_distance_50_itr_net_60.csv')
+# load site scale data
 result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
 
 # convert negatives to zeros
 result_site <- result_site %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
+# create the evaluation table
 df_removed_site <- result_site %>%
   filter(removed == 1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
@@ -2074,7 +2059,7 @@ result_summary_site <- result_summary_site %>%
                                0,              # distance = 0 if same site
                                distance_km))   # otherwise, keep joined distance
 
-## ---- distance correlation with evaluators ----
+#### ---- distance correlation with evaluators ----
 make_cor_plot <- function(data, evaluator, 
                           distance_col = "distance_km", 
                           x_lab = "Geographic distance (km)",
@@ -2112,41 +2097,6 @@ make_cor_plot <- function(data, evaluator,
   
   return(plot)
 }
-
-# cor_plot_site <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
-# cor_plot_isl  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
-# 
-# # To combine the plots:
-# p1 <- cor_plot_site + 
-#   ggtitle("Site scale") +
-#   theme(legend.position = "none",
-#         axis.title = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
-# p2 <- cor_plot_isl +
-#   ggtitle("Island scale") +
-#   theme(legend.position = "none",
-#         axis.title = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 1, 0.3), "cm"))
-# 
-# combined_plots <- arrangeGrob(
-#   p1, p2,
-#   ncol = 2,
-#   widths = c(1, 1)
-# )
-# combined_with_axes <- arrangeGrob(
-#   combined_plots,
-#   bottom = textGrob("Geographical distance (km)", 
-#                     gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-#   left   = textGrob("F1 score", rot = 90, 
-#                     gp = gpar(fontsize = 14, fontface = "bold"))
-# )
-# final_plot <- grid.arrange(
-#   combined_with_axes,
-#   ncol = 2,
-#   widths = c(2, 0.3)
-# )
-# 
-# final_plot
 
 combine_two_plots <- function(p1, p2,
                               x_axis_label = "Geographic distance (km)",
@@ -2208,129 +2158,15 @@ combine_two_plots <- function(p1, p2,
   return(final_plot)
 }
 
-cor_plot_site_f1 <- make_cor_plot(result_summary_site, evaluator = "f1_score", extra_theme = tme)
-cor_plot_isl_f1  <- make_cor_plot(result_summary_island, evaluator = "f1_score", extra_theme = tme)
-distance_plot_f1 <- combine_two_plots(cor_plot_site_f1, cor_plot_isl_f1)
-
-# pdf(
-#   file   = "distance_plot_f1.pdf",
-#   width  = 8,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# 
-# grid::grid.draw(distance_plot_f1)
-# 
-# dev.off()
-# 
-# png(
-#   file   = "distance_plot_f1.png",
-#   width  = 8,
-#   height = 4,
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300          # resolution in dots per inch
-# )
-# 
-# grid::grid.draw(distance_plot_f1)
-# 
-# dev.off()
-
-cor_plot_site_ba <- make_cor_plot(result_summary_site, evaluator = "balanced_accuracy", extra_theme = tme)
-cor_plot_isl_ba  <- make_cor_plot(result_summary_island, evaluator = "balanced_accuracy", extra_theme = tme)
-final_plot_ba <- combine_two_plots(cor_plot_site_ba, cor_plot_isl_ba, y_axis_label = "Balanced accuracy")
-
-cor_plot_site_precision <- make_cor_plot(result_summary_site, evaluator = "precision", extra_theme = tme)
-cor_plot_isl_precision  <- make_cor_plot(result_summary_island, evaluator = "precision", extra_theme = tme)
-final_plot_precision <- combine_two_plots(cor_plot_site_precision, cor_plot_isl_precision, y_axis_label = "Precision")
-
-cor_plot_site_recall <- make_cor_plot(result_summary_site, evaluator = "recall", extra_theme = tme)
-cor_plot_isl_recall  <- make_cor_plot(result_summary_island, evaluator = "recall", extra_theme = tme)
-final_plot_recall <- combine_two_plots(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
-
-cor_plot_site_specificity <- make_cor_plot(result_summary_site, evaluator = "specificity", extra_theme = tme)
-cor_plot_isl_specificity  <- make_cor_plot(result_summary_island, evaluator = "specificity", extra_theme = tme)
-final_plot_specificity <- combine_two_plots(cor_plot_site_specificity, cor_plot_isl_specificity, y_axis_label = "Specificity")
-
-cor_plot_site_rmse <- make_cor_plot(result_summary_site, evaluator = "rmse", extra_theme = tme)
-cor_plot_isl_rmse  <- make_cor_plot(result_summary_island, evaluator = "rmse", extra_theme = tme)
-final_plot_rmse <- combine_two_plots(cor_plot_site_rmse, cor_plot_isl_rmse, y_axis_label = "RMSE")
-
-cor_plot_site_mse <- make_cor_plot(result_summary_site, evaluator = "mse", extra_theme = tme)
-cor_plot_isl_mse  <- make_cor_plot(result_summary_island, evaluator = "mse", extra_theme = tme)
-final_plot_mse <- combine_two_plots(cor_plot_site_mse, cor_plot_isl_mse, y_axis_label = "MSE")
-
-make_cor_plot_line <- function(data, evaluator, 
-                          distance_col = "distance_km", 
-                          x_lab = "Geographic distance (km)",
-                          y_lab = NULL,
-                          extra_theme = NULL) {
-  # Use evaluator as y_lab if no alternative is provided
-  if (is.null(y_lab)) {
-    y_lab <- evaluator
-  }
-  
-  # Compute correlation between evaluator and distance
-  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
-                          use = "complete.obs", method = "pearson")
-  r_value <- round(correlation$estimate, 2)
-  p_value <- ifelse(
-    correlation$p.value < 0.001,
-    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
-    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
-  ) 
-  label_text <- paste0("r = ", r_value, ", p = ", p_value)
-  
-  # Create plot with label in the upper right corner using Inf coordinates
-  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
-    geom_point(color = "salmon2", size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
-    geom_hline(yintercept = 0.7, linetype = "dashed", color = "black", linewidth = 0.8) +
-    labs(x = x_lab, y = y_lab) +
-    # The following places the label at the upper right of the plot area
-    annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
-  
-  # Optionally add additional theme modifications
-  if (!is.null(extra_theme)) {
-    plot <- plot + extra_theme
-  }
-  
-  return(plot)
-}
-
-cor_plot_site_recall <- make_cor_plot_line(result_summary_site, evaluator = "recall", extra_theme = tme)
-#final_plot_recall <- make_cor_plot_line(cor_plot_site_recall, cor_plot_isl_recall, y_axis_label = "Recall")
-
-# check what happens if we remove sites in the same island
+# remove sites form within the same island - only use information from different islands for distance decay
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
 result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
 
-# Helper function to extract "island" per your rules
-# get_island <- function(site_name) {
-#   if (grepl("Tenerife Teno", site_name)) {
-#     return("Tenerife Teno")
-#   } else if (grepl("Tenerife South", site_name)) {
-#     return("Tenerife South")
-#   } else {
-#     # Default: use first word as island
-#     return(sub("^(\\w+).*", "\\1", site_name))
-#   }
-# }
-
-# # Apply to both train and test layer names
-# result_summary_site_dif$train_island <- sapply(result_summary_site_dif$train_layer_name, get_island)
-# result_summary_site_dif$test_island <- sapply(result_summary_site_dif$test_layer_name, get_island)
-# 
-# # Filter for rows where train and test island are different
-# filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
-
-# also treat the two Tenerife "islands" as one`
-
-# Step 1: Extract island names
+# extract island names
 result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
 result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
 
-# Step 2: Filter rows where island names are different
+# filter rows where island names are different
 filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
 
 # plot
@@ -2349,41 +2185,23 @@ distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl
 # grid::grid.draw(distance_dif_plot_f1)
 # 
 # dev.off()
-# 
-# png(
-#   file   = "distance_plot_f1_different_isl.png",
-#   width  = 7,
-#   height = 4,
-#   units    = "in",        # could also be "px", "cm", etc.
-#   res      = 300   
-# )
-# 
-# grid::grid.draw(distance_dif_plot_f1)
-# 
-# dev.off()
 
-# use MRM test
-# 1. Install & load ecodist
-#install.packages("ecodist")
-library(ecodist)
+#### ---- MRM test: island scale ----
 
-# 2. Make sure your data.frame is called, say, df, with columns:
-#    train_layer_name, test_layer_name, f1_score, distance_km
-
-# 3. Build square matrices of F1 and Distance
+# build square matrices of f1 and distance
 #    (layers must be in the same order for rows & cols)
 
-# a) Get a list of all unique layers
+# a) get a list of all unique layers
 layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_island_dif$test_layer)))
 
-# b) Initialize empty matrices
+# b) initialize empty matrices
 f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
                       dimnames=list(layers, layers))
 dist_mat_km <- f1_mat
 
-# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+# c) fill in each cell [i,j] with the corresponding f1_score and distance_km
 for(i in layers) for(j in layers) {
-  # Subset rows where train=i and test=j
+  # subset rows where train=i and test=j
   sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
   if(nrow(sub)==1) {
     f1_mat[i,j]      <- sub$f1_score
@@ -2391,7 +2209,7 @@ for(i in layers) for(j in layers) {
   }
 }
 
-# d) Because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+# d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
 sym_average <- function(m) {
   mm <- m
   for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
@@ -2406,53 +2224,29 @@ sym_average <- function(m) {
 f1_sym      <- sym_average(f1_mat)
 dist_sym_km <- sym_average(dist_mat_km)
 
-# e) Convert to “dist” objects (lower triangle)
+# e) convert to “dist” objects (lower triangle)
 dist_f1      <- as.dist(f1_sym)
 dist_km      <- as.dist(dist_sym_km)
 
-# 4. Run the MRM
+# 4. run the MRM
 #    — this will regress the F1‐distance matrix on the geographic–distance matrix
 set.seed(42)   # for reproducibility of permutations
 mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
 
-# 5. Inspect results
+# 5. results
 print(mrm_out)
 
-# are the results the same for asymmetrical matrices?
-f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
-                      dimnames=list(layers, layers))
-dist_mat_km <- f1_mat
-
-# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
-for(i in layers) for(j in layers) {
-  # Subset rows where train=i and test=j
-  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
-  if(nrow(sub)==1) {
-    f1_mat[i,j]      <- sub$f1_score
-    dist_mat_km[i,j] <- sub$distance_km
-  }
-}
-
-dist_f1      <- as.dist(f1_mat)
-dist_km      <- as.dist(dist_mat_km)
-
-set.seed(42)   # for reproducibility of permutations
-mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
-
-# 5. Inspect results
-print(mrm_out)
-
-### ---- MRM for site scale ---- ###
+#### ---- MRM for site scale ----
 layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
 
-# b) Initialize empty matrices
+# initialize empty matrices
 f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
                       dimnames=list(layers_site, layers_site))
 dist_mat_km_site <- f1_mat_site
 
-# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
+# fill in each cell [i,j] with the corresponding f1_score and distance_km
 for(i in layers_site) for(j in layers_site) {
-  # Subset rows where train=i and test=j
+  # subset rows where train=i and test=j
   sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
   if(nrow(sub)==1) {
     f1_mat_site[i,j]      <- sub$f1_score
@@ -2460,75 +2254,24 @@ for(i in layers_site) for(j in layers_site) {
   }
 }
 
-# d) Because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+# because MRM uses symmetric distance matrices, average [i,j] & [j,i]
 
 f1_sym_site      <- sym_average(f1_mat_site)
 dist_sym_km_site <- sym_average(dist_mat_km_site)
 
-# e) Convert to “dist” objects (lower triangle)
+# convert to “dist” objects (lower triangle)
 dist_f1_site      <- as.dist(f1_sym_site)
 dist_km_site     <- as.dist(dist_sym_km_site)
 
-# 4. Run the MRM
+# run the MRM
 #    — this will regress the F1‐distance matrix on the geographic–distance matrix
 set.seed(42)   # for reproducibility of permutations
 mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
 
-# 5. Inspect results
+# results
 print(mrm_out_site)
 
-# are the results the same for asymmetric matrix for site scale?
-# b) Initialize empty matrices
-f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
-                           dimnames=list(layers_site, layers_site))
-dist_mat_km_site <- f1_mat_site
-
-# c) Fill in each cell [i,j] with the corresponding f1_score and distance_km
-for(i in layers_site) for(j in layers_site) {
-  # Subset rows where train=i and test=j
-  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
-  if(nrow(sub)==1) {
-    f1_mat_site[i,j]      <- sub$f1_score
-    dist_mat_km_site[i,j] <- sub$distance_km
-  }
-}
-
-# e) Convert to “dist” objects (lower triangle)
-dist_f1_site      <- as.dist(f1_mat_site)
-dist_km_site     <- as.dist(dist_mat_km_site)
-
-# 4. Run the MRM
-#    — this will regress the F1‐distance matrix on the geographic–distance matrix
-set.seed(42)   # for reproducibility of permutations
-mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
-
-# 5. Inspect results
-print(mrm_out_site)
-
-
-
-# ---- plot heatmaps ----
-island_heatmap_recall <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = recall)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "Recall") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_recall)
+### ---- plot heatmaps ----
 
 island_heatmap_f1 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
@@ -2561,522 +2304,7 @@ print(island_heatmap_f1)
 # print(island_heatmap_f1)
 # dev.off()     # close the file
 
-island_heatmap_ba <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = balanced_accuracy)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "Balanced \naccuracy") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_ba)
-
-island_heatmap_specificity <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = specificity)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "Specificity") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_specificity)
-
-island_heatmap_precision <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = precision)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "Precision") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_precision)
-
-island_heatmap_rmse <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = rmse)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "RMSE") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_rmse)
-
-island_heatmap_mse <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = mse)) +
-  # First draw the entire heatmap with white borders for all tiles
-  geom_tile(color = "black", linewidth = 0.1) +  
-  # Then draw the diagonal tiles on top with black borders
-  geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
-            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "steelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added layer", y = "Predicted layer", fill = "MSE") +
-  theme_minimal() +
-  theme(
-    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-    panel.grid.major = element_blank(),  # Remove major grid lines
-    panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-  ) +
-  coord_fixed() + tme
-
-print(island_heatmap_mse)
-
-# # For an evaluator "recall" on a data frame 'result_summary_island'
-# # (assuming tme is a predefined ggplot theme you want to apply)
-# island_heatmap_ba <- make_heatmap_plot(data = result_summary_island, 
-#                                            eval_col = "balanced_accuracy", 
-#                                            train_col = "train_layer_name", 
-#                                            test_col = "test_layer_name",
-#                                            x_lab = "Added layer",
-#                                            y_lab = "Predicted layer",
-#                                            fill_lab = "Balanced \naccuracy",
-#                                            extra_theme = tme)
-# 
-# island_heatmap_f1 <- make_heatmap_plot(data = result_summary_island, 
-#                                        eval_col = "f1_score", 
-#                                        train_col = "train_layer_name", 
-#                                        test_col = "test_layer_name",
-#                                        x_lab = "Added layer",
-#                                        y_lab = "Predicted layer",
-#                                        fill_lab = "F1 score",
-#                                        extra_theme = tme)
-# 
-# island_heatmap_recall <- make_heatmap_plot(data = result_summary_island, 
-#                                            eval_col = "recall", 
-#                                            train_col = "train_layer_name", 
-#                                            test_col = "test_layer_name",
-#                                            x_lab = "Added layer",
-#                                            y_lab = "Predicted layer",
-#                                            fill_lab = "Recall",
-#                                            extra_theme = tme)
-# 
-# island_heatmap_precision <- make_heatmap_plot(data = result_summary_island, 
-#                                            eval_col = "precision", 
-#                                            train_col = "train_layer_name", 
-#                                            test_col = "test_layer_name",
-#                                            x_lab = "Added layer",
-#                                            y_lab = "Predicted layer",
-#                                            fill_lab = "Precision",
-#                                            extra_theme = tme)
-# 
-# island_heatmap_specificity <- make_heatmap_plot(data = result_summary_island, 
-#                                               eval_col = "specificity", 
-#                                               train_col = "train_layer_name", 
-#                                               test_col = "test_layer_name",
-#                                               x_lab = "Added layer",
-#                                               y_lab = "Predicted layer",
-#                                               fill_lab = "Specificity",
-#                                               extra_theme = tme)
-# 
-# p1 <- island_heatmap_f1 +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-# 
-# p2 <- island_heatmap_ba +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-# 
-# p3 <- island_heatmap_recall +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-# 
-# p4 <- island_heatmap_precision +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-# 
-# p5 <- island_heatmap_specificity +
-#   theme(legend.position = "none",
-#         axis.title.y = element_blank(),
-#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-# 
-# combined_plots <- arrangeGrob(
-#   p1, p2, p3, p4, p5,
-#   ncol = 3, 
-#   nrow = 2
-# )
-# combined_with_axes <- arrangeGrob(
-#   combined_plots,
-#   #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-#   left   = textGrob("Predicted location", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
-# )
-# 
-# final_plot <- grid.arrange(
-#   combined_with_axes,
-#   ncol = 3,
-#   widths = c(2, 0.3, 0.3)
-# )
-# ---- compare scales ----
-# # # make a long list
-# df1_labeled <- result_summary_site %>%
-#   mutate(scale = "Site")
-# 
-# df2_labeled <- result_summary_island %>%
-#   mutate(scale = "Island")
-# 
-# df_combined <- bind_rows(df1_labeled, df2_labeled)
-# 
-# df_long <- df_combined %>%
-#   pivot_longer(
-#     cols = c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity", "rmse"),
-#     names_to = "metric",
-#     values_to = "value"
-#   )
-# #
-# metrics <- c("f1_score", "recall", "precision", "balanced_accuracy", "mcc", "specificity", "rmse")
-# #
-# results <- lapply(metrics, function(metric) {
-#   test_normality_site <- shapiro.test(result_summary_site[[metric]])$p.value
-#   test_normality_island <- shapiro.test(result_summary_island[[metric]])$p.value
-# 
-#   if (test_normality_site > 0.05 & test_normality_island > 0.05) {
-#     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]], var.equal = FALSE)
-#   } else {
-#     test <- t.test(result_summary_site[[metric]], result_summary_island[[metric]])
-#   }
-# 
-#   data.frame(
-#     Metric = metric,
-#     Test = ifelse(test_normality_site > 0.05 & test_normality_island > 0.05, "T-test", "T-test"),
-#     P_value = test$p.value,
-#     t_value  = test$statistic,   # extract the t‐value
-#     df       = test$parameter   # degrees of freedom
-#   )
-# })
-# 
-# results_df <- do.call(rbind, results)
-# print(results_df)
-# # 
-# # Define significance function
-# get_pvalue_asterisks <- function(p) {
-#   if (p < 0.001) return("***")  # Highly significant
-#   else if (p < 0.01) return("**")  # Very significant
-#   else if (p < 0.05) return("*")  # Significant
-#   else return("ns")  # Not significant
-# }
-# 
-# stat_results <- lapply(metrics, function(metric) {
-#   data_metric <- df_long %>% filter(metric == !!metric)  # Filter for the specific metric
-# 
-#   test <- t.test(value ~ scale, data = data_metric)  # Perform t-test
-# 
-#   p_value <- test$p.value
-#   significance <- get_pvalue_asterisks(p_value)
-# 
-#   data.frame(
-#     metric = metric,
-#     p_value = p_value,
-#     significance = significance
-#   )
-# })
-# 
-# stat_results_df <- do.call(rbind, stat_results)
-# 
-# # Merge significance levels with the dataset
-# df_long <- df_long %>%
-#   left_join(stat_results_df, by = "metric")
-# 
-# # Create the boxplot with significance annotations
-# ggplot(df_long, aes(x = metric, y = value, fill = scale)) +
-#   geom_boxplot(notch = TRUE, position = position_dodge(width = 0.8)) +
-#   theme_minimal() +
-#   labs(title = "Comparison of Performance", x = "Metric", y = "Value") +
-#   scale_fill_manual(values = c("Site" = "lightsteelblue2", "Island" = "wheat2")) +  # Custom colors
-#   scale_x_discrete(labels = c(
-#     "f1_score" = "F1 score",
-#     "recall" = "Recall",
-#     "precision" = "Precision",
-#     "balanced_accuracy" = "Balanced \naccuracy",
-#     "mcc" = "MCC",
-#     "specificity" = "Specificity"
-#   )) +  # Properly formatted labels
-#   stat_compare_means(aes(group = scale), method = "t.test", label = "p.signif", 
-#                      label.y = max(df_long$value, na.rm = TRUE) + 0.05,
-#                      size = 5)  + 
-#   theme(legend.text = element_text(size = 14),
-#         legend.title = element_text(size = 14), ) + tme
-
-# 1. Combine + pivot (adding rmse & mse) and force the order you want:
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("f1_score","recall","precision",
-                  "balanced_accuracy","mcc","specificity", "nnse", "nse",
-                  "rmse","mse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "f1_score","recall","precision","balanced_accuracy",
-    "mcc","specificity", "nnse", "nse", "rmse","mse"
-  )))
-
-# 2. Pretty facet titles with units:
-metric_labels <- c(
-  f1_score          = "F1 score",
-  recall            = "Recall",
-  precision         = "Precision",
-  balanced_accuracy = "Balanced accuracy",
-  mcc               = "MCC",
-  specificity       = "Specificity",
-  rmse              = "RMSE",
-  mse               = "MSE",
-  nnse              = "NNSE",
-  nse               = "NSE" 
-)
-
-# 3. Plot with free_y, custom labels, and centered stars at the top:
-ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales   = "free_y",
-    labeller = as_labeller(metric_labels),
-    ncol     = 4
-  ) +
-  stat_compare_means(
-    method    = "t.test",
-    label     = "p.signif",
-    # put label at the very top of each facet:
-    label.y   = Inf,
-    vjust     = 1.5,
-    # center between the two boxes (position 1 & 2):
-    label.x   = 1.45,
-    tip.length= 0.01,
-    size      = 4
-  ) +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    title = "Performance & Error Metrics by Scale",
-    x     = NULL,
-    y     = NULL
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    strip.text      = element_text(face = "bold", size = 12),
-    axis.text.x     = element_blank(),
-    axis.ticks.x    = element_blank(),
-    legend.position = "bottom"
-  ) + tme
-
-
-# rmse separately
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("rmse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "rmse"
-  )))
-
-# 2. Pretty facet titles with units:
-metric_labels <- c(
-  rmse              = "RMSE"
-  
-)
-
-# 3. Plot with free_y, custom labels, and centered stars at the top:
-rmse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales   = "free_y",
-    labeller = as_labeller(metric_labels),
-    ncol     = 4
-  ) +
-  stat_compare_means(
-    method    = "t.test",
-    label     = "p.signif",
-    # put label at the very top of each facet:
-    label.y   = Inf,
-    vjust     = 1.5,
-    # center between the two boxes (position 1 & 2):
-    label.x   = 1.45,
-    tip.length= 0.01,
-    size      = 4
-  ) +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    title = NULL,
-    x     = NULL,
-    y     = "RMSE"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    #strip.text      = element_text(face = "bold", size = 12),
-    axis.text.x     = element_blank(),
-    axis.ticks.x    = element_blank(),
-    legend.position = "bottom",
-    strip.text = element_blank()
-  ) + tme
-
-# Base‐R PDF device
-# pdf(
-#   file   = "rmse_scales.pdf",
-#   width  = 4,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(rmse_scales)
-# dev.off()     # close the file
-
-
-# nnse separately
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("nnse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "nnse"
-  )))
-
-# 2. Pretty facet titles with units:
-metric_labels <- c(
-  nnse              = "NNSE"
-  
-)
-
-# 3. Plot with free_y, custom labels, and centered stars at the top:
-nnse_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales   = "free_y",
-    labeller = as_labeller(metric_labels),
-    ncol     = 4
-  ) +
-  stat_compare_means(
-    method    = "t.test",
-    label     = "p.format",
-    # put label at the very top of each facet:
-    label.y   = Inf,
-    vjust     = 1.5,
-    # center between the two boxes (position 1 & 2):
-    label.x   = 1.45,
-    tip.length= 0.01,
-    size      = 4
-  ) +
-  scale_fill_manual(values = c("Site" = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    title = NULL,
-    x     = NULL,
-    y     = "NNSE"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    #strip.text      = element_text(face = "bold", size = 12),
-    axis.text.x     = element_blank(),
-    axis.ticks.x    = element_blank(),
-    legend.position = "bottom",
-    strip.text = element_blank()
-  ) + tme
-
-# Base‐R PDF device
-# pdf(
-#   file   = "nnse_scales.pdf",
-#   width  = 4,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(nnse_scales)
-# dev.off()     # close the file
-
-# stats
-
-df_scales <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island"))
-
-t_test_f1_scales <- t.test(f1_score ~ scale, 
-                    data       = df_scales,
-                    var.equal  = FALSE)  # Welch’s test
-
-# 3. Print the full test
-print(t_test_f1_scales)
-
-# for paper
+### ---- compare scale ----
 
 df_long <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
@@ -3091,15 +2319,24 @@ df_long <- bind_rows(
     "f1_score", "nnse"
   )))
 
-# 2. Pretty facet titles with units:
+# test for assumptions
+# normality
+
+df_long %>%
+  group_by(metric, scale) %>%
+  shapiro_test(value)   # Shapiro-Wilk normality test
+
+df_long %>%
+  ggqqplot(x = "value", facet.by = c("metric", "scale"))
+
+# mostly, data is not normally distributed, so better use wilcoxon 
+
+# plot
+# pretty facet titles with units:
 metric_labels <- c(
   f1_score          = "F1 score",
   nnse              = "NNSE"
-  
 )
-
-# make sure your metric_labels is something like
-# metric_labels <- c(f1 = "F1 score", rmse = "RMSE")
 
 nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
@@ -3158,121 +2395,4 @@ nnse_f1_scales
 # print(nnse_f1_scales)
 # dev.off()     # close the file
 
-# test for assumptions
-# normality
-
-library(rstatix)
-df_long %>%
-  group_by(metric, scale) %>%
-  shapiro_test(value)   # Shapiro-Wilk normality test
-
-df_long %>%
-  ggqqplot(x = "value", facet.by = c("metric", "scale"))
-
-# mostly, data is not normally distributed, so better use wilcoxon 
-# supp figure S1
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("balanced_accuracy", "recall", "precision", "specificity", "mcc"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "balanced_accuracy", "recall", "precision", "specificity", "mcc"
-  )))
-
-# 2. Pretty facet titles with units:
-metric_labels <- c(
-  balanced_accuracy = "Balanced accuracy",
-  recall            = "Recall",
-  precision         = "Precision",
-  specificity       = "Specificity",
-  mcc               = "MCC"
-  
-)
-
-
-s1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales        = "free_y",
-    labeller      = as_labeller(metric_labels),
-    ncol          = 3,
-    switch        = "y"             # move the strip to the left side
-  ) +
-  stat_compare_means(
-    method         = "t.test",
-    label          = "p.format",    # print the full p‐value
-    p.format.args  = list(
-      digits     = 2,               # two digits after decimal
-      scientific = TRUE             # use e-notation for small p’s
-    ),
-    label.y        = Inf,
-    vjust          = 1.5,
-    label.x        = 1.45,
-    tip.length     = 0.01,
-    size           = 3.5              # adjust this for font size
-  ) +
-  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    x = NULL,
-    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    strip.placement       = "outside",           # draw strips outside the plot panel
-    strip.text.y.left     = element_text(
-      angle = 90,          
-      face  = "bold",
-      size  = 12
-    ),
-    axis.text.x           = element_blank(),
-    axis.ticks.x          = element_blank(),
-    legend.position       = "bottom"
-  ) + tme
-
-s1_scales
-
-# Base‐R PDF device
-# pdf(
-#   file   = "s1_scales.pdf",
-#   width  = 8,    # inches
-#   height = 5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(s1_scales)
-# dev.off()     # close the file
-
-
-#> 
-#> Welch Two Sample t-test
-#> 
-#> data:  f1_score by layer_comparison
-#> t =  X.XXX, df =  Y.YY, p-value = Z.ZZZ
-#> alternative hypothesis: true difference in means is not equal to 0
-#> 95 percent confidence interval:
-#>   LL UU
-#> sample estimates:
-#> mean in group Diagonal mean in group Off-diagonals 
-#>                M₁                     M₂ 
-
-# 4. Extract just the numbers you want
-t_stat <- unname(t_test_f1_scales$statistic)
-df_val <- unname(t_test_f1_scales$parameter)
-p_val  <- t_test_f1_scales$p.value
-
-data.frame(
-  t_value = t_stat,
-  df      = df_val,
-  p_value = p_val
-)
+### --- subset analysis ----
