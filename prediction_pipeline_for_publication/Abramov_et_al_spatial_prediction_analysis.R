@@ -1078,118 +1078,6 @@ data.frame(
 ### ---- network size and density correlation with evaluators ----
 # here we calculate the size and density of the networks and correlate them with evaluation metrics.
 #### ---- calculate the size and density of our networks ----
-# # Initialize a data frame to store combined results for all layer combinations
-# results <- data.frame()
-# 
-# # Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
-# # Load matrices
-# d <- load_emln(emln_id)
-# graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
-# A_l <- d$extended
-# 
-# # aggregate to island scale
-# # Extract numeric layer numbers
-# A_l <- A_l %>%
-#   mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-#   mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
-#                                    paste0("layer_", layer_num, "_", layer_num + 1),
-#                                    paste0("layer_", layer_num - 1, "_", layer_num)))
-# 
-# # Aggregate data
-# aggregated_df <- A_l %>%
-#   group_by(aggregated_layer, node_from, node_to, type) %>%
-#   summarise(weight = sum(weight), .groups = "drop") %>%
-#   mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-#   select(layer_from, node_from, layer_to, node_to, weight, type)
-# 
-# # Generate new layer names
-# unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-# new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-# 
-# # Create a mapping table
-# layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-# 
-# # Apply renaming in aggregated_df
-# aggregated_df <- aggregated_df %>%
-#   left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-#   mutate(layer_from = new_layer, layer_to = new_layer) %>%
-#   select(layer_from, node_from, layer_to, node_to, weight, type)
-# 
-# # View updated aggregated_df
-# print(aggregated_df)
-# 
-# # Total number of layers
-# num_layers <- length(unique(aggregated_df$layer_from))
-# 
-# for (layers_to_train in 1:num_layers) {
-#   for (layer_to_predict in 1:num_layers) {
-#     
-#     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-#     
-#     # Build the aggregated matrix A for training
-#     A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
-#     
-#     # Build the layer to predict matrix P
-#     P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
-#     
-#     node_to <- rownames(P) # for the results
-#     node_from <- colnames(P)
-#     
-#     ### creating a combined matrix C 
-#     all_row_ids <- unique(c(rownames(A), rownames(P)))
-#     all_col_ids <- unique(c(colnames(A), colnames(P)))
-#     C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
-#                 dimnames = list(all_row_ids, all_col_ids))
-#     
-#     # Place A into C
-#     C[rownames(A), colnames(A)] <- A
-#     
-#     # Place P into C
-#     C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-#                                           NA, 
-#                                           C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-#     
-#     # Compute matrix properties
-#     nrow_A <- nrow(A)
-#     nrow_P <- nrow(P)
-#     nrow_C <- nrow(C)
-#     ncol_A <- ncol(A)
-#     ncol_P <- ncol(P)
-#     ncol_C <- ncol(C)
-#     size_A <- length(A)
-#     size_P <- length(P)
-#     size_C <- length(C)
-#     
-#     # Calculate density for A, P, and C
-#     density_A <- sum(A > 0) / length(A)
-#     density_P <- sum(P > 0) / length(P)
-#     density_C <- sum(C > 0) / length(C)
-#     
-#     # Add these values to the results table
-#     results <- rbind(results, data.frame(emln_id = emln_id,
-#                                          train_layer = layers_to_train,
-#                                          test_layer = layer_to_predict,
-#                                          nrow_A = nrow_A,
-#                                          ncol_A = ncol_A,
-#                                          size_A = size_A,
-#                                          density_A = density_A,   # Added density
-#                                          nrow_P = nrow_P,
-#                                          ncol_P = ncol_P,
-#                                          size_P = size_P,
-#                                          density_P = density_P,   # Added density
-#                                          nrow_C = nrow_C,
-#                                          ncol_C = ncol_C,
-#                                          size_C = size_C,
-#                                          density_C = density_C))  # Added density
-#     
-#     
-#   }
-# }
-# 
-# # view results
-# summary(results)
-# 
-
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
 
@@ -1311,6 +1199,43 @@ summary(results)
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
+# summerize (table ST1)
+# first add layer names
+# add distances to the main table
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# create a new grouped tibble
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
+# Add to main table
+result_summary <- result_summary %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+# now we can summarise
+df_summary <- result_summary %>%
+  group_by(test_layer_name) %>%
+  summarise(
+    size_P   = mean(size_P, na.rm = TRUE),
+    density_P  = mean(density_P, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(size_P))  # change to asc() for smallest first
+
+df_summary
+
+overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
+
 #### ---- Fig. 5: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
@@ -1424,8 +1349,6 @@ netdensity_f1_nnse
 # )
 # print(netdensity_f1_nnse)
 # dev.off()     # close the file
-
-### ---- corrected netsize analysis ----
 
 ### ---- Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
@@ -2121,27 +2044,6 @@ print(distance_island_table)
 distance_island_table <- distance_island_table %>%
   mutate(from = gsub("_", " ", from),
          to = gsub("_", " ", to))
-
-# add names and distances to the main table
-net <- emln::load_emln(60) # canary islands
-net$layers
-net_name <- net$layers %>% select(layer_id, name)
-net_name
-net_name <- net_name %>%
-  mutate(name = gsub("_", " ", name))
-
-# create a new grouped tibble
-new_layer_names <- net_name %>%
-  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
-  group_by(group_id) %>%
-  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
-
-# Add to main table
-result_summary <- result_summary %>%
-  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
-  rename(train_layer_name = name) %>%
-  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
-  rename(test_layer_name = name)
 
 result_summary_island <- result_summary
 
