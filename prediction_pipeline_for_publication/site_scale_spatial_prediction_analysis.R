@@ -1,6 +1,6 @@
-# ---- Predicting interactions across space with SVD ----
+# ---- Site scale: predicting interactions across space with SVD ----
 # this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
-# here we focus on island scale, but there is a section for comparison between scales.
+# here we focus on site scale, which appears in th SI.
 ### code for publication ###
 ## ---- load libraries ----
 library(tidyverse)
@@ -682,7 +682,7 @@ combine_plots <- function(p1, p2,
 }
 
 ## ---- 1. prediction ----
-### ---- load matrices ----
+# Load matrices
 d <- load_emln(emln_id)
 graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
@@ -695,31 +695,8 @@ A_l <- A_l %>%
                                    paste0("layer_", layer_num, "_", layer_num + 1),
                                    paste0("layer_", layer_num - 1, "_", layer_num)))
 
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
-
 # Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from))
+num_layers <- length(unique(A_l$layer_from))
 
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
@@ -1087,39 +1064,8 @@ d <- load_emln(emln_id)
 graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
-# aggregate to island scale
-# Extract numeric layer numbers
-A_l <- A_l %>%
-  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
-                                   paste0("layer_", layer_num, "_", layer_num + 1),
-                                   paste0("layer_", layer_num - 1, "_", layer_num)))
-
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
-
 # Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from))
+num_layers <- length(graph_list)
 
 for (layers_to_train in 1:num_layers) {
   for (layer_to_predict in 1:num_layers) {
@@ -1356,14 +1302,11 @@ netdensity_f1_nnse
 # Initialize a data frame to store combined results for all layer combinations
 results_jaccard <- data.frame()
 
-# Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from)) # we have it from netsize calculation
-
 for (layers_to_train in 1:num_layers) {
   for (layer_to_predict in 1:num_layers) {
     
-    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
-    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
     
     # 1) Jaccard pollinators
     poll_train <- rownames(A)[ rowSums(A) > 0 ]
@@ -1407,7 +1350,6 @@ for (layers_to_train in 1:num_layers) {
     )
   }
 }
-
 
 head(results_jaccard)
 result_summary <- result_summary %>%
@@ -1776,663 +1718,663 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
 final_plot <- combine_plots(plant_degree, poll_degree) # fix error
 final_plot # Fig. 6c
 
-### ---- Fig. 3a: mapping never-observed links ----
-# here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
-
-# order species by their degree
-df_summary <- df_summary %>% left_join(overall_poll_degree, by="node_to")
-df_summary <- df_summary %>% left_join(overall_plant_degree, by="node_from")
-
-# determine the order of species in the plot based on their degree
-plant_order <- df_summary %>%
-  distinct(node_from, overall_plant_degree) %>%
-  arrange(desc(overall_plant_degree)) %>%
-  pull(node_from)
-
-poll_order <- df_summary %>%
-  distinct(node_to, overall_poll_degree) %>%
-  arrange(desc(overall_poll_degree)) %>%
-  pull(node_to)
-
-# reset the levels for the species factors
-df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
-df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
-
-map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
-  # First layer: background heatmap for proportion observed (blue gradient)
-  geom_tile(aes(fill = avg_prop)) +
-  scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: overlay only cells that were never observed but have high predicted value
-  geom_tile(
-    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-    aes(fill = avg_sigm_predicted),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_blank(), 
-    axis.text.y = element_text(size = 8),
-    legend.position = "bottom",         # Place legends at the bottom
-    legend.box = "horizontal" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
-
-print(map_missing_links) # Fig 6a
-
-### ---- Fig. S5: difference in links predicted with/without external data ----
-# this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
-df_island_sep <- df_island %>%
-  separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
-
-df_island_diag <- df_island_sep %>%
-  filter(island1 == island2)
-
-# only within-island data
-df_summary_diag <- df_island_diag %>%
-  group_by(node_from, node_to) %>%
-  summarise(
-    avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
-    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
-    n_islands = n(),  # number of islands contributing
-    .groups = "drop"
-  )
-
-# only with extrnal data
-df_island_offs <- df_island_sep %>%
-  filter(island1 != island2)
-
-df_summary_offs <- df_island_offs %>%
-  group_by(node_from, node_to) %>%
-  summarise(
-    avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
-    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
-    n_islands = n(),  # number of islands contributing
-    .groups = "drop"
-  )
-
-identical(df_summary_offs$node_from, df_summary_diag$node_from) # check
-
-# create a combined table
-diff_df <- full_join(
-  df_summary_offs,
-  df_summary_diag,
-  by     = c("node_from","node_to"),
-  suffix = c("_offs","_diag")
-) 
-
-# these are interactions that were predicted to exist in the off-diagonals but not in the diagonal
-diff_df_filtered <- diff_df %>% filter(diff_df$avg_sigm_predicted_diag < best_discrete_threshold & diff_df$avg_sigm_predicted_offs >= best_discrete_threshold)
-
-# and these are interactions that were predicted to exist in the diagonal but not in the off-diagonals
-diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < best_discrete_threshold & avg_sigm_predicted_diag >= best_discrete_threshold)
-
-# order species by their degree
-diff_df$node_from <- factor(diff_df$node_from, levels = plant_order)
-diff_df$node_to   <- factor(diff_df$node_to, levels = poll_order)
-
-# plot the differences
-df_plot <- diff_df %>%
-  filter(avg_prop_diag == 0) %>% # non-observed interactions
-  mutate(
-    sigm_cat = case_when(
-      avg_sigm_predicted_diag < best_discrete_threshold &
-        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
-      
-      avg_sigm_predicted_offs < best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
-      
-      avg_sigm_predicted_offs >= best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
-      
-      TRUE ~ NA_character_
-    )
-  )
-
-map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
-  
-  # allow a second fill scale
-  new_scale_fill() +
-    geom_tile(
-    data  = filter(df_plot, !is.na(sigm_cat)),
-    aes(fill = sigm_cat),
-    alpha = 0.6
-  ) +
-  scale_fill_manual(
-    values = c(
-      "offs↑ only" = "salmon",
-      "diag↑ only" = "plum3",
-      "both↑"       = "lightsteelblue"
-    ),
-    na.value = NA,
-    name   = "Difference in \nprediction approach",
-    labels = c(
-      "offs↑ only" = "Predicted only by \nadding external location",
-      "diag↑ only" = "Predicted only by \nsingle location",
-      "both↑"       = "Predicted by both approaches"
-    )
-  ) +
-  
-  # tidy up
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x  = element_blank(),
-    axis.text.y  = element_text(size = 8),
-    legend.position = "bottom",
-    legend.box      = "vertical"
-  ) +
-  
-  # your italic‐species labels and extra theme element
-  scale_y_discrete(
-    labels = function(x) lapply(strsplit(x, "_"), function(y) {
-      bquote(italic(.(paste(y, collapse = " "))))
-    })
-  ) +
-  tme
-
-map_missing_links_diags_offs
-
-# how many links did each category add?
-df_plot %>%
-  filter(avg_prop_diag == 0) %>% 
-  group_by(sigm_cat) %>%
-  summarise(
-    n_links = n()
-  )
-
-#### ---- existing predicted interactions ----
-# if we want to know how each category contributed to VERIFIED existing links
-# plot the differences
-df_plot_verified <- diff_df %>%
-  filter(avg_prop_diag != 0) %>% # observed interactions
-  mutate(
-    sigm_cat = case_when(
-      avg_sigm_predicted_diag < best_discrete_threshold &
-        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
-      
-      avg_sigm_predicted_offs < best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
-      
-      avg_sigm_predicted_offs >= best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
-      
-      TRUE ~ NA_character_
-    )
-  )
-
-map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
-  
-  # allow a second fill scale
-  new_scale_fill() +
-  geom_tile(
-    data  = filter(df_plot_verified, !is.na(sigm_cat)),
-    aes(fill = sigm_cat),
-    alpha = 0.6
-  ) +
-  scale_fill_manual(
-    values = c(
-      "offs↑ only" = "salmon",
-      "diag↑ only" = "plum3",
-      "both↑"       = "lightsteelblue"
-    ),
-    na.value = NA,
-    name   = "Difference in \nprediction approach",
-    labels = c(
-      "offs↑ only" = "Predicted only by \nadding external location",
-      "diag↑ only" = "Predicted only by \nsingle location",
-      "both↑"       = "Predicted by both approaches"
-    )
-  ) +
-  
-  # tidy up
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x  = element_blank(),
-    axis.text.y  = element_text(size = 8),
-    legend.position = "bottom",
-    legend.box      = "vertical"
-  ) +
-  
-  # your italic‐species labels and extra theme element
-  scale_y_discrete(
-    labels = function(x) lapply(strsplit(x, "_"), function(y) {
-      bquote(italic(.(paste(y, collapse = " "))))
-    })
-  ) +
-  tme
-
-map_existing_links_predicted
-
-# how many links did each category add?
-df_plot_verified %>%
-  filter(avg_prop_diag != 0) %>% 
-  group_by(sigm_cat) %>%
-  summarise(
-    n_links = n()
-  )
-
-
-# pie chart
-# 1. Count how many interactions fall into each category
-df_counts <- df_plot %>%
-  filter(sigm_cat != "NA") %>% 
-  count(sigm_cat, name = "n") %>%
-  arrange(desc(sigm_cat)) %>%          # optional: control legend/order
-  mutate(
-    frac = n / sum(n),                 # fraction of total
-    pct  = percent(frac)               # human‑readable percent
-  )
-
-# 2. Define your colors
-my_cols <- c(
-  "offs↑ only"  = "salmon",
-  "diag↑ only"  = "plum3",
-  "both↑"       = "lightsteelblue"
-)
-
-new_labels <- c(
-  "offs↑ only" = "Predicted only by external location" ,
-  "diag↑ only" = "Predicted only by single location" ,
-  "both↑"      = "Predicted by both approaches"
-)
-### ---- Fig. 3b: pie chart ----
-# 3. Make the pie
-pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
-  geom_col(width = 1, color = "white") +      # white border between slices
-  coord_polar(theta = "y") +                  # convert bar → pie
-  scale_fill_manual(values = my_cols,
-                    labels = new_labels) +
-  theme_void() +                              # remove axes/background
-  theme(
-    legend.title = element_blank(),
-    legend.text = element_text(size = 17),
-    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
-    legend.position  = "bottom",
-    legend.direction = "vertical"
-  ) +
-  #labs(title = "Interactions by Significance Category") +
-  geom_text(
-    aes(label = n),
-    position = position_stack(vjust = 0.5),
-    color = "white",
-    size = 7
-  )
-
-pie_chart
-# pdf(
-#   file   = "pie_chart.pdf",
-#   width  = 7,    # inches
-#   height = 7,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(pie_chart)
-# dev.off()     # close the file
-
-### ---- distance decay ----
-#### ---- add distances and location names ----
-distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
-
-# proceed for both island scale and site scale and compare the trends
-#### ---- island scale ----
-# function to extract island names (removes "_site_X")
-extract_island <- function(name) {
-  gsub("_site_[12]", "", name)
-}
-
-# create new table with averaged distances at the island level
-distance_island_table <- distance_table %>%
-  mutate(
-    from_island = extract_island(from),
-    to_island = extract_island(to)
-  ) %>%
-  group_by(from_island, to_island) %>%
-  summarise(
-    avg_distance_m = mean(distance_m),
-    avg_distance_km = mean(distance_km),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    avg_distance_m = ifelse(from_island == to_island, 0, avg_distance_m),
-    avg_distance_km = ifelse(from_island == to_island, 0, avg_distance_km)
-  ) %>%
-  rename(from = from_island, to = to_island)  # Rename after calculation
-
-# print result
-print(distance_island_table)
-
-# modify the 'from' and 'to' columns in distance_island_table
-distance_island_table <- distance_island_table %>%
-  mutate(from = gsub("_", " ", from),
-         to = gsub("_", " ", to))
-
-result_summary_island <- result_summary
-
-# Add to main table
-result_summary_island <- result_summary_island %>%
-  left_join(
-    distance_island_table,
-    by = c("train_layer_name" = "from", "test_layer_name" = "to")
-  ) %>%
-  mutate(distance_km = if_else(train_layer_name == test_layer_name,
-                               0,              # distance = 0 if same site
-                               avg_distance_km))   # otherwise, keep joined distance
-
-#### ---- site scale ----
-# add names and distances to the main table
-net <- emln::load_emln(60) # canary islands
-net$layers
-net_name <- net$layers %>% select(layer_id, name)
-net_name
-net_name <- net_name %>%
-  mutate(name = gsub("_", " ", name))
-
-# Modify the 'from' and 'to' columns in distance_table
-distance_table <- distance_table %>%
-  mutate(from = gsub("_", " ", from),
-         to = gsub("_", " ", to))
-
-# load site scale data
-result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
-
-# convert negatives to zeros
-result_site <- result_site %>%
-  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
-
-# create the evaluation table
-df_removed_site <- result_site %>%
-  filter(removed == 1) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
-  mutate(original_binary = if_else(original_links > 0, 1, 0))
-
-result_summary_site <- df_removed_site %>%
-  group_by(emln_id, train_layer, test_layer, itr) %>%
-  summarise(
-    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
-    mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse),
-    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
-      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
-    nnse = 1 / (2 - nse)
-  ) %>%
-  ungroup() %>%
-  group_by(emln_id, train_layer, test_layer) %>%
-  summarise(
-    TP = mean(TP, na.rm = TRUE),
-    FN = mean(FN, na.rm = TRUE),
-    TN = mean(TN, na.rm = TRUE),
-    FP = mean(FP, na.rm = TRUE),
-    specificity = mean(specificity, na.rm = TRUE),
-    precision = mean(precision, na.rm = TRUE),
-    recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
-    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    mcc = mean(mcc, na.rm = TRUE),
-    mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE),
-    nse  = mean(nse,  na.rm = TRUE),
-    nnse = mean(nnse, na.rm = TRUE)
-  ) %>%
-  ungroup()
-
-
-result_summary_site <- result_summary_site %>%
-  # Join to add train_layer_name
-  left_join(net_name %>% 
-              rename(train_layer = layer_id, 
-                     train_layer_name = name), 
-            by = "train_layer") %>%
-  # Join to add test_layer_name
-  left_join(net_name %>% 
-              rename(test_layer = layer_id, 
-                     test_layer_name = name), 
-            by = "test_layer")
-
-
-# Add to main table
-result_summary_site <- result_summary_site %>%
-  left_join(
-    distance_table,
-    by = c("train_layer_name" = "from", "test_layer_name" = "to")
-  ) %>%
-  mutate(distance_km = if_else(train_layer_name == test_layer_name,
-                               0,              # distance = 0 if same site
-                               distance_km))   # otherwise, keep joined distance
-
-#### ---- distance correlation with evaluators ----
-make_cor_plot <- function(data, evaluator, 
-                          distance_col = "distance_km", 
-                          x_lab = "Geographic distance (km)",
-                          y_lab = NULL,
-                          extra_theme = NULL) {
-  # Use evaluator as y_lab if no alternative is provided
-  if (is.null(y_lab)) {
-    y_lab <- evaluator
-  }
-  
-  # Compute correlation between evaluator and distance
-  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
-                          use = "complete.obs", method = "pearson")
-  r_value <- round(correlation$estimate, 2)
-  p_value <- ifelse(
-    correlation$p.value < 0.001,
-    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
-    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
-  ) 
-  label_text <- paste0("r = ", r_value, ", p = ", p_value)
-  
-  # Create plot with label in the upper right corner using Inf coordinates
-  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
-    geom_point(color = "salmon2", size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
-    labs(x = x_lab, y = y_lab) +
-    # The following places the label at the upper right of the plot area
-    annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
-  
-  # Optionally add additional theme modifications
-  if (!is.null(extra_theme)) {
-    plot <- plot + extra_theme
-  }
-  
-  return(plot)
-}
-
-combine_two_plots <- function(p1, p2,
-                              x_axis_label = "Geographic distance (km)",
-                              y_axis_label = "F1 score",
-                              p1_title = "Site scale",
-                              p2_title = "Island scale",
-                              margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
-                              axis_title_fontsize = 14,
-                              axis_title_fontface = "bold") {
-  
-  # Adjust first plot
-  p1 <- p1 +
-    ggtitle(p1_title) +
-    theme(
-      legend.position = "none",
-      axis.title = element_blank(),
-      plot.margin = margins
-    )
-  
-  # Adjust second plot
-  p2 <- p2 +
-    ggtitle(p2_title) +
-    theme(
-      legend.position = "none",
-      axis.title = element_blank(),
-      axis.text.y = element_blank(),
-      plot.margin = margins
-    )
-  
-  # Combine p1 and p2 side by side
-  combined_plots <- arrangeGrob(
-    p1, p2,
-    ncol = 2,
-    widths = c(1.1, 1)
-  )
-  
-  # Add global x and y axis labels
-  combined_with_axes <- arrangeGrob(
-    combined_plots,
-    bottom = textGrob(
-      x_axis_label,
-      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface),
-      vjust = -1.5
-    ),
-    left = textGrob(
-      y_axis_label,
-      rot = 90,
-      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface)
-    )
-  )
-  
-  # Final arrangement
-  final_plot <- grid.arrange(
-    combined_with_axes,
-    ncol = 2,
-    widths = c(2, 0.01)
-  )
-  
-  return(final_plot)
-}
-
-# remove sites form within the same island - only use information from different islands for distance decay
-result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
-result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
-
-# extract island names
-result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
-result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
-
-# filter rows where island names are different
-filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
-
-# plot
-cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme)
-cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
-distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
-
-# run the previous make_cor_plot again
-# pdf(
-#   file   = "distance_plot_f1_different_isl.pdf",
-#   width  = 7,
-#   height = 4,
-#   family = "Helvetica"
+# ### ---- Fig. 3a: mapping never-observed links ----
+# # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
+# 
+# # order species by their degree
+# df_summary <- df_summary %>% left_join(overall_poll_degree, by="node_to")
+# df_summary <- df_summary %>% left_join(overall_plant_degree, by="node_from")
+# 
+# # determine the order of species in the plot based on their degree
+# plant_order <- df_summary %>%
+#   distinct(node_from, overall_plant_degree) %>%
+#   arrange(desc(overall_plant_degree)) %>%
+#   pull(node_from)
+# 
+# poll_order <- df_summary %>%
+#   distinct(node_to, overall_poll_degree) %>%
+#   arrange(desc(overall_poll_degree)) %>%
+#   pull(node_to)
+# 
+# # reset the levels for the species factors
+# df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
+# df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
+# 
+# map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+#   # First layer: background heatmap for proportion observed (blue gradient)
+#   geom_tile(aes(fill = avg_prop)) +
+#   scale_fill_gradient(low = "white", high = "steelblue", 
+#                       name = "Proportion\nof islands\nobserved") +
+#   
+#   # Reset fill scale so the next layer can have its own gradient
+#   new_scale_fill() +
+#   
+#   # Second layer: overlay only cells that were never observed but have high predicted value
+#   geom_tile(
+#     data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
+#     aes(fill = avg_sigm_predicted),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "tan1", high = "tomato2", 
+#                       name = "Average \npredicted \nprobability") +
+#   
+#   # Final adjustments
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x = element_blank(), 
+#     axis.text.y = element_text(size = 8),
+#     legend.position = "bottom",         # Place legends at the bottom
+#     legend.box = "horizontal" 
+#   ) + tme +
+#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   }))
+# 
+# print(map_missing_links) # Fig 6a
+# 
+# ### ---- Fig. S5: difference in links predicted with/without external data ----
+# # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
+# df_island_sep <- df_island %>%
+#   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
+# 
+# df_island_diag <- df_island_sep %>%
+#   filter(island1 == island2)
+# 
+# # only within-island data
+# df_summary_diag <- df_island_diag %>%
+#   group_by(node_from, node_to) %>%
+#   summarise(
+#     avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
+#     avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+#     n_islands = n(),  # number of islands contributing
+#     .groups = "drop"
+#   )
+# 
+# # only with extrnal data
+# df_island_offs <- df_island_sep %>%
+#   filter(island1 != island2)
+# 
+# df_summary_offs <- df_island_offs %>%
+#   group_by(node_from, node_to) %>%
+#   summarise(
+#     avg_prop = mean(observed, na.rm = TRUE),       # proportion of islands with observation
+#     avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+#     n_islands = n(),  # number of islands contributing
+#     .groups = "drop"
+#   )
+# 
+# identical(df_summary_offs$node_from, df_summary_diag$node_from) # check
+# 
+# # create a combined table
+# diff_df <- full_join(
+#   df_summary_offs,
+#   df_summary_diag,
+#   by     = c("node_from","node_to"),
+#   suffix = c("_offs","_diag")
+# ) 
+# 
+# # these are interactions that were predicted to exist in the off-diagonals but not in the diagonal
+# diff_df_filtered <- diff_df %>% filter(diff_df$avg_sigm_predicted_diag < best_discrete_threshold & diff_df$avg_sigm_predicted_offs >= best_discrete_threshold)
+# 
+# # and these are interactions that were predicted to exist in the diagonal but not in the off-diagonals
+# diff_df_diags <- diff_df %>% filter(avg_sigm_predicted_offs < best_discrete_threshold & avg_sigm_predicted_diag >= best_discrete_threshold)
+# 
+# # order species by their degree
+# diff_df$node_from <- factor(diff_df$node_from, levels = plant_order)
+# diff_df$node_to   <- factor(diff_df$node_to, levels = poll_order)
+# 
+# # plot the differences
+# df_plot <- diff_df %>%
+#   filter(avg_prop_diag == 0) %>% # non-observed interactions
+#   mutate(
+#     sigm_cat = case_when(
+#       avg_sigm_predicted_diag < best_discrete_threshold &
+#         avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+#       
+#       avg_sigm_predicted_offs < best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+#       
+#       avg_sigm_predicted_offs >= best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+#       
+#       TRUE ~ NA_character_
+#     )
+#   )
+# 
+# map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
+#   
+#   # allow a second fill scale
+#   new_scale_fill() +
+#     geom_tile(
+#     data  = filter(df_plot, !is.na(sigm_cat)),
+#     aes(fill = sigm_cat),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       "offs↑ only" = "salmon",
+#       "diag↑ only" = "plum3",
+#       "both↑"       = "lightsteelblue"
+#     ),
+#     na.value = NA,
+#     name   = "Difference in \nprediction approach",
+#     labels = c(
+#       "offs↑ only" = "Predicted only by \nadding external location",
+#       "diag↑ only" = "Predicted only by \nsingle location",
+#       "both↑"       = "Predicted by both approaches"
+#     )
+#   ) +
+#   
+#   # tidy up
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x  = element_blank(),
+#     axis.text.y  = element_text(size = 8),
+#     legend.position = "bottom",
+#     legend.box      = "vertical"
+#   ) +
+#   
+#   # your italic‐species labels and extra theme element
+#   scale_y_discrete(
+#     labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#       bquote(italic(.(paste(y, collapse = " "))))
+#     })
+#   ) +
+#   tme
+# 
+# map_missing_links_diags_offs
+# 
+# # how many links did each category add?
+# df_plot %>%
+#   filter(avg_prop_diag == 0) %>% 
+#   group_by(sigm_cat) %>%
+#   summarise(
+#     n_links = n()
+#   )
+# 
+# #### ---- existing predicted interactions ----
+# # if we want to know how each category contributed to VERIFIED existing links
+# # plot the differences
+# df_plot_verified <- diff_df %>%
+#   filter(avg_prop_diag != 0) %>% # observed interactions
+#   mutate(
+#     sigm_cat = case_when(
+#       avg_sigm_predicted_diag < best_discrete_threshold &
+#         avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+#       
+#       avg_sigm_predicted_offs < best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+#       
+#       avg_sigm_predicted_offs >= best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+#       
+#       TRUE ~ NA_character_
+#     )
+#   )
+# 
+# map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
+#   
+#   # allow a second fill scale
+#   new_scale_fill() +
+#   geom_tile(
+#     data  = filter(df_plot_verified, !is.na(sigm_cat)),
+#     aes(fill = sigm_cat),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       "offs↑ only" = "salmon",
+#       "diag↑ only" = "plum3",
+#       "both↑"       = "lightsteelblue"
+#     ),
+#     na.value = NA,
+#     name   = "Difference in \nprediction approach",
+#     labels = c(
+#       "offs↑ only" = "Predicted only by \nadding external location",
+#       "diag↑ only" = "Predicted only by \nsingle location",
+#       "both↑"       = "Predicted by both approaches"
+#     )
+#   ) +
+#   
+#   # tidy up
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x  = element_blank(),
+#     axis.text.y  = element_text(size = 8),
+#     legend.position = "bottom",
+#     legend.box      = "vertical"
+#   ) +
+#   
+#   # your italic‐species labels and extra theme element
+#   scale_y_discrete(
+#     labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#       bquote(italic(.(paste(y, collapse = " "))))
+#     })
+#   ) +
+#   tme
+# 
+# map_existing_links_predicted
+# 
+# # how many links did each category add?
+# df_plot_verified %>%
+#   filter(avg_prop_diag != 0) %>% 
+#   group_by(sigm_cat) %>%
+#   summarise(
+#     n_links = n()
+#   )
+# 
+# 
+# # pie chart
+# # 1. Count how many interactions fall into each category
+# df_counts <- df_plot %>%
+#   filter(sigm_cat != "NA") %>% 
+#   count(sigm_cat, name = "n") %>%
+#   arrange(desc(sigm_cat)) %>%          # optional: control legend/order
+#   mutate(
+#     frac = n / sum(n),                 # fraction of total
+#     pct  = percent(frac)               # human‑readable percent
+#   )
+# 
+# # 2. Define your colors
+# my_cols <- c(
+#   "offs↑ only"  = "salmon",
+#   "diag↑ only"  = "plum3",
+#   "both↑"       = "lightsteelblue"
 # )
 # 
-# grid::grid.draw(distance_dif_plot_f1)
+# new_labels <- c(
+#   "offs↑ only" = "Predicted only by external location" ,
+#   "diag↑ only" = "Predicted only by single location" ,
+#   "both↑"      = "Predicted by both approaches"
+# )
+# ### ---- Fig. 3b: pie chart ----
+# # 3. Make the pie
+# pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
+#   geom_col(width = 1, color = "white") +      # white border between slices
+#   coord_polar(theta = "y") +                  # convert bar → pie
+#   scale_fill_manual(values = my_cols,
+#                     labels = new_labels) +
+#   theme_void() +                              # remove axes/background
+#   theme(
+#     legend.title = element_blank(),
+#     legend.text = element_text(size = 17),
+#     plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+#     legend.position  = "bottom",
+#     legend.direction = "vertical"
+#   ) +
+#   #labs(title = "Interactions by Significance Category") +
+#   geom_text(
+#     aes(label = n),
+#     position = position_stack(vjust = 0.5),
+#     color = "white",
+#     size = 7
+#   )
 # 
-# dev.off()
-
-#### ---- MRM test: island scale ----
-
-# build square matrices of f1 and distance
-#    (layers must be in the same order for rows & cols)
-
-# a) get a list of all unique layers
-layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_island_dif$test_layer)))
-
-# b) initialize empty matrices
-f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
-                      dimnames=list(layers, layers))
-dist_mat_km <- f1_mat
-
-# c) fill in each cell [i,j] with the corresponding f1_score and distance_km
-for(i in layers) for(j in layers) {
-  # subset rows where train=i and test=j
-  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
-  if(nrow(sub)==1) {
-    f1_mat[i,j]      <- sub$f1_score
-    dist_mat_km[i,j] <- sub$distance_km
-  }
-}
-
-# d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
-sym_average <- function(m) {
-  mm <- m
-  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
-    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
-      avg       <- mean(c(m[i,j], m[j,i]))
-      mm[i,j]   <- avg
-      mm[j,i]   <- avg
-    }
-  }
-  mm
-}
-f1_sym      <- sym_average(f1_mat)
-dist_sym_km <- sym_average(dist_mat_km)
-
-# e) convert to “dist” objects (lower triangle)
-dist_f1      <- as.dist(f1_sym)
-dist_km      <- as.dist(dist_sym_km)
-
-# 4. run the MRM
-#    — this will regress the F1‐distance matrix on the geographic–distance matrix
-set.seed(42)   # for reproducibility of permutations
-mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
-
-# 5. results
-print(mrm_out)
-
-#### ---- MRM for site scale ----
-layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
-
-# initialize empty matrices
-f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
-                      dimnames=list(layers_site, layers_site))
-dist_mat_km_site <- f1_mat_site
-
-# fill in each cell [i,j] with the corresponding f1_score and distance_km
-for(i in layers_site) for(j in layers_site) {
-  # subset rows where train=i and test=j
-  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
-  if(nrow(sub)==1) {
-    f1_mat_site[i,j]      <- sub$f1_score
-    dist_mat_km_site[i,j] <- sub$distance_km
-  }
-}
-
-# because MRM uses symmetric distance matrices, average [i,j] & [j,i]
-
-f1_sym_site      <- sym_average(f1_mat_site)
-dist_sym_km_site <- sym_average(dist_mat_km_site)
-
-# convert to “dist” objects (lower triangle)
-dist_f1_site      <- as.dist(f1_sym_site)
-dist_km_site     <- as.dist(dist_sym_km_site)
-
-# run the MRM
-#    — this will regress the F1‐distance matrix on the geographic–distance matrix
-set.seed(42)   # for reproducibility of permutations
-mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
-
-# results
-print(mrm_out_site)
-
+# pie_chart
+# # pdf(
+# #   file   = "pie_chart.pdf",
+# #   width  = 7,    # inches
+# #   height = 7,
+# #   family = "Helvetica"   # or another installed font
+# # )
+# # print(pie_chart)
+# # dev.off()     # close the file
+# 
+# ### ---- distance decay ----
+# #### ---- add distances and location names ----
+# distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
+# 
+# # proceed for both island scale and site scale and compare the trends
+# #### ---- island scale ----
+# # function to extract island names (removes "_site_X")
+# extract_island <- function(name) {
+#   gsub("_site_[12]", "", name)
+# }
+# 
+# # create new table with averaged distances at the island level
+# distance_island_table <- distance_table %>%
+#   mutate(
+#     from_island = extract_island(from),
+#     to_island = extract_island(to)
+#   ) %>%
+#   group_by(from_island, to_island) %>%
+#   summarise(
+#     avg_distance_m = mean(distance_m),
+#     avg_distance_km = mean(distance_km),
+#     .groups = "drop"
+#   ) %>%
+#   mutate(
+#     avg_distance_m = ifelse(from_island == to_island, 0, avg_distance_m),
+#     avg_distance_km = ifelse(from_island == to_island, 0, avg_distance_km)
+#   ) %>%
+#   rename(from = from_island, to = to_island)  # Rename after calculation
+# 
+# # print result
+# print(distance_island_table)
+# 
+# # modify the 'from' and 'to' columns in distance_island_table
+# distance_island_table <- distance_island_table %>%
+#   mutate(from = gsub("_", " ", from),
+#          to = gsub("_", " ", to))
+# 
+# result_summary_island <- result_summary
+# 
+# # Add to main table
+# result_summary_island <- result_summary_island %>%
+#   left_join(
+#     distance_island_table,
+#     by = c("train_layer_name" = "from", "test_layer_name" = "to")
+#   ) %>%
+#   mutate(distance_km = if_else(train_layer_name == test_layer_name,
+#                                0,              # distance = 0 if same site
+#                                avg_distance_km))   # otherwise, keep joined distance
+# 
+# #### ---- site scale ----
+# # add names and distances to the main table
+# net <- emln::load_emln(60) # canary islands
+# net$layers
+# net_name <- net$layers %>% select(layer_id, name)
+# net_name
+# net_name <- net_name %>%
+#   mutate(name = gsub("_", " ", name))
+# 
+# # Modify the 'from' and 'to' columns in distance_table
+# distance_table <- distance_table %>%
+#   mutate(from = gsub("_", " ", from),
+#          to = gsub("_", " ", to))
+# 
+# # load site scale data
+# result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
+# 
+# # convert negatives to zeros
+# result_site <- result_site %>%
+#   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
+# 
+# # create the evaluation table
+# df_removed_site <- result_site %>%
+#   filter(removed == 1) %>% 
+#   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+#   mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+#   mutate(original_binary = if_else(original_links > 0, 1, 0))
+# 
+# result_summary_site <- df_removed_site %>%
+#   group_by(emln_id, train_layer, test_layer, itr) %>%
+#   summarise(
+#     TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+#     FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+#     TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+#     FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+#     specificity = TN / (TN + FP),
+#     precision = TP / (TP + FP),
+#     recall = TP / (TP + FN),
+#     f1_score = 2 * (precision * recall) / (precision + recall),
+#     balanced_accuracy = (recall + specificity) / 2,
+#     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
+#     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
+#     rmse = sqrt(mse),
+#     nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+#       sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
+#     nnse = 1 / (2 - nse)
+#   ) %>%
+#   ungroup() %>%
+#   group_by(emln_id, train_layer, test_layer) %>%
+#   summarise(
+#     TP = mean(TP, na.rm = TRUE),
+#     FN = mean(FN, na.rm = TRUE),
+#     TN = mean(TN, na.rm = TRUE),
+#     FP = mean(FP, na.rm = TRUE),
+#     specificity = mean(specificity, na.rm = TRUE),
+#     precision = mean(precision, na.rm = TRUE),
+#     recall = mean(recall, na.rm = TRUE),
+#     f1_score = mean(f1_score, na.rm = TRUE),
+#     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+#     mcc = mean(mcc, na.rm = TRUE),
+#     mse = mean(mse, na.rm = TRUE),
+#     rmse = mean(rmse, na.rm = TRUE),
+#     nse  = mean(nse,  na.rm = TRUE),
+#     nnse = mean(nnse, na.rm = TRUE)
+#   ) %>%
+#   ungroup()
+# 
+# 
+# result_summary_site <- result_summary_site %>%
+#   # Join to add train_layer_name
+#   left_join(net_name %>% 
+#               rename(train_layer = layer_id, 
+#                      train_layer_name = name), 
+#             by = "train_layer") %>%
+#   # Join to add test_layer_name
+#   left_join(net_name %>% 
+#               rename(test_layer = layer_id, 
+#                      test_layer_name = name), 
+#             by = "test_layer")
+# 
+# 
+# # Add to main table
+# result_summary_site <- result_summary_site %>%
+#   left_join(
+#     distance_table,
+#     by = c("train_layer_name" = "from", "test_layer_name" = "to")
+#   ) %>%
+#   mutate(distance_km = if_else(train_layer_name == test_layer_name,
+#                                0,              # distance = 0 if same site
+#                                distance_km))   # otherwise, keep joined distance
+# 
+# #### ---- distance correlation with evaluators ----
+# make_cor_plot <- function(data, evaluator, 
+#                           distance_col = "distance_km", 
+#                           x_lab = "Geographic distance (km)",
+#                           y_lab = NULL,
+#                           extra_theme = NULL) {
+#   # Use evaluator as y_lab if no alternative is provided
+#   if (is.null(y_lab)) {
+#     y_lab <- evaluator
+#   }
+#   
+#   # Compute correlation between evaluator and distance
+#   correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+#                           use = "complete.obs", method = "pearson")
+#   r_value <- round(correlation$estimate, 2)
+#   p_value <- ifelse(
+#     correlation$p.value < 0.001,
+#     formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+#     formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+#   ) 
+#   label_text <- paste0("r = ", r_value, ", p = ", p_value)
+#   
+#   # Create plot with label in the upper right corner using Inf coordinates
+#   plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+#     geom_point(color = "salmon2", size = 2) +
+#     geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+#     labs(x = x_lab, y = y_lab) +
+#     # The following places the label at the upper right of the plot area
+#     annotate("text", x = Inf, y = Inf, label = label_text,
+#              hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+#   
+#   # Optionally add additional theme modifications
+#   if (!is.null(extra_theme)) {
+#     plot <- plot + extra_theme
+#   }
+#   
+#   return(plot)
+# }
+# 
+# combine_two_plots <- function(p1, p2,
+#                               x_axis_label = "Geographic distance (km)",
+#                               y_axis_label = "F1 score",
+#                               p1_title = "Site scale",
+#                               p2_title = "Island scale",
+#                               margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
+#                               axis_title_fontsize = 14,
+#                               axis_title_fontface = "bold") {
+#   
+#   # Adjust first plot
+#   p1 <- p1 +
+#     ggtitle(p1_title) +
+#     theme(
+#       legend.position = "none",
+#       axis.title = element_blank(),
+#       plot.margin = margins
+#     )
+#   
+#   # Adjust second plot
+#   p2 <- p2 +
+#     ggtitle(p2_title) +
+#     theme(
+#       legend.position = "none",
+#       axis.title = element_blank(),
+#       axis.text.y = element_blank(),
+#       plot.margin = margins
+#     )
+#   
+#   # Combine p1 and p2 side by side
+#   combined_plots <- arrangeGrob(
+#     p1, p2,
+#     ncol = 2,
+#     widths = c(1.1, 1)
+#   )
+#   
+#   # Add global x and y axis labels
+#   combined_with_axes <- arrangeGrob(
+#     combined_plots,
+#     bottom = textGrob(
+#       x_axis_label,
+#       gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface),
+#       vjust = -1.5
+#     ),
+#     left = textGrob(
+#       y_axis_label,
+#       rot = 90,
+#       gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface)
+#     )
+#   )
+#   
+#   # Final arrangement
+#   final_plot <- grid.arrange(
+#     combined_with_axes,
+#     ncol = 2,
+#     widths = c(2, 0.01)
+#   )
+#   
+#   return(final_plot)
+# }
+# 
+# # remove sites form within the same island - only use information from different islands for distance decay
+# result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
+# result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
+# 
+# # extract island names
+# result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
+# result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
+# 
+# # filter rows where island names are different
+# filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
+# 
+# # plot
+# cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme)
+# cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
+# distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
+# 
+# # run the previous make_cor_plot again
+# # pdf(
+# #   file   = "distance_plot_f1_different_isl.pdf",
+# #   width  = 7,
+# #   height = 4,
+# #   family = "Helvetica"
+# # )
+# # 
+# # grid::grid.draw(distance_dif_plot_f1)
+# # 
+# # dev.off()
+# 
+# #### ---- MRM test: island scale ----
+# 
+# # build square matrices of f1 and distance
+# #    (layers must be in the same order for rows & cols)
+# 
+# # a) get a list of all unique layers
+# layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_island_dif$test_layer)))
+# 
+# # b) initialize empty matrices
+# f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
+#                       dimnames=list(layers, layers))
+# dist_mat_km <- f1_mat
+# 
+# # c) fill in each cell [i,j] with the corresponding f1_score and distance_km
+# for(i in layers) for(j in layers) {
+#   # subset rows where train=i and test=j
+#   sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
+#   if(nrow(sub)==1) {
+#     f1_mat[i,j]      <- sub$f1_score
+#     dist_mat_km[i,j] <- sub$distance_km
+#   }
+# }
+# 
+# # d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+# sym_average <- function(m) {
+#   mm <- m
+#   for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
+#     if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
+#       avg       <- mean(c(m[i,j], m[j,i]))
+#       mm[i,j]   <- avg
+#       mm[j,i]   <- avg
+#     }
+#   }
+#   mm
+# }
+# f1_sym      <- sym_average(f1_mat)
+# dist_sym_km <- sym_average(dist_mat_km)
+# 
+# # e) convert to “dist” objects (lower triangle)
+# dist_f1      <- as.dist(f1_sym)
+# dist_km      <- as.dist(dist_sym_km)
+# 
+# # 4. run the MRM
+# #    — this will regress the F1‐distance matrix on the geographic–distance matrix
+# set.seed(42)   # for reproducibility of permutations
+# mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
+# 
+# # 5. results
+# print(mrm_out)
+# 
+# #### ---- MRM for site scale ----
+# layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
+# 
+# # initialize empty matrices
+# f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
+#                       dimnames=list(layers_site, layers_site))
+# dist_mat_km_site <- f1_mat_site
+# 
+# # fill in each cell [i,j] with the corresponding f1_score and distance_km
+# for(i in layers_site) for(j in layers_site) {
+#   # subset rows where train=i and test=j
+#   sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
+#   if(nrow(sub)==1) {
+#     f1_mat_site[i,j]      <- sub$f1_score
+#     dist_mat_km_site[i,j] <- sub$distance_km
+#   }
+# }
+# 
+# # because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+# 
+# f1_sym_site      <- sym_average(f1_mat_site)
+# dist_sym_km_site <- sym_average(dist_mat_km_site)
+# 
+# # convert to “dist” objects (lower triangle)
+# dist_f1_site      <- as.dist(f1_sym_site)
+# dist_km_site     <- as.dist(dist_sym_km_site)
+# 
+# # run the MRM
+# #    — this will regress the F1‐distance matrix on the geographic–distance matrix
+# set.seed(42)   # for reproducibility of permutations
+# mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
+# 
+# # results
+# print(mrm_out_site)
+# 
 ### ---- Fig. 2a heatmap ----
 
 island_heatmap_f1 <- 
@@ -2466,95 +2408,94 @@ print(island_heatmap_f1)
 # print(island_heatmap_f1)
 # dev.off()     # close the file
 
-### ---- compare scales ----
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("f1_score", "nnse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "f1_score", "nnse"
-  )))
-
-# test for assumptions
-# normality
-
-df_long %>%
-  group_by(metric, scale) %>%
-  shapiro_test(value)   # Shapiro-Wilk normality test
-
-df_long %>%
-  ggqqplot(x = "value", facet.by = c("metric", "scale"))
-
-# mostly, data is not normally distributed, so better use wilcoxon 
-
-# plot
-# pretty facet titles with units:
-metric_labels <- c(
-  f1_score          = "F1 score",
-  nnse              = "NNSE"
-)
-
-nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales        = "free_y",
-    labeller      = as_labeller(metric_labels),
-    ncol          = 4,
-    switch        = "y"             # move the strip to the left side
-  ) +
-  stat_compare_means(
-    method         = "wilcox.test",
-    label          = "p.format",    # print the full p‐value
-    p.format.args  = list(
-      digits     = 2,               # two digits after decimal
-      scientific = TRUE             # use e-notation for small p’s
-    ),
-    label.y        = Inf,
-    vjust          = 1.5,
-    label.x        = 1.45,
-    tip.length     = 0.01,
-    size           = 3.5              # adjust this for font size
-  ) +
-  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    x = NULL,
-    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    strip.placement       = "outside",           # draw strips outside the plot panel
-    strip.text.y.left     = element_text(
-      angle = 90,          # horizontal text
-      face  = "bold",
-      size  = 12
-    ),
-    axis.text.x           = element_blank(),
-    axis.ticks.x          = element_blank(),
-    legend.position       = "bottom"
-  ) + tme
-
-nnse_f1_scales
-
-#Base‐R PDF device
-# pdf(
-#   file   = "scales_fig2.pdf",
-#   width  = 7,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
+# ### ---- compare scales ----
+# 
+# df_long <- bind_rows(
+#   result_summary_site   %>% mutate(scale = "Site"),
+#   result_summary_island %>% mutate(scale = "Island")
+# ) %>%
+#   pivot_longer(
+#     cols      = c("f1_score", "nnse"),
+#     names_to  = "metric",
+#     values_to = "value"
+#   ) %>%
+#   mutate(metric = factor(metric, levels = c(
+#     "f1_score", "nnse"
+#   )))
+# 
+# # test for assumptions
+# # normality
+# 
+# df_long %>%
+#   group_by(metric, scale) %>%
+#   shapiro_test(value)   # Shapiro-Wilk normality test
+# 
+# df_long %>%
+#   ggqqplot(x = "value", facet.by = c("metric", "scale"))
+# 
+# # mostly, data is not normally distributed, so better use wilcoxon 
+# 
+# # plot
+# # pretty facet titles with units:
+# metric_labels <- c(
+#   f1_score          = "F1 score",
+#   nnse              = "NNSE"
 # )
-# print(nnse_f1_scales)
-# dev.off()     # close the file
-
-### --- subset analysis ----
+# 
+# nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+#   geom_boxplot(
+#     notch        = TRUE,
+#     outlier.size = 1,
+#     position     = position_dodge(width = 0.75)
+#   ) +
+#   facet_wrap(
+#     ~ metric,
+#     scales        = "free_y",
+#     labeller      = as_labeller(metric_labels),
+#     ncol          = 4,
+#     switch        = "y"             # move the strip to the left side
+#   ) +
+#   stat_compare_means(
+#     method         = "wilcox.test",
+#     label          = "p.format",    # print the full p‐value
+#     p.format.args  = list(
+#       digits     = 2,               # two digits after decimal
+#       scientific = TRUE             # use e-notation for small p’s
+#     ),
+#     label.y        = Inf,
+#     vjust          = 1.5,
+#     label.x        = 1.45,
+#     tip.length     = 0.01,
+#     size           = 3.5              # adjust this for font size
+#   ) +
+#   scale_fill_manual(values = c("Site"   = "lightsteelblue2",
+#                                "Island" = "wheat2")) +
+#   labs(
+#     x = NULL,
+#     y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
+#   ) +
+#   theme_minimal(base_size = 14) +
+#   theme(
+#     strip.placement       = "outside",           # draw strips outside the plot panel
+#     strip.text.y.left     = element_text(
+#       angle = 90,          # horizontal text
+#       face  = "bold",
+#       size  = 12
+#     ),
+#     axis.text.x           = element_blank(),
+#     axis.ticks.x          = element_blank(),
+#     legend.position       = "bottom"
+#   ) + tme
+# 
+# nnse_f1_scales
+# 
+# #Base‐R PDF device
+# # pdf(
+# #   file   = "scales_fig2.pdf",
+# #   width  = 7,    # inches
+# #   height = 4,
+# #   family = "Helvetica"   # or another installed font
+# # )
+# # print(nnse_f1_scales)
+# # dev.off()     # close the file
+# 
