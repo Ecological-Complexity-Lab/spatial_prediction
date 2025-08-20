@@ -1773,7 +1773,7 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            size = 5,
            color = "black")
 
-final_plot <- combine_plots(plant_degree, poll_degree)
+final_plot <- combine_plots(plant_degree, poll_degree) # fix error
 final_plot # Fig. 6c
 
 ### ---- Fig. 3a: mapping never-observed links ----
@@ -1951,6 +1951,79 @@ df_plot %>%
   summarise(
     n_links = n()
   )
+
+#### ---- existing predicted interactions ----
+# if we want to know how each category contributed to VERIFIED existing links
+# plot the differences
+df_plot_verified <- diff_df %>%
+  filter(avg_prop_diag != 0) %>% # observed interactions
+  mutate(
+    sigm_cat = case_when(
+      avg_sigm_predicted_diag < best_discrete_threshold &
+        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+      
+      avg_sigm_predicted_offs < best_discrete_threshold &
+        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+      
+      avg_sigm_predicted_offs >= best_discrete_threshold &
+        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
+  
+  # allow a second fill scale
+  new_scale_fill() +
+  geom_tile(
+    data  = filter(df_plot_verified, !is.na(sigm_cat)),
+    aes(fill = sigm_cat),
+    alpha = 0.6
+  ) +
+  scale_fill_manual(
+    values = c(
+      "offs↑ only" = "salmon",
+      "diag↑ only" = "plum3",
+      "both↑"       = "lightsteelblue"
+    ),
+    na.value = NA,
+    name   = "Difference in \nprediction approach",
+    labels = c(
+      "offs↑ only" = "Predicted only by \nadding external location",
+      "diag↑ only" = "Predicted only by \nsingle location",
+      "both↑"       = "Predicted by both approaches"
+    )
+  ) +
+  
+  # tidy up
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x  = element_blank(),
+    axis.text.y  = element_text(size = 8),
+    legend.position = "bottom",
+    legend.box      = "vertical"
+  ) +
+  
+  # your italic‐species labels and extra theme element
+  scale_y_discrete(
+    labels = function(x) lapply(strsplit(x, "_"), function(y) {
+      bquote(italic(.(paste(y, collapse = " "))))
+    })
+  ) +
+  tme
+
+map_existing_links_predicted
+
+# how many links did each category add?
+df_plot_verified %>%
+  filter(avg_prop_diag != 0) %>% 
+  group_by(sigm_cat) %>%
+  summarise(
+    n_links = n()
+  )
+
 
 # pie chart
 # 1. Count how many interactions fall into each category

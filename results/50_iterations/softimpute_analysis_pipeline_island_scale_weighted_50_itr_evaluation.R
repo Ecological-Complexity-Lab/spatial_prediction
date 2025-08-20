@@ -452,140 +452,140 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary)
 
-### ---- distribution of evaluators ----
-island_specificity <- ggplot(result_summary, aes(x = specificity)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
-  labs(x = "Specificity",
-       y = "Count") +
-  tme
-
-island_f1 <- ggplot(result_summary, aes(x = f1_score)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
-  labs(x = "F1 score",
-       y = "Count") +
-  tme
-
-island_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
-  labs(x = "Balanced accuracy",
-       y = "Count") +
-  tme
-
-island_precision <- ggplot(result_summary, aes(x = precision)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  scale_x_continuous(
-    breaks = scales::pretty_breaks(n = 5),
-    labels = scales::number_format(accuracy = 0.05)
-  ) +
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
-labs(x = "Precision",
-       y = "Count") +
-  tme
-
-island_recall <- ggplot(result_summary, aes(x = recall)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
-  scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
-  labs(x = "Recall",
-       y = "Count") +
-  tme
-
-island_rmse <- ggplot(result_summary, aes(x = rmse)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  labs(x = "RMSE",
-       y = "Count") +
-  tme
-
-island_mse <- ggplot(result_summary, aes(x = mse)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  labs(x = "MSE",
-       y = "Count") +
-  tme
-
-island_nse <- ggplot(result_summary, aes(x = nse)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  labs(x = "NSE",
-       y = "Count") +
-  tme
-
-island_nnse <- ggplot(result_summary, aes(x = nnse)) +
-  geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
-  #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-  labs(x = "nNSE",
-       y = "Count") +
-  tme
-
-p1 <- island_f1 +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p2 <- island_recall +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p3 <- island_ba +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p4 <- island_precision +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p5 <- island_specificity +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p6 <- island_rmse +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p7 <- island_mse +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p8 <- island_nse +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-p9 <- island_nnse +
-  theme(legend.position = "none",
-        axis.title.y = element_blank(),
-        plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
-
-combined_plots <- arrangeGrob(
-  p1, p2, p3, p4, p5, p6, p7, p8, p9,
-  ncol = 5, 
-  nrow = 2
-)
-combined_with_axes <- arrangeGrob(
-  combined_plots,
-  #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
-  left   = textGrob("Count of instances", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
-)
-
-final_plot <- grid.arrange(
-  combined_with_axes,
-  ncol = 4,
-  widths = c(2, 0.001, 0.2, 0)
-)
+# ### ---- distribution of evaluators ----
+# island_specificity <- ggplot(result_summary, aes(x = specificity)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+#   labs(x = "Specificity",
+#        y = "Count") +
+#   tme
+# 
+# island_f1 <- ggplot(result_summary, aes(x = f1_score)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+#   scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
+#   labs(x = "F1 score",
+#        y = "Count") +
+#   tme
+# 
+# island_ba <- ggplot(result_summary, aes(x = balanced_accuracy)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
+#   scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
+#   labs(x = "Balanced accuracy",
+#        y = "Count") +
+#   tme
+# 
+# island_precision <- ggplot(result_summary, aes(x = precision)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   scale_x_continuous(
+#     breaks = scales::pretty_breaks(n = 5),
+#     labels = scales::number_format(accuracy = 0.05)
+#   ) +
+#   scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
+# labs(x = "Precision",
+#        y = "Count") +
+#   tme
+# 
+# island_recall <- ggplot(result_summary, aes(x = recall)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+#   scale_y_continuous(breaks = scales::pretty_breaks(n = 5), labels = scales::number_format(accuracy = 1)) +
+#   labs(x = "Recall",
+#        y = "Count") +
+#   tme
+# 
+# island_rmse <- ggplot(result_summary, aes(x = rmse)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   labs(x = "RMSE",
+#        y = "Count") +
+#   tme
+# 
+# island_mse <- ggplot(result_summary, aes(x = mse)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   labs(x = "MSE",
+#        y = "Count") +
+#   tme
+# 
+# island_nse <- ggplot(result_summary, aes(x = nse)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   labs(x = "NSE",
+#        y = "Count") +
+#   tme
+# 
+# island_nnse <- ggplot(result_summary, aes(x = nnse)) +
+#   geom_histogram(bins = 20, fill = "lightsteelblue", color = "black", alpha = 0.5) + 
+#   #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
+#   labs(x = "nNSE",
+#        y = "Count") +
+#   tme
+# 
+# p1 <- island_f1 +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p2 <- island_recall +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p3 <- island_ba +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p4 <- island_precision +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p5 <- island_specificity +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p6 <- island_rmse +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p7 <- island_mse +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p8 <- island_nse +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# p9 <- island_nnse +
+#   theme(legend.position = "none",
+#         axis.title.y = element_blank(),
+#         plot.margin = unit(c(0.5, 0.5, 0.1, 0.3), "cm"))
+# 
+# combined_plots <- arrangeGrob(
+#   p1, p2, p3, p4, p5, p6, p7, p8, p9,
+#   ncol = 5, 
+#   nrow = 2
+# )
+# combined_with_axes <- arrangeGrob(
+#   combined_plots,
+#   #bottom = textGrob("F1 score", gp = gpar(fontsize = 14, fontface = "bold"), vjust = -1.5),
+#   left   = textGrob("Count of instances", rot = 90, gp = gpar(fontsize = 14, fontface = "bold"))
+# )
+# 
+# final_plot <- grid.arrange(
+#   combined_with_axes,
+#   ncol = 4,
+#   widths = c(2, 0.001, 0.2, 0)
+# )
