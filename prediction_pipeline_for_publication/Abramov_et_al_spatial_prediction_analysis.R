@@ -1925,7 +1925,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     bquote(italic(.(paste(y, collapse = " "))))
   }))
 
-print(map_missing_links) # Fig 6a
+print(map_missing_links)
 
 ### ---- Fig. S4: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
@@ -2048,28 +2048,28 @@ df_plot %>%
     n_links = n()
   )
 
-# #### ---- existing predicted interactions ----
-# # if we want to know how each category contributed to VERIFIED existing links
-# # plot the differences
-# df_plot_verified <- diff_df %>%
-#   filter(avg_prop_diag != 0) %>% # observed interactions
-#   mutate(
-#     sigm_cat = case_when(
-#       avg_sigm_predicted_diag < best_discrete_threshold &
-#         avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
-#       
-#       avg_sigm_predicted_offs < best_discrete_threshold &
-#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
-#       
-#       avg_sigm_predicted_offs >= best_discrete_threshold &
-#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
-#       
-#       TRUE ~ NA_character_
-#     )
-#   )
-# 
+### ---- existing predicted interactions ----
+# if we want to know how each category contributed to VERIFIED existing links (that were observed in the system)
+# plot the differences
+df_plot_verified <- diff_df %>%
+  filter(avg_prop_diag != 0) %>% # observed interactions
+  mutate(
+    sigm_cat = case_when(
+      avg_sigm_predicted_diag < best_discrete_threshold &
+        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+
+      avg_sigm_predicted_offs < best_discrete_threshold &
+        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+
+      avg_sigm_predicted_offs >= best_discrete_threshold &
+        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+
+      TRUE ~ NA_character_
+    )
+  )
+# # if we want to plot them
 # map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
-#   
+# 
 #   # allow a second fill scale
 #   new_scale_fill() +
 #   geom_tile(
@@ -2091,7 +2091,7 @@ df_plot %>%
 #       "both↑"       = "Predicted by both approaches"
 #     )
 #   ) +
-#   
+# 
 #   # tidy up
 #   theme_minimal() +
 #   labs(x = "Pollinator", y = "Plant") +
@@ -2101,7 +2101,7 @@ df_plot %>%
 #     legend.position = "bottom",
 #     legend.box      = "vertical"
 #   ) +
-#   
+# 
 #   # your italic‐species labels and extra theme element
 #   scale_y_discrete(
 #     labels = function(x) lapply(strsplit(x, "_"), function(y) {
@@ -2112,13 +2112,13 @@ df_plot %>%
 # 
 # map_existing_links_predicted
 
-# # how many links did each category add?
-# df_plot_verified %>%
-#   filter(avg_prop_diag != 0) %>% 
-#   group_by(sigm_cat) %>%
-#   summarise(
-#     n_links = n()
-#   )
+# how many links did each category add?
+df_plot_verified %>%
+  filter(avg_prop_diag != 0) %>%
+  group_by(sigm_cat) %>%
+  summarise(
+    n_links = n()
+  )
 
 # pie chart
 # 1. Count how many interactions fall into each category
