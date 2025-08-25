@@ -205,6 +205,26 @@ compute_balanced_f1 <- function(df_sp) {
   }
 }
 
+# function to extract island names (removes "_site_X")
+extract_island <- function(name) {
+  gsub("_site_[12]", "", name)
+}
+
+# for MRM test
+sym_average <- function(m) {
+  mm <- m
+  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
+    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
+      avg       <- mean(c(m[i,j], m[j,i]))
+      mm[i,j]   <- avg
+      mm[j,i]   <- avg
+    }
+  }
+  mm
+}
+
+# plotting
+
 # function for plotting ROC curve with ggplot2
 plot_roc_curve <- function(true_labels, predicted_scores) {
   # Create the ROC object and compute AUC
@@ -414,6 +434,73 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
     
     scale_x_continuous(
       name   = "Network size",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
+plot_f1_nnse_vs_density_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        measure_type = c(density_P  = "Density of matrix P",
+                         density_C  = "Density of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network density",
       expand = expansion(mult = c(0.05, 0.1))
     ) +
     
@@ -671,11 +758,102 @@ combine_plots <- function(p1, p2,
                       gp = gpar(fontsize = label_fontsize, fontface = label_fontface))
   )
   
-  # Finally, arrange the whole thing with additional spacing if needed
+  return(combined_with_axes)
+}
+
+make_cor_plot <- function(data, evaluator, 
+                          distance_col = "distance_km", 
+                          x_lab = "Geographic distance (km)",
+                          y_lab = NULL,
+                          extra_theme = NULL) {
+  # Use evaluator as y_lab if no alternative is provided
+  if (is.null(y_lab)) {
+    y_lab <- evaluator
+  }
+  
+  # Compute correlation between evaluator and distance
+  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  ) 
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Create plot with label in the upper right corner using Inf coordinates
+  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+    geom_point(color = "salmon2", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+    labs(x = x_lab, y = y_lab) +
+    # The following places the label at the upper right of the plot area
+    annotate("text", x = Inf, y = Inf, label = label_text,
+             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+  
+  # Optionally add additional theme modifications
+  if (!is.null(extra_theme)) {
+    plot <- plot + extra_theme
+  }
+  
+  return(plot)
+}
+
+combine_two_plots <- function(p1, p2,
+                              x_axis_label = "Geographic distance (km)",
+                              y_axis_label = "F1 score",
+                              p1_title = "Site scale",
+                              p2_title = "Island scale",
+                              margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
+                              axis_title_fontsize = 14,
+                              axis_title_fontface = "bold") {
+  
+  # Adjust first plot
+  p1 <- p1 +
+    ggtitle(p1_title) +
+    theme(
+      legend.position = "none",
+      axis.title = element_blank(),
+      plot.margin = margins
+    )
+  
+  # Adjust second plot
+  p2 <- p2 +
+    ggtitle(p2_title) +
+    theme(
+      legend.position = "none",
+      axis.title = element_blank(),
+      axis.text.y = element_blank(),
+      plot.margin = margins
+    )
+  
+  # Combine p1 and p2 side by side
+  combined_plots <- arrangeGrob(
+    p1, p2,
+    ncol = 2,
+    widths = c(1.1, 1)
+  )
+  
+  # Add global x and y axis labels
+  combined_with_axes <- arrangeGrob(
+    combined_plots,
+    bottom = textGrob(
+      x_axis_label,
+      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface),
+      vjust = -1.5
+    ),
+    left = textGrob(
+      y_axis_label,
+      rot = 90,
+      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface)
+    )
+  )
+  
+  # Final arrangement
   final_plot <- grid.arrange(
     combined_with_axes,
     ncol = 2,
-    widths = final_widths
+    widths = c(2, 0.01)
   )
   
   return(final_plot)
@@ -790,7 +968,7 @@ for (layers_to_train in 1:num_layers) {
       sum(is.na(C))
       
       ### ---- b. prediction with SVD ----
-      k_values <- c(2)
+      k_values <- 2
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
       
@@ -1042,7 +1220,17 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
 
-hist_f1a # Fig. 3b
+hist_f1a # Fig. 2b
+
+# # Base‐R PDF device
+# pdf(
+#   file   = "hist_f1a.pdf",
+#   width  = 5,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(hist_f1a)
+# dev.off()     # close the file
 
 # stats
 # run t-test via formula interface
@@ -1080,46 +1268,6 @@ data.frame(
 #### ---- calculate the size and density of our networks ----
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
-
-# Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
-# Load matrices
-d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
-A_l <- d$extended
-
-# aggregate to island scale
-# Extract numeric layer numbers
-A_l <- A_l %>%
-  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
-                                   paste0("layer_", layer_num, "_", layer_num + 1),
-                                   paste0("layer_", layer_num - 1, "_", layer_num)))
-
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
-
-# Total number of layers
-num_layers <- length(unique(aggregated_df$layer_from))
 
 for (layers_to_train in 1:num_layers) {
   for (layer_to_predict in 1:num_layers) {
@@ -1266,73 +1414,6 @@ netsize_f1_nnse
 
 #### ---- Fig. S6: density ----
 
-plot_f1_nnse_vs_density_free_both <- function(data) {
-  # build correlation table
-  cor_table <- data %>%
-    group_by(evaluator, measure_type) %>%
-    summarise(
-      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
-      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
-      .groups   = "drop"
-    ) %>%
-    mutate(
-      r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),
-        formatC(p_value, format = "f", digits = 3)
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    
-    facet_grid(
-      rows   = vars(evaluator),
-      cols   = vars(measure_type),
-      scales = "free",     # ← free both x and y per facet
-      labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(density_P  = "Density of matrix P",
-                         density_C  = "Density of matrix C")
-      ),
-      switch = "y"
-    ) +
-    
-    geom_text(
-      data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
-      size        = 3.2,
-      inherit.aes = FALSE
-    ) +
-    
-    scale_x_continuous(
-      name   = "Network density",
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    scale_y_continuous(
-      name   = NULL,                # remove y title
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
-    
-    theme_minimal() +
-    theme(
-      strip.placement    = "outside",
-      strip.text.x       = element_text(size = 14),
-      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
-      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank()
-    )
-}
-
 df_f1_nnse_density <- result_summary %>%
   select(f1_score, nnse, density_P, density_C) %>%
   pivot_longer(cols = c(density_P, density_C), names_to = "measure_type", values_to = "measure_value") %>%
@@ -1425,6 +1506,16 @@ jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_jaccard,
                                         y_lab = "F1 score",
                                         facet_scales = "free_x")
 jaccard_isl_f1 # Fig. 4
+
+# # Base‐R PDF device
+# pdf(
+#   file   = "jaccard_isl_f1.pdf",
+#   width  = 7,    # inches
+#   height = 3.5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(jaccard_isl_f1)
+# dev.off()     # close the file
 
 jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                            evaluator = "nnse",
@@ -1582,7 +1673,7 @@ df_for_plot_balanced <- bind_rows(
     mutate(avg_sorensen_pollinators = NA_real_)
 )
 
-#### ---- Fig. S4: plot fidelity ----
+#### ---- Fig. S7: plot fidelity ----
 balanced_f1_fidelity <- make_full_correlation_plot(
   data            = df_for_plot_balanced,
   evaluator       = "mean_f1",
@@ -1760,7 +1851,7 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
-    y = "Number of predicted, /nnon-observed interactions",
+    y = "Number of predicted, \nnon-observed interactions",
     title = "Pollinators"
   ) +
   theme_minimal() + tme +
@@ -1774,7 +1865,12 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            color = "black")
 
 final_plot <- combine_plots(plant_degree, poll_degree) # fix error
-final_plot # Fig. 6c
+grid::grid.newpage()
+grid::grid.draw(final_plot) # Fig. 6c
+
+# pdf("degree_unobserved_links.pdf", width = 10, height = 7)
+# grid::grid.draw(final_plot)
+# dev.off()
 
 ### ---- Fig. 3a: mapping never-observed links ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
@@ -1831,7 +1927,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
 
 print(map_missing_links) # Fig 6a
 
-### ---- Fig. S5: difference in links predicted with/without external data ----
+### ---- Fig. S4: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -1952,78 +2048,77 @@ df_plot %>%
     n_links = n()
   )
 
-#### ---- existing predicted interactions ----
-# if we want to know how each category contributed to VERIFIED existing links
-# plot the differences
-df_plot_verified <- diff_df %>%
-  filter(avg_prop_diag != 0) %>% # observed interactions
-  mutate(
-    sigm_cat = case_when(
-      avg_sigm_predicted_diag < best_discrete_threshold &
-        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
-      
-      avg_sigm_predicted_offs < best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
-      
-      avg_sigm_predicted_offs >= best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
-      
-      TRUE ~ NA_character_
-    )
-  )
+# #### ---- existing predicted interactions ----
+# # if we want to know how each category contributed to VERIFIED existing links
+# # plot the differences
+# df_plot_verified <- diff_df %>%
+#   filter(avg_prop_diag != 0) %>% # observed interactions
+#   mutate(
+#     sigm_cat = case_when(
+#       avg_sigm_predicted_diag < best_discrete_threshold &
+#         avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+#       
+#       avg_sigm_predicted_offs < best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+#       
+#       avg_sigm_predicted_offs >= best_discrete_threshold &
+#         avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+#       
+#       TRUE ~ NA_character_
+#     )
+#   )
+# 
+# map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
+#   
+#   # allow a second fill scale
+#   new_scale_fill() +
+#   geom_tile(
+#     data  = filter(df_plot_verified, !is.na(sigm_cat)),
+#     aes(fill = sigm_cat),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       "offs↑ only" = "salmon",
+#       "diag↑ only" = "plum3",
+#       "both↑"       = "lightsteelblue"
+#     ),
+#     na.value = NA,
+#     name   = "Difference in \nprediction approach",
+#     labels = c(
+#       "offs↑ only" = "Predicted only by \nadding external location",
+#       "diag↑ only" = "Predicted only by \nsingle location",
+#       "both↑"       = "Predicted by both approaches"
+#     )
+#   ) +
+#   
+#   # tidy up
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x  = element_blank(),
+#     axis.text.y  = element_text(size = 8),
+#     legend.position = "bottom",
+#     legend.box      = "vertical"
+#   ) +
+#   
+#   # your italic‐species labels and extra theme element
+#   scale_y_discrete(
+#     labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#       bquote(italic(.(paste(y, collapse = " "))))
+#     })
+#   ) +
+#   tme
+# 
+# map_existing_links_predicted
 
-map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
-  
-  # allow a second fill scale
-  new_scale_fill() +
-  geom_tile(
-    data  = filter(df_plot_verified, !is.na(sigm_cat)),
-    aes(fill = sigm_cat),
-    alpha = 0.6
-  ) +
-  scale_fill_manual(
-    values = c(
-      "offs↑ only" = "salmon",
-      "diag↑ only" = "plum3",
-      "both↑"       = "lightsteelblue"
-    ),
-    na.value = NA,
-    name   = "Difference in \nprediction approach",
-    labels = c(
-      "offs↑ only" = "Predicted only by \nadding external location",
-      "diag↑ only" = "Predicted only by \nsingle location",
-      "both↑"       = "Predicted by both approaches"
-    )
-  ) +
-  
-  # tidy up
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x  = element_blank(),
-    axis.text.y  = element_text(size = 8),
-    legend.position = "bottom",
-    legend.box      = "vertical"
-  ) +
-  
-  # your italic‐species labels and extra theme element
-  scale_y_discrete(
-    labels = function(x) lapply(strsplit(x, "_"), function(y) {
-      bquote(italic(.(paste(y, collapse = " "))))
-    })
-  ) +
-  tme
-
-map_existing_links_predicted
-
-# how many links did each category add?
-df_plot_verified %>%
-  filter(avg_prop_diag != 0) %>% 
-  group_by(sigm_cat) %>%
-  summarise(
-    n_links = n()
-  )
-
+# # how many links did each category add?
+# df_plot_verified %>%
+#   filter(avg_prop_diag != 0) %>% 
+#   group_by(sigm_cat) %>%
+#   summarise(
+#     n_links = n()
+#   )
 
 # pie chart
 # 1. Count how many interactions fall into each category
@@ -2087,10 +2182,6 @@ distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL
 
 # proceed for both island scale and site scale and compare the trends
 #### ---- island scale ----
-# function to extract island names (removes "_site_X")
-extract_island <- function(name) {
-  gsub("_site_[12]", "", name)
-}
 
 # create new table with averaged distances at the island level
 distance_island_table <- distance_table %>%
@@ -2145,8 +2236,146 @@ distance_table <- distance_table %>%
          to = gsub("_", " ", to))
 
 # load site scale data
-result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv')
+#result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv') # from file
+# or run the analysis at site scale
+set.seed(42)
 
+# Load matrices
+d <- load_emln(emln_id)
+graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
+A_l <- d$extended
+
+# Extract numeric layer numbers
+A_l <- A_l %>%
+  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
+  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1,
+                                   paste0("layer_", layer_num, "_", layer_num + 1),
+                                   paste0("layer_", layer_num - 1, "_", layer_num)))
+
+# Total number of layers
+num_layers <- length(unique(A_l$layer_from))
+
+# Initialize a data frame to store combined results for all layer combinations
+result_site <- data.frame()
+
+# Loop through all combinations of layers_to_train and layer_to_predict
+for (layers_to_train in 1:num_layers) {
+  for (layer_to_predict in 1:num_layers) {
+    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+
+    # Build the aggregated matrix A for training
+    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+
+    # Build the layer to predict matrix P
+    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+
+    node_to <- rownames(P) # for the results
+    node_from <- colnames(P)
+
+    ### ---- a. withhold links in P ----
+    # map out the 0s and 1s in P
+    num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
+    ones_in_P <- which(P > 0, arr.ind = TRUE)
+
+    num_0_to_remove <- num_1_to_remove
+    prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
+    zeros_in_P <- which(P == 0, arr.ind = TRUE)
+
+    # debug print
+    print(paste("1 remove:", num_1_to_remove))
+    print(paste("all 1   :", nrow(ones_in_P)))
+    print(paste("0s to remove:", num_0_to_remove))
+    print(paste("all zeros   :", nrow(zeros_in_P)))
+    print(paste("prop of zeros removed   : ", prop_0_removed))
+
+    # Randomly select zeros to withhold - bootstrapping
+    bootstrapping_results <- NULL
+    P_original <- P # save it for later
+
+    for (i in 1:n_sim) {
+      # remove 1s
+      remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+      P[remove_indices] <- NA  # Set removed links to NA
+
+      # sample 0s
+      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
+      P[zeros_to_remove_indices] <- NA
+
+      ### ---- creating a combined matrix C ----
+      # Combine A and P into a single matrix C with NAs representing missing data
+      all_row_ids <- unique(c(rownames(A), rownames(P)))
+      all_col_ids <- unique(c(colnames(A), colnames(P)))
+      C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                  dimnames = list(all_row_ids, all_col_ids))
+
+      # Place A into C
+      C[rownames(A), colnames(A)] <- A
+
+      # Place P into C
+      # Ensure that existing entries are not overwritten; sum overlapping entries
+      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]),
+                                            NA,
+                                            C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+
+
+      # Apply biScale to center matrices
+      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+
+      sum(is.na(C))
+
+      ### ---- b. prediction with SVD ----
+      k_values <- 2
+      lam0 <- lambda0(C)
+      lambda_values <- c(lam0)
+
+      # Initialize variables to store the best results
+      results <- data.frame(k = integer(),
+                            lambda = numeric(),
+                            original_links = numeric(),
+                            predicted_values = numeric())
+      not_removed_all <- NULL
+
+      # Loop over all combinations of k and lambda
+      for (k in k_values) {
+        for (lambda in lambda_values) {
+          # imputation
+          r <- implement_impute(C, k, lambda)
+
+          results <- rbind(results, r$results)
+          not_removed_all <- rbind(not_removed_all, r$not_removed)
+        }
+      }
+
+      ### ---- save results for current k/lambda combination ----
+      # After finishing the k/lambda loops, append the 'results' to 'combined_results'
+      # ---- (D) Append to combined_results
+      complete_edges_all <- rbind(results, not_removed_all)
+      complete_edges_all$itr <- i
+      bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
+
+      # reset P
+      P <- P_original
+    }
+
+    result_site <- rbind(
+      result_site,
+      cbind(
+        data.frame(
+          emln_id = emln_id,
+          train_layer = layers_to_train,
+          test_layer = layer_to_predict,
+          prop_ones_removed = prop_ones_to_remove,
+          amount_of_removed_1 = num_1_to_remove,
+          amount_of_removed_0 = num_0_to_remove,
+          prop_0_removed = prop_0_removed
+        ),
+        bootstrapping_results
+      )
+    )
+  }
+}
+
+# # result_site includes predictions for all combinations of sites, 50 iterations of links withholding and prediction for each combination
 # convert negatives to zeros
 result_site <- result_site %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
@@ -2222,103 +2451,6 @@ result_summary_site <- result_summary_site %>%
                                distance_km))   # otherwise, keep joined distance
 
 #### ---- distance correlation with evaluators ----
-make_cor_plot <- function(data, evaluator, 
-                          distance_col = "distance_km", 
-                          x_lab = "Geographic distance (km)",
-                          y_lab = NULL,
-                          extra_theme = NULL) {
-  # Use evaluator as y_lab if no alternative is provided
-  if (is.null(y_lab)) {
-    y_lab <- evaluator
-  }
-  
-  # Compute correlation between evaluator and distance
-  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
-                          use = "complete.obs", method = "pearson")
-  r_value <- round(correlation$estimate, 2)
-  p_value <- ifelse(
-    correlation$p.value < 0.001,
-    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
-    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
-  ) 
-  label_text <- paste0("r = ", r_value, ", p = ", p_value)
-  
-  # Create plot with label in the upper right corner using Inf coordinates
-  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
-    geom_point(color = "salmon2", size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
-    labs(x = x_lab, y = y_lab) +
-    # The following places the label at the upper right of the plot area
-    annotate("text", x = Inf, y = Inf, label = label_text,
-             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
-  
-  # Optionally add additional theme modifications
-  if (!is.null(extra_theme)) {
-    plot <- plot + extra_theme
-  }
-  
-  return(plot)
-}
-
-combine_two_plots <- function(p1, p2,
-                              x_axis_label = "Geographic distance (km)",
-                              y_axis_label = "F1 score",
-                              p1_title = "Site scale",
-                              p2_title = "Island scale",
-                              margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
-                              axis_title_fontsize = 14,
-                              axis_title_fontface = "bold") {
-  
-  # Adjust first plot
-  p1 <- p1 +
-    ggtitle(p1_title) +
-    theme(
-      legend.position = "none",
-      axis.title = element_blank(),
-      plot.margin = margins
-    )
-  
-  # Adjust second plot
-  p2 <- p2 +
-    ggtitle(p2_title) +
-    theme(
-      legend.position = "none",
-      axis.title = element_blank(),
-      axis.text.y = element_blank(),
-      plot.margin = margins
-    )
-  
-  # Combine p1 and p2 side by side
-  combined_plots <- arrangeGrob(
-    p1, p2,
-    ncol = 2,
-    widths = c(1.1, 1)
-  )
-  
-  # Add global x and y axis labels
-  combined_with_axes <- arrangeGrob(
-    combined_plots,
-    bottom = textGrob(
-      x_axis_label,
-      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface),
-      vjust = -1.5
-    ),
-    left = textGrob(
-      y_axis_label,
-      rot = 90,
-      gp = gpar(fontsize = axis_title_fontsize, fontface = axis_title_fontface)
-    )
-  )
-  
-  # Final arrangement
-  final_plot <- grid.arrange(
-    combined_with_axes,
-    ncol = 2,
-    widths = c(2, 0.01)
-  )
-  
-  return(final_plot)
-}
 
 # remove sites form within the same island - only use information from different islands for distance decay
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
@@ -2372,17 +2504,6 @@ for(i in layers) for(j in layers) {
 }
 
 # d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
-sym_average <- function(m) {
-  mm <- m
-  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
-    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
-      avg       <- mean(c(m[i,j], m[j,i]))
-      mm[i,j]   <- avg
-      mm[j,i]   <- avg
-    }
-  }
-  mm
-}
 f1_sym      <- sym_average(f1_mat)
 dist_sym_km <- sym_average(dist_mat_km)
 
@@ -2466,7 +2587,7 @@ print(island_heatmap_f1)
 # print(island_heatmap_f1)
 # dev.off()     # close the file
 
-### ---- compare scales ----
+### ---- Fig. S1: compare scales ----
 
 df_long <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
@@ -2488,8 +2609,8 @@ df_long %>%
   group_by(metric, scale) %>%
   shapiro_test(value)   # Shapiro-Wilk normality test
 
-df_long %>%
-  ggqqplot(x = "value", facet.by = c("metric", "scale"))
+# df_long %>%
+#   ggqqplot(x = "value", facet.by = c("metric", "scale"))
 
 # mostly, data is not normally distributed, so better use wilcoxon 
 
@@ -2556,5 +2677,3 @@ nnse_f1_scales
 # )
 # print(nnse_f1_scales)
 # dev.off()     # close the file
-
-### --- subset analysis ----
