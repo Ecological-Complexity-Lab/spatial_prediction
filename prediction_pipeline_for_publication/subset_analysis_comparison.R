@@ -549,15 +549,14 @@ analyze_predictions <- function(df, name = "Dataset") {
     group_by(emln_id, train_layer, test_layer) %>%
     summarise(across(TP:nnse, mean, na.rm = TRUE), .groups = "drop")
   
-  # ROC and PR Curves
-  auc_val <- plot_roc_curve(df_removed$original_binary, df_removed$predicted_values)
-  plot_pr_curve(df_removed$original_binary, df_removed$predicted_values)
-  
+  # # ROC and PR Curves
+  # auc_val <- plot_roc_curve(df_removed$original_binary, df_removed$predicted_values)
+  # plot_pr_curve(df_removed$original_binary, df_removed$predicted_values)
+  # 
   list(
     best_threshold = best_threshold,
     result_summary = result_summary,
-    metric_plot    = metric_plot,
-    auc            = auc_val
+    metric_plot    = metric_plot
   )
 }
 
