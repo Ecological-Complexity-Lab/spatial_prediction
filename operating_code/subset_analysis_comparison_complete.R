@@ -138,6 +138,56 @@ sigmoid <- function(x) {
   1 / (1 + exp(-x))
 }
 
+# Function to plot ROC curve with ggplot2
+plot_roc_curve <- function(true_labels, predicted_scores) {
+  # Create the ROC object and compute AUC
+  roc_obj <- roc(response = true_labels, predictor = predicted_scores)
+  auc_val <- auc(roc_obj)
+  
+  # Build a data frame from the ROC object for ggplot2
+  df_roc <- data.frame(
+    specificity = roc_obj$specificities,
+    sensitivity = roc_obj$sensitivities
+  )
+  
+  # Generate the ROC plot
+  p <- ggplot(df_roc, aes(x = 1 - specificity, y = sensitivity)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # ROC curve line
+    geom_abline(intercept = 0, slope = 1,                       # Diagonal line (random classifier)
+                linetype = "dashed", color = "salmon") +
+    labs(title = paste("ROC curve (AUC =", round(auc_val, 2), ")"),
+         x = "False positive rate", y = "True positive rate") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
+}
+
+# Function to plot PR curve with ggplot2
+plot_pr_curve <- function(true_labels, predicted_scores) {
+  # Separate scores by class: positive (true label==1) and negative (true label==0)
+  scores_pos <- predicted_scores[true_labels == 1]
+  scores_neg <- predicted_scores[true_labels == 0]
+  
+  # Create the PR curve object; curve=TRUE returns the full curve data
+  pr_obj <- pr.curve(scores.class0 = scores_pos, scores.class1 = scores_neg, curve = TRUE)
+  
+  # Calculate the positive class ratio for the random baseline line
+  pos_ratio <- sum(true_labels == 1) / length(true_labels)
+  
+  # Convert the curve matrix to a data frame and set column names
+  df_pr <- as.data.frame(pr_obj$curve)
+  colnames(df_pr) <- c("recall", "precision", "threshold")
+  
+  # Generate the PR plot
+  p <- ggplot(df_pr, aes(x = recall, y = precision)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # PR curve line
+    geom_hline(yintercept = pos_ratio,                          # Baseline: random classifier performance
+               linetype = "dashed", color = "salmon") +
+    labs(title = paste("PR curve (AUC =", round(pr_obj$auc.integral, 2), ")"),
+         x = "Recall", y = "Precision") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
+}
+
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
               axis.title = element_text(size = 14, face = "bold"),
@@ -565,11 +615,191 @@ analyze_predictions <- function(df, name = "Dataset") {
 res_all <- analyze_predictions(df_all, "All")
 res_shared_species <- analyze_predictions(df_shared_species, "Shared species")
 
+### ---- roc curves ----
+# 1. Put your results into a named list
+roc_data_list <- list(
+  All                 = df_all,
+  Shared_species      = df_shared_species
+)
+
+# 2. For each subset, compute a pROC::roc object and turn it into a data.frame
+roc_df <- purrr::imap_dfr(roc_data_list, function(df, subset_name) {
+  df2 <- df %>%
+    filter(removed == 1) %>%
+    mutate(
+      truth = as.numeric(original_links > 0),
+      prob  = sigmoid(predicted_values)
+    )
+  roc_obj <- roc(df2$truth, df2$prob)
+  
+  # pull out the sensitivities / specificities
+  tibble(
+    subset     = subset_name,
+    fpr        = 1 - roc_obj$specificities,
+    tpr        =    roc_obj$sensitivities,
+    threshold  =    roc_obj$thresholds,
+    auc        = as.numeric(roc_obj$auc)  # same for every row
+  )
+})
+
+# 3. Extract one AUC‐per‐subset for annotation
+auc_labels <- roc_df %>%
+  select(subset, auc) %>%
+  distinct() %>%
+  mutate(label = paste0("AUC = ", round(auc, 3)),
+         x = 0.6,  # x/y are positions in FPR‐TPR space
+         y = 0.2)
+
+# 4. Plot with facets
+# 4. plot, with custom colors + labeller
+#    change these to whatever you like:
+line_color   <- "lightsteelblue"
+random_color <- "salmon"
+
+ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  # your ROC line
+  geom_line(color = line_color, size = 1) +
+  # diagonal random‐guess line
+  geom_abline(
+    intercept = 0, slope = 1,
+    linetype  = "dashed",
+    color     = random_color
+  ) +
+  # facet and relabel
+  facet_wrap(
+    ~ subset, ncol = 2,
+    labeller = labeller(subset = c(
+      All                = "All",
+      Shared_Plants      = "Shared plants",
+      Shared_Pollinators = "Shared pollinators",
+      Shared_Species     = "Shared species"
+    ))
+  ) +
+  # annotate each panel with its AUC
+  geom_text(
+    data        = auc_labels,
+    aes(x = x, y = y, label = label),
+    inherit.aes = FALSE,
+    hjust       = 0
+  ) +
+  coord_equal() +                     # square 0–1 axes
+  scale_x_continuous(limits = c(0,1)) +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(
+    x = "False Positive Rate (1 − specificity)",
+    y = "True Positive Rate (sensitivity)"
+  ) +
+  theme_minimal(base_size = 14) + tme
+
+# pr curves
+
+pr_data_list <- list(
+  All                 = df_all,
+  Shared_Species      = df_shared_species
+)
+
+pr_df <- imap_dfr(pr_data_list, function(df, subset_name) {
+  df2 <- df %>%
+    filter(removed == 1) %>%
+    mutate(
+      truth = as.numeric(original_links > 0),
+      prob  = sigmoid(predicted_values)
+    )
+  
+  pr_obj <- pr.curve(
+    scores.class0 = df2$prob[df2$truth == 1],
+    scores.class1 = df2$prob[df2$truth == 0],
+    curve = TRUE
+  )
+  
+  tibble(
+    subset    = subset_name,
+    recall    = pr_obj$curve[, 1],
+    precision = pr_obj$curve[, 2],
+    threshold = pr_obj$curve[, 3],
+    aucpr     = pr_obj$auc.integral
+  )
+})
+
+# 3. extract one AUPRC per subset for labeling
+aucpr_labels <- pr_df %>%
+  distinct(subset, aucpr) %>%
+  mutate(
+    label = paste0("AUPRC = ", round(aucpr, 3)),
+    x = 0.2,  # adjust as needed
+    y = 0.8
+  )
+
+# 4. choose your line color (reuse from ROC if you like)
+line_color <- "lightsteelblue"
+
+# 5. plot side-by-side PR curves
+ggplot(pr_df, aes(x = recall, y = precision)) +
+  # PR curve
+  geom_line(color = line_color, size = 1) +
+  # facet panels with pretty titles
+  facet_wrap(
+    ~ subset, ncol = 2,
+    labeller = labeller(subset = c(
+      All                = "All",
+      Shared_Species     = "Shared species"
+    ))
+  ) +
+  # annotate each panel with its AUPRC
+  geom_text(
+    data        = aucpr_labels,
+    aes(x = x, y = y, label = label),
+    inherit.aes = FALSE,
+    hjust       = 0
+  ) +
+  labs(
+    x = "Recall",
+    y = "Precision"
+  ) +
+  theme_minimal(base_size = 14) + tme
+
 ### ---- plot difference between analyses ----
 df_all_combined <- bind_rows(
   res_all$result_summary             %>% mutate(dataset = "all"),
   res_shared_species$result_summary %>% mutate(dataset = "shared_species")
 )
+# 
+# # plot
+# # overall difference
+# # For nNSE
+# ggplot(df_all_combined, aes(x = dataset, y = nnse)) +
+#   geom_boxplot(notch = TRUE, outlier.shape = NA, alpha = 0.7) +
+#   geom_jitter(width = 0.15, alpha = 0.5) +
+#   stat_compare_means(method = "anova", label = "p.format",
+#                      label.y = max(df_all_combined$nnse, na.rm = TRUE) * 1.05) +
+#   labs(title = "nNSE across datasets", x = "Dataset", y = "nNSE") +
+#   theme_minimal() + tme
+# 
+# # For F1
+# ggplot(df_all_combined, aes(x = dataset, y = f1_score)) +
+#   geom_boxplot(notch = TRUE, outlier.shape = NA, alpha = 0.7) +
+#   geom_jitter(width = 0.15, alpha = 0.5) +
+#   stat_compare_means(method = "anova", label = "p.format",
+#                      label.y = max(df_all_combined$f1_score, na.rm = TRUE) * 1.05) +
+#   labs(x = "Dataset", y = "F1 Score") +
+#   theme_minimal() + tme
+# 
+# comparisons <- list(
+#   c("all","shared_species"), c("all","shared_plants"), c("all","shared_pollinators"),
+#   c("shared_species","shared_plants"), c("shared_species","shared_pollinators"), c("shared_plants","shared_pollinators")
+# )
+# 
+# # pairwise nnse
+# # ggplot(df_all_combined, aes(x = dataset, y = nnse)) +
+# #   geom_boxplot(notch = TRUE, alpha = 0.7) +
+# #   stat_compare_means(
+# #     comparisons = comparisons,
+# #     method      = "wilcox.test",
+# #     label       = "p.signif"
+# #   ) +
+# #   labs(x = "Network subset", y = "nNSE") +
+# #   theme_minimal() + tme
+# 
 # 1) Tidy up + rename the groups
 df_plot <- df_all_combined %>%
   mutate(

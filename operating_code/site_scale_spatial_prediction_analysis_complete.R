@@ -1,7 +1,6 @@
 # ---- Site scale: predicting interactions across space with SVD ----
 # this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # here we focus on site scale, which is shown in SI note 1.
-# stages are according to the pipeline figure (Fig. 1).
 ### code for publication ###
 ## ---- load libraries ----
 library(tidyverse)
@@ -204,6 +203,56 @@ compute_balanced_f1 <- function(df_sp) {
   } else {
     return(2 * precision * recall / (precision + recall))
   }
+}
+
+# function for plotting ROC curve with ggplot2
+plot_roc_curve <- function(true_labels, predicted_scores) {
+  # Create the ROC object and compute AUC
+  roc_obj <- roc(response = true_labels, predictor = predicted_scores)
+  auc_val <- auc(roc_obj)
+  
+  # Build a data frame from the ROC object for ggplot2
+  df_roc <- data.frame(
+    specificity = roc_obj$specificities,
+    sensitivity = roc_obj$sensitivities
+  )
+  
+  # Generate the ROC plot
+  p <- ggplot(df_roc, aes(x = 1 - specificity, y = sensitivity)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # ROC curve line
+    geom_abline(intercept = 0, slope = 1,                       # Diagonal line (random classifier)
+                linetype = "dashed", color = "salmon") +
+    labs(title = paste("ROC curve (AUC =", round(auc_val, 2), ")"),
+         x = "False positive rate", y = "True positive rate") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
+}
+
+# function for plotting PR curve with ggplot2
+plot_pr_curve <- function(true_labels, predicted_scores) {
+  # Separate scores by class: positive (true label==1) and negative (true label==0)
+  scores_pos <- predicted_scores[true_labels == 1]
+  scores_neg <- predicted_scores[true_labels == 0]
+  
+  # Create the PR curve object; curve=TRUE returns the full curve data
+  pr_obj <- pr.curve(scores.class0 = scores_pos, scores.class1 = scores_neg, curve = TRUE)
+  
+  # Calculate the positive class ratio for the random baseline line
+  pos_ratio <- sum(true_labels == 1) / length(true_labels)
+  
+  # Convert the curve matrix to a data frame and set column names
+  df_pr <- as.data.frame(pr_obj$curve)
+  colnames(df_pr) <- c("recall", "precision", "threshold")
+  
+  # Generate the PR plot
+  p <- ggplot(df_pr, aes(x = recall, y = precision)) +
+    geom_line(color = "lightsteelblue", size = 1) +                      # PR curve line
+    geom_hline(yintercept = pos_ratio,                          # Baseline: random classifier performance
+               linetype = "dashed", color = "salmon") +
+    labs(title = paste("PR curve (AUC =", round(pr_obj$auc.integral, 2), ")"),
+         x = "Recall", y = "Precision") +
+    theme_minimal() + tme                                           # Clean theme
+  print(p)
 }
 
 # plotting functions
@@ -931,10 +980,17 @@ best_discrete <- df_wide %>%
 best_discrete_threshold <- best_discrete$threshold
 best_discrete_threshold
 
+### ---- pr and roc curves ----
 df_removed <- df %>%
   filter(removed == 1) %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
+
+# For the ROC curve:
+plot_roc_curve(df_removed$original_links_binary, df_removed$predicted_values)
+
+# For the PR curve:
+plot_pr_curve(df_removed$original_links_binary, df_removed$predicted_values)
 
 ### ---- create evaluation table ----
 df_removed <- df %>%
@@ -1042,7 +1098,6 @@ data.frame(
 ### ---- e. ecological inference ----
 ### ---- network size and density correlation with evaluators ----
 # here we calculate the size and density of the networks and correlate them with evaluation metrics.
-
 #### ---- calculate the size and density of our networks ----
 # Initialize a data frame to store combined results for all layer combinations
 results <- data.frame()
