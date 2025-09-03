@@ -449,7 +449,9 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
       strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
       panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
       axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank()
+      strip.background   = element_blank(),
+      axis.text.x     = element_text(size = 12),
+      panel.spacing.x    = unit(0.7, "cm")
     )
 }
 
@@ -979,7 +981,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- Fig. SI1-1: distribution of evaluators with/without external data ----
+### ---- Fig. S3: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 result_summary <- result_summary %>%
   mutate(layer_comparison = case_when(
@@ -1170,7 +1172,7 @@ df_summary
 
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. SI1-3: correlate network size with evaluators ----
+#### ---- Fig. S5: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1190,7 +1192,7 @@ netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 
 netsize_f1_nnse
 
 # pdf(
-#   file   = "netsize_f1_nnse.pdf",
+#   file   = "site_netsize_f1_nnse.pdf",
 #   width  = 6,    # inches
 #   height = 6,
 #   family = "Helvetica"   # or another installed font
@@ -1198,7 +1200,7 @@ netsize_f1_nnse
 # print(netsize_f1_nnse)
 # dev.off()     # close the file
 
-#### ---- Fig. SI1-4: density ----
+#### ---- Fig. S6: density ----
 
 df_f1_nnse_density <- result_summary %>%
   select(f1_score, nnse, density_P, density_C) %>%
@@ -1209,7 +1211,7 @@ netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tm
 netdensity_f1_nnse
 
 # pdf(
-#   file   = "netdensity_f1_nnse.pdf",
+#   file   = "site_netdensity_f1_nnse.pdf",
 #   width  = 6,    # inches
 #   height = 6,
 #   family = "Helvetica"   # or another installed font
@@ -1217,7 +1219,7 @@ netdensity_f1_nnse
 # print(netdensity_f1_nnse)
 # dev.off()     # close the file
 
-### ---- Fig. SI1-2: heatmap ----
+### ---- Fig. S2: heatmap ----
 site_heatmap_f1 <- 
   ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1249,7 +1251,7 @@ print(site_heatmap_f1)
 # print(site_heatmap_f1)
 # dev.off()     # close the file
 
-### ---- Fig. SI1-5: Jaccard correlation with evaluators ----
+### ---- Fig. S4: Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
 # here we calculate the Jaccard index for every pair of networks
 # Initialize a data frame to store combined results for all layer combinations

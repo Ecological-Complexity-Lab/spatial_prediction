@@ -465,11 +465,13 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
     theme_minimal() +
     theme(
       strip.placement    = "outside",
-      strip.text.x       = element_text(size = 14),
+      strip.text.x       = element_text(size = 12),
       strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
       panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
       axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank()
+      strip.background   = element_blank(),
+      panel.spacing.x    = unit(0.7, "cm")
+      
     )
 }
 
@@ -983,7 +985,7 @@ plant_species <- unique(df$node_from)           # get unique names
 pollinator_species <- unique(df$node_to)
 
 ### ---- c. evaluation ----
-### ---- selecting optimal threshold ----
+### ---- Fig. S7: selecting optimal threshold ----
 # select the threshold for classifying links as 1s or 0s based on balance between f1 and balanced accuracy
 
 # 0) set an array of thresholds
@@ -1048,17 +1050,36 @@ df_avg <- df_thresh %>%
   )) %>%
   pivot_longer(-threshold,
                names_to  = "metric",
-               values_to = "value")
+               values_to = "value") %>%
+  mutate(metric = recode(metric,
+                         specificity       = "Specificity",
+                         precision         = "Precision",
+                         recall            = "Recall",
+                         f1_score          = "F1 score",
+                         balanced_accuracy = "Balanced accuracy",
+                         mcc               = "MCC"
+  ))
 
 # 4) plot
-ggplot(df_avg, aes(threshold, value, color = metric)) +
+optimal_threshold <- ggplot(df_avg, aes(threshold, value, color = metric)) +
   geom_line(size = 1) +
   labs(
     x     = "Probability threshold",
     y     = "Average metric",
     color = "Metric"
   ) +
+  scale_color_brewer(palette = "Pastel2") +
   tme
+
+# pdf(
+#   file   = "optimal_threshold.pdf",
+#   width  = 5,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(optimal_threshold)
+# dev.off()     # close the file
+
 
 # 1) pivot to wide so F1 and balanced_accuracy are columns
 # we aim to find the optimal balance between ba and f1
@@ -1080,7 +1101,7 @@ df_removed <- df %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-### ---- Fig. S2: predicted vs. observed weights ----
+### ---- Fig. S8: predicted vs. observed weights ----
 predicted_original <- df_removed %>%
   ggplot(aes(x = original_links, y = predicted_values)) +
   geom_point(alpha = 0.6, color = "lightsteelblue") +
@@ -1348,7 +1369,7 @@ netsize_f1_nnse
 # print(netsize_f1_nnse)
 # dev.off()     # close the file
 
-#### ---- Fig. S6: density ----
+#### ---- Fig. S12: density ----
 
 df_f1_nnse_density <- result_summary %>%
   select(f1_score, nnse, density_P, density_C) %>%
@@ -1609,7 +1630,7 @@ df_for_plot_balanced <- bind_rows(
     mutate(avg_sorensen_pollinators = NA_real_)
 )
 
-#### ---- Fig. S7: plot fidelity ----
+#### ---- Fig. S13: plot fidelity ----
 balanced_f1_fidelity <- make_full_correlation_plot(
   data            = df_for_plot_balanced,
   evaluator       = "mean_f1",
@@ -1863,7 +1884,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
 
 print(map_missing_links)
 
-### ---- Fig. S4: difference in links predicted with/without external data ----
+### ---- Fig. S10: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
