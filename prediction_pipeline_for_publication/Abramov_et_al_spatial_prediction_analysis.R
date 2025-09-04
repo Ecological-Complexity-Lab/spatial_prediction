@@ -2006,7 +2006,7 @@ df_plot %>%
   )
 
 ### ---- existing predicted interactions ----
-# if we want to know how each category contributed to VERIFIED existing links (that were observed in the system)
+# if we want to know how each category contributed to verified existing links (that were observed in the system)
 # plot the differences
 df_plot_verified <- diff_df %>%
   filter(avg_prop_diag != 0) %>% # observed interactions
