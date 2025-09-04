@@ -7,8 +7,6 @@
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
-library(pROC)
-library(PRROC)
 library(emln)
 library(reshape2)
 library(ggpubr)
@@ -20,7 +18,6 @@ library(corrplot)
 library(patchwork)
 library(vegan)
 library(ggnewscale)
-library(randomForest)
 library(stringr)
 library(softImpute)
 library(ecodist)
@@ -997,7 +994,8 @@ custom_colors <- c("Single location" = "steelblue",
 hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
                      y_axis_label = "Count of instances",
                      x_axis_label = "F1 score") + 
-  scale_y_continuous(labels = scales::number_format(accuracy = 1.0))
+  scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.05))
 
 hist_f1a
 
