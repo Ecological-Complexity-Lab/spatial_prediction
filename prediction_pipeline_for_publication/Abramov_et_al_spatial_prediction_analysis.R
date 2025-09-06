@@ -1047,8 +1047,9 @@ df_avg <- df_thresh %>%
   )) %>%
   pivot_longer(-threshold,
                names_to  = "metric",
-               values_to = "value") %>%
-  mutate(metric = recode(metric,
+               values_to = "value")
+  
+df_avg_plot <- df_avg %>% mutate(metric = recode(metric,
                          specificity       = "Specificity",
                          precision         = "Precision",
                          recall            = "Recall",
@@ -1058,7 +1059,7 @@ df_avg <- df_thresh %>%
   ))
 
 # 4) plot
-optimal_threshold <- ggplot(df_avg, aes(threshold, value, color = metric)) +
+optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) +
   geom_line(size = 1) +
   labs(
     x     = "Probability threshold",
