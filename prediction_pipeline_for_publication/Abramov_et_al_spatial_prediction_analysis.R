@@ -812,7 +812,6 @@ combine_two_plots <- function(p1, p2,
 ## ---- 1. prediction ----
 ### ---- load matrices ----
 d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # aggregate to island scale
@@ -918,15 +917,16 @@ for (layers_to_train in 1:num_layers) {
       sum(is.na(C))
       
       ### ---- b. prediction with SVD ----
-      k_values <- 2
+      k_values <- c(2, 5, 10)
       lam0 <- lambda0(C)
-      lambda_values <- c(lam0)
+      lambda_values <- c(1, 5, 50, 100, lam0)
       
       # Initialize variables to store the best results
       results <- data.frame(k = integer(),
                             lambda = numeric(),
                             original_links = numeric(),
-                            predicted_values = numeric())
+                            predicted_values = numeric(),
+                            input_lambda = numeric())
       not_removed_all <- NULL
       
       # Loop over all combinations of k and lambda
@@ -934,7 +934,8 @@ for (layers_to_train in 1:num_layers) {
         for (lambda in lambda_values) {
           # imputation
           r <- implement_impute(C, k, lambda)
-          
+          r$results$input_lambda <- lambda
+          r$not_removed$input_lambda <- lambda
           results <- rbind(results, r$results)
           not_removed_all <- rbind(not_removed_all, r$not_removed)
         }
@@ -969,6 +970,10 @@ for (layers_to_train in 1:num_layers) {
   }
 }
 # combined_results includes predictions for all combinations of islands, 50 iterations of links withholding and prediction for each combination
+# save the results
+saveRDS(combined_results, 
+        file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+combined_results <- combined_results %>% filter(k == 2, input_lambda == lam0)
 
 ## ---- 2. analysis ----
 summary(combined_results)
@@ -2133,7 +2138,7 @@ pie_chart
 
 ### ---- distance decay ----
 #### ---- add distances and location names ----
-distance_table <- read.csv("distance_between_sites_canary.csv", row.names = NULL)
+distance_table <- read.csv("prediction_pipeline_for_publication/distance_between_sites_canary.csv", row.names = NULL)
 
 # proceed for both island scale and site scale and compare the trends
 
@@ -2329,6 +2334,9 @@ for (layers_to_train in 1:num_layers) {
     )
   }
 }
+
+# save results
+saveRDS(result_site, file = "prediction_pipeline_for_publication/results/predictions_site_scale.rds")
 
 # # result_site includes predictions for all combinations of sites, 50 iterations of links withholding and prediction for each combination
 # convert negatives to zeros

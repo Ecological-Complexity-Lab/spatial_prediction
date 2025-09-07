@@ -701,7 +701,6 @@ combine_plots <- function(p1, p2,
 ## ---- 1. prediction ----
 # Load matrices
 d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # Extract numeric layer numbers
