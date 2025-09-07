@@ -829,17 +829,11 @@ aggregated_df <- A_l %>%
   mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
   select(layer_from, node_from, layer_to, node_to, weight, type)
 
-# Generate new layer names
-unique_layers <- unique(aggregated_df$layer_from)  # Get unique aggregated layer names
-new_layer_names <- paste0("layer_", seq_along(unique_layers))  # Generate new names (layer_1, layer_2, ...)
-
-# Create a mapping table
-layer_mapping <- data.frame(original_layer = unique_layers, new_layer = new_layer_names)
-
-# Apply renaming in aggregated_df
-aggregated_df <- aggregated_df %>%
-  left_join(layer_mapping, by = c("layer_from" = "original_layer")) %>%
-  mutate(layer_from = new_layer, layer_to = new_layer) %>%
+# set new layer names using the old ones
+aggregated_df <- aggregated_df %>% 
+  separate_wider_delim(layer_from, delim = "_", names = c("t", "l1", "l2"), cols_remove = FALSE) %>%
+  mutate(island_id = paste0("layer_", as.numeric(l2)/2))  %>%
+  mutate(layer_from = island_id, layer_to = island_id)%>%
   select(layer_from, node_from, layer_to, node_to, weight, type)
 
 # View updated aggregated_df
