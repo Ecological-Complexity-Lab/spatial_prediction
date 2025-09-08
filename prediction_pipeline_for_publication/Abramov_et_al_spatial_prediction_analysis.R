@@ -2226,7 +2226,8 @@ distance_table <- distance_table %>%
          to = gsub("_", " ", to))
 
 # load site scale data
-#result_site <- read_csv('canary_weighted_scaled_site_net_60_50_itr.csv') # from file
+# result_site <- 
+#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_site_scale.rds"))
 # or run the analysis at site scale
 set.seed(42)
 

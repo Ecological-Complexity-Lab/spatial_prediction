@@ -302,7 +302,12 @@ for (layers_to_train in 1:num_layers) {
   }
 }
 
-#df_all <- read.csv('weighted__scaled_island_net_60_100_itr.csv')
+# or read it
+# combined_results <- 
+#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+# df_all <- combined_results %>% 
+#   filter(k == 2) %>% 
+#   filter(!(input_lambda %in%  c(1, 5, 50, 100)))
 
 ### ---- only shared species ----
 set.seed(42)
