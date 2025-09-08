@@ -1303,7 +1303,6 @@ result_summary <- result_summary %>%
 
 # summerize (table ST1)
 # first add layer names
-# add distances to the main table
 net <- emln::load_emln(60) # canary islands
 net$layers
 net_name <- net$layers %>% select(layer_id, name)
