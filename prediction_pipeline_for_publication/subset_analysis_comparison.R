@@ -197,10 +197,10 @@ for (layers_to_train in 1:num_layers) {
     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
     
     # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
     
     # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
     
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
@@ -321,10 +321,10 @@ for (layers_to_train in 1:num_layers) {
     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
     
     # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
+    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
     
     # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
+    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
     
     # 1) find the species they have in common
     shared_pollinators <- intersect(rownames(A), rownames(P))
