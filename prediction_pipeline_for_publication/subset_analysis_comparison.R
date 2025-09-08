@@ -151,7 +151,6 @@ theme_set(theme_bw())
 ## ---- load/produce data ----
 ### ---- all species ----
 d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # aggregate to island scale
