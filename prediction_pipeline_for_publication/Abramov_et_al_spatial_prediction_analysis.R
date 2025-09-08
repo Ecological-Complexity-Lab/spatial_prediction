@@ -967,7 +967,11 @@ for (layers_to_train in 1:num_layers) {
 # save the results
 saveRDS(combined_results, 
         file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
-combined_results <- combined_results %>% filter(k == 2, input_lambda == lam0)
+combined_results <- 
+        readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+combined_results <- combined_results %>% 
+  filter(k == 2) %>% 
+  filter(!(input_lambda %in%  c(1, 5, 50, 100)))
 
 ## ---- 2. analysis ----
 summary(combined_results)
