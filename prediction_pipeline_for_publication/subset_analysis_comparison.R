@@ -447,9 +447,6 @@ for (layers_to_train in 1:num_layers) {
   }
 }
 
-# or read a file:
-#df_shared_species <- read.csv('weighted__scaled_island_net_60_100_itr_shared_species.csv')
-
 # convert negative values to zeros
 df_all <- df_all %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
