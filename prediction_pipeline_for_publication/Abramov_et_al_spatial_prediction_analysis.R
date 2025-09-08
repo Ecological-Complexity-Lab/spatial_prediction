@@ -1117,6 +1117,16 @@ predicted_original <- df_removed %>%
   coord_equal()+
   theme_minimal(base_size = 14) + tme
 
+# pdf(
+#   file   = "predicted_original.pdf",
+#   width  = 6,    # inches
+#   height = 9,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(predicted_original)
+# dev.off()     # close the file
+
+
 df_removed <- df %>%
   filter(removed == 1) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
@@ -1640,7 +1650,10 @@ balanced_f1_fidelity <- make_full_correlation_plot(
   shared_y_lab    = "F1 score per species"
 )
 
-balanced_f1_fidelity
+# pdf("balanced_f1_fidelity.pdf", width = 6, height = 4)
+# grid::grid.draw(balanced_f1_fidelity)
+# dev.off()
+
 
 ### ---- degree impact on link assignment ----
 # here we examine if the algorithm assigns more links to species with higher degree.
@@ -1821,11 +1834,11 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            size = 5,
            color = "black")
 
-final_plot <- combine_plots(plant_degree, poll_degree) # fix error
-grid::grid.newpage()
-grid::grid.draw(final_plot) # Fig. 6c
+# Create the figure
+final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 6c
 
-# pdf("degree_unobserved_links.pdf", width = 10, height = 7)
+# # Save to PDF
+# pdf("degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
 # grid::grid.draw(final_plot)
 # dev.off()
 
@@ -1883,6 +1896,16 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   }))
 
 print(map_missing_links)
+
+# pdf(
+#   file   = "map_missing_links.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links)
+# dev.off()     # close the file
+
 
 ### ---- Fig. S10: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
@@ -1996,6 +2019,16 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   tme
 
 map_missing_links_diags_offs
+
+# pdf(
+#   file   = "map_missing_links_diags_offs.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links_diags_offs)
+# dev.off()     # close the file
+
 
 # how many links did each category add?
 df_plot %>%
