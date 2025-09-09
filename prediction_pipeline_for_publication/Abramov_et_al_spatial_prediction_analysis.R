@@ -1350,6 +1350,7 @@ df_summary <- result_summary %>%
 df_summary
 
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
+overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 
 #### ---- Fig. 5: correlate network size with evaluators ----
 
@@ -2474,6 +2475,9 @@ distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl
 # 
 # dev.off()
 
+# NNSE and distance
+cor_plot_dif_isl_nnse  <- make_cor_plot(result_summary_island_dif, evaluator = "nnse", extra_theme = tme)
+
 #### ---- MRM test: island scale ----
 
 # build square matrices of f1 and distance
@@ -2662,7 +2666,7 @@ nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 
 nnse_f1_scales
 
-#Base‐R PDF device
+# #Base‐R PDF device
 # pdf(
 #   file   = "scales_fig2.pdf",
 #   width  = 7,    # inches
@@ -2671,3 +2675,27 @@ nnse_f1_scales
 # )
 # print(nnse_f1_scales)
 # dev.off()     # close the file
+
+### ---- additional stats ----
+# sahara predictions
+results_sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara" & train_layer_name != "Western Sahara")
+mean(results_sahara$f1_score)
+sd(results_sahara$f1_score)
+
+# is including external data better?
+# run t-test via formula interface
+wilcox_f1 <- wilcox.test(f1_score ~ layer_comparison,
+                         data = result_summary_island,
+                         exact = FALSE)  # turn off exact test for larger samples
+wilcox_f1
+
+# do we need welch/wilcoxon?
+# first normality check
+shapiro_f1 <- result_summary_island %>%
+  group_by(layer_comparison) %>%
+  shapiro_test(f1_score) # for added location, the distribution is not normal
+
+# variance check
+levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
+# variances are equal, use wilcoxon
+

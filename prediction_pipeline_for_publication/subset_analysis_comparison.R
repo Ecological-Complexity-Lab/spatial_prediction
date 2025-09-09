@@ -3,11 +3,12 @@
 # for reproducing Fig. S8
 ## ---- load libraries ----
 library(tidyverse)
-library(pROC)
-library(PRROC)
 library(emln)
 library(grid)
 library(ggpubr)
+library(softImpute)
+library(rstatix)
+library(patchwork)
 
 ## ---- parameters ----
 emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
@@ -181,6 +182,7 @@ print(aggregated_df)
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
+# skip to reading the data file if you already have it
 # Initialize a data frame to store combined results for all layer combinations
 df_all <- data.frame()
 
@@ -302,10 +304,10 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # or read it
-# combined_results <- 
+# combined_results <-
 #   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
-# df_all <- combined_results %>% 
-#   filter(k == 2) %>% 
+# df_all <- combined_results %>%
+#   filter(k == 2) %>%
 #   filter(!(input_lambda %in%  c(1, 5, 50, 100)))
 
 ### ---- only shared species ----
@@ -590,7 +592,7 @@ comparisons <- list(c("All", "Shared species"))
 # first normality check
 df_plot %>%
   group_by(dataset) %>%
-  shapiro_test(f1_score)
+  shapiro_test(f1_score) # not normally distributed for all, use wilcoxon
 
 # variance check
 df_plot %>% levene_test(f1_score ~ dataset)
@@ -599,7 +601,7 @@ df_plot %>% levene_test(f1_score ~ dataset)
 # first normality check
 df_plot %>%
   group_by(dataset) %>%
-  shapiro_test(nnse)
+  shapiro_test(nnse) # nnse is normally distributed, use t-test
 
 # variance check
 df_plot %>% levene_test(nnse ~ dataset)
@@ -609,7 +611,7 @@ p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
   geom_boxplot(notch = TRUE, alpha = 0.6) +
   stat_compare_means(
     comparisons = comparisons,
-    method      = "wilcox.test",
+    method      = "t.test",
     label       = "p.format",
     tip.length  = 0.01
   ) +
@@ -627,7 +629,7 @@ p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
   geom_boxplot(notch = TRUE, alpha = 0.6) +
   stat_compare_means(
     comparisons = comparisons,
-    method      = "t.test",
+    method      = "wilcox.test",
     label       = "p.format",
     tip.length  = 0.01
   ) +
