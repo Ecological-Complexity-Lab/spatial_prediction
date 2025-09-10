@@ -1789,7 +1789,7 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            hjust = 1.1,
            vjust = 1.2,   # Adjust depending on your data range
            label = label_text_plants,
-           size = 5,
+           size = 4.5,
            color = "black")
 
 # add repel‐text layer
@@ -1798,7 +1798,7 @@ plant_degree <- plant_degree +
     data      = df_labels,
     aes(label = label),
     parse     = TRUE,       # interpret the label as an expression
-    size      = 4,          # tweak text size as needed
+    size      = 3.5,          # tweak text size as needed
     box.padding   = 0.35,   # how much to push labels away from each other
     point.padding = 0.5,    # how much to push labels away from the points
     nudge_y       = -0.2     # optional small shift upward
@@ -1832,7 +1832,7 @@ poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
            hjust = 1.1,
            vjust = 1.2,   # Adjust depending on your data range
            label = label_text_polls,
-           size = 5,
+           size = 4.5,
            color = "black")
 
 # Create the figure
@@ -1869,7 +1869,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
   geom_tile(aes(fill = avg_prop)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Proportion\nof islands\nobserved") +
+                      name = "Observed links:\nproportion\nof islands\nobserved") +
   
   # Reset fill scale so the next layer can have its own gradient
   new_scale_fill() +
@@ -1881,7 +1881,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
     alpha = 0.6
   ) +
   scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Average \npredicted \nprobability") +
+                      name = "Predicted links:\naverage predicted\nprobability") +
   
   # Final adjustments
   theme_minimal() +
@@ -2151,7 +2151,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   ) +
   #labs(title = "Interactions by Significance Category") +
   geom_text(
-    aes(label = n),
+    aes(x = 1.2,label = n),
     position = position_stack(vjust = 0.5),
     color = "white",
     size = 5
@@ -2700,7 +2700,7 @@ levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 
 ## Combine key plots into figures -----------
 
-# Fig. 2
+# Fig. 2:
 
 # Fig. 2a is island_heatmap_f1
 # Fig. 2b is hist_f1a
@@ -2711,7 +2711,7 @@ fig2 <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(1,0.2,0.2,0.2),
                   rel_widths = c(1,0.95))
 
 
-# Fig. 3
+# Fig. 3:
 
 # Fig. 3a is map_missing_links_diags_offs
 # Fig. 3b is pie_chart
@@ -2719,9 +2719,10 @@ fig2 <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(1,0.2,0.2,0.2),
 bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) , 
                         combine_plots(plant_degree, poll_degree), 
                         rel_widths = c(0.6, 1),
-                        labels = c('(b)', '(c)'))
-fig3 <- plot_grid(map_missing_links, bottom_row, 
-          labels = c('(a)', ''), ncol = 1, rel_heights = c(1, 0.8), label_size = 12)
+                        labels = c('(b)', '(c)'), label_size = 12)
+fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
+                  bottom_row, labels = c('(a)', ''), 
+                  ncol = 1, rel_heights = c(1, 0.7), label_size = 12)
 pdf(file   = "results/paper_figs/missing_interactions_degree_fig6.pdf", # misleading name, but its the file name used in the menuscript
     width  = 13,    # inches
     height = 11,
@@ -2731,7 +2732,7 @@ fig3
 dev.off()
 
 
-# Fig. 4
+# Fig. 4:
 
 # Fig. 4a is jaccard_isl_f1
 # Fig. 4b is cor_plot_dif_isl_f1
