@@ -2144,8 +2144,8 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   theme_void() +                              # remove axes/background
   theme(
     legend.title = element_blank(),
-    legend.text = element_text(size = 17),
-    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    legend.text = element_text(size = 14),
+    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     legend.position  = "bottom",
     legend.direction = "vertical"
   ) +
@@ -2154,7 +2154,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
     aes(label = n),
     position = position_stack(vjust = 0.5),
     color = "white",
-    size = 7
+    size = 5
   )
 
 pie_chart
@@ -2234,7 +2234,6 @@ set.seed(42)
 
 # Load matrices
 d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # Extract numeric layer numbers
@@ -2698,4 +2697,77 @@ shapiro_f1 <- result_summary_island %>%
 # variance check
 levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 # variances are equal, use wilcoxon
+
+## Combine key plots into figures -----------
+
+# Fig. 2
+
+# Fig. 2a is island_heatmap_f1
+# Fig. 2b is hist_f1a
+
+fig2 <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(1,0.2,0.2,0.2), "cm")), 
+                  hist_f1a + theme(plot.margin = unit(c(1,0,3,0.5), "cm")),
+                  labels = c('(a)', '(b)'), 
+                  rel_widths = c(1,0.95))
+
+
+# Fig. 3
+
+# Fig. 3a is map_missing_links_diags_offs
+# Fig. 3b is pie_chart
+# Fig. 3c is plant_degree and poll_degree combined
+bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) , 
+                        combine_plots(plant_degree, poll_degree), 
+                        rel_widths = c(0.6, 1),
+                        labels = c('(b)', '(c)'))
+fig3 <- plot_grid(map_missing_links, bottom_row, 
+          labels = c('(a)', ''), ncol = 1, rel_heights = c(1, 0.8), label_size = 12)
+pdf(file   = "results/paper_figs/missing_interactions_degree_fig6.pdf", # misleading name, but its the file name used in the menuscript
+    width  = 13,    # inches
+    height = 11,
+    family = "Helvetica"   # or another installed font
+)
+fig3
+dev.off()
+
+
+# Fig. 4
+
+# Fig. 4a is jaccard_isl_f1
+# Fig. 4b is cor_plot_dif_isl_f1
+fig4 <- plot_grid(jaccard_isl_f1, 
+                  cor_plot_dif_isl_f1 + labs(y = "F1 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
+                  labels = c('(a)', '(b)'),
+                  ncol = 1,
+                  rel_heights = c(1,1))
+
+
+## save figures into pdfs
+
+# Fig. 2
+pdf(file   = "results/paper_figs/diagonals_heatmap_fig3.pdf", # misleading name, but its the file name used in the menuscript
+    width  = 15,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+fig2
+dev.off()
+
+# Fig. 3
+pdf(file   = "results/paper_figs/missing_interactions_degree_fig6.pdf", # misleading name, but its the file name used in the menuscript
+    width  = 13,    # inches
+    height = 11,
+    family = "Helvetica"   # or another installed font
+)
+fig3
+dev.off() 
+
+# Fig. 4
+pdf(file   = "results/paper_figs/jaccard_isl_f1.pdf", 
+    width  = 9,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+fig4
+dev.off()
 
