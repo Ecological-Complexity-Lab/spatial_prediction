@@ -48,3 +48,25 @@ ints_bombus <- get_interactions_by_taxa(
 
 # Take a look
 view(ints_bombus)
+
+#after corrections
+ints_allaudi <- get_interactions_by_taxa(
+  sourcetaxon   = "anthophora alluaudi"
+)
+
+# Take a look
+view(ints_allaudi)
+
+ints_camponotus <- get_interactions_by_taxa(
+  sourcetaxon   = "camponotus feae"
+)
+
+# Take a look
+view(ints_camponotus)
+
+ints_euphorbia <- get_interactions_by_taxa(
+  sourcetaxon   = "euphorbia balsamifera"
+)
+
+# Take a look
+view(ints_euphorbia)
