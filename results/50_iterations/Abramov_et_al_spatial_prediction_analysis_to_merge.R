@@ -1192,7 +1192,8 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
-  theme(axis.text.x = element_text(hjust = 0.5)  # center tick labels
+  theme(
+    axis.text.x = element_text(hjust = 0.5)  # center tick labels
   )
 
 hist_f1a # Fig. 2b
@@ -2160,7 +2161,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   ) +
   #labs(title = "Interactions by Significance Category") +
   geom_text(
-    aes(x = 1.2,label = n),
+    aes(label = n),
     position = position_stack(vjust = 0.5),
     color = "white",
     size = 7
@@ -2243,6 +2244,7 @@ set.seed(42)
 
 # Load matrices
 d <- load_emln(emln_id)
+graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # Extract numeric layer numbers
@@ -2467,10 +2469,12 @@ result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_si
 filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
 
 # plot
-cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme) + labs(y = "F1 score")
+cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme) + 
+  labs(y = "F1 score")
 cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
 distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
 
+# run the previous make_cor_plot again
 # pdf(
 #   file   = "cor_plot_site_dif_f1.pdf",
 #   width  = 4,
@@ -2479,7 +2483,6 @@ distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl
 # )
 # print(cor_plot_site_dif_f1)
 # dev.off()     # close the file
-
 
 # NNSE and distance
 cor_plot_dif_isl_nnse  <- make_cor_plot(result_summary_island_dif, evaluator = "nnse", extra_theme = tme)
@@ -2718,7 +2721,6 @@ fig2 <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(1,0.2,0.2,0.2),
                   labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
                   rel_widths = c(1,0.95))
 
-
 # Fig. 3:
 
 # Fig. 3a is map_missing_links_diags_offs
@@ -2754,7 +2756,7 @@ fig4 <- plot_grid(jaccard_isl_f1,
 ## save figures into pdfs
 
 # Fig. 2
-# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
+# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf", # misleading name, but its the file name used in the menuscript
 #     width  = 15,    # inches
 #     height = 7,
 #     family = "Helvetica"   # or another installed font
@@ -2763,20 +2765,21 @@ fig4 <- plot_grid(jaccard_isl_f1,
 # dev.off()
 
 # Fig. 3
-# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf", 
-#     width  = 13,    # inches
-#     height = 11,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig3
-# dev.off() 
-# 
-# # Fig. 4
-# pdf(file   = "results/paper_figs/jaccard_isl_f1.pdf", 
-#     width  = 9,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig4
-# dev.off()
-# 
+pdf(file   = "results/paper_figs/missing_interactions_degree_fig6.pdf", # misleading name, but its the file name used in the menuscript
+    width  = 13,    # inches
+    height = 11,
+    family = "Helvetica"   # or another installed font
+)
+fig3
+dev.off() 
+
+# Fig. 4
+pdf(file   = "results/paper_figs/jaccard_isl_f1.pdf", 
+    width  = 9,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+fig4
+dev.off()
+
+
