@@ -1744,7 +1744,7 @@ df_summary <- df_island %>%
 df_never_observed <- df_summary %>%
   filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
   group_by(node_from) %>%
-  summarise(count_never_observed = n(), .groups = "drop")
+  summarise(count_never_observed = n(), .groups = "drop") #plants
 
 df_never_observed_poll <- df_summary %>%
   filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold) %>%
@@ -1837,7 +1837,7 @@ poll_degree <- ggplot(df_to_correlate_poll, aes(x = x, y = y)) +
   theme_minimal() + tme
 
 # # Create the figure
-# final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 6c
+# final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 3c
 
 # Your two plots (remove individual axis labels)
 plant_degree_clean <- plant_degree +
@@ -1890,13 +1890,42 @@ poll_order <- df_summary %>%
   arrange(desc(overall_poll_degree)) %>%
   pull(node_to)
 
+# calculate proportion of islands in which each interaction occurs, rather than island pairs
+df_filtered_self <- df_filtered %>% filter(train_layer == test_layer)
+
+result_count <- df_filtered_self %>%
+  # group by the interaction
+  group_by(node_to, node_from) %>%
+  summarise(
+    # count unique test layers for this interaction
+    n_test_layers = n_distinct(test_layer),
+    .groups = "drop"
+  ) %>%
+  # calculate the proportion
+  mutate(
+    prop_test_layers = n_test_layers / n_distinct(df$test_layer)
+  )
+
+print(result_count)
+
+# join to df_summary
+
+df_summary <- df_summary %>%
+  left_join(result_count %>% select(node_to, node_from, prop_test_layers),
+            by = c("node_to", "node_from")) %>%
+  # replace avg_prop with the calculated proportion
+  mutate(avg_prop_isl = if_else(is.na(prop_test_layers), 0, prop_test_layers)) %>%
+  select(-prop_test_layers)  # remove helper column if not needed
+
+all((df_summary$avg_prop == 0) == (df_summary$avg_prop_isl == 0)) # check
+
 # reset the levels for the species factors
 df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 
 map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # First layer: background heatmap for proportion observed (blue gradient)
-  geom_tile(aes(fill = avg_prop)) +
+  geom_tile(aes(fill = avg_prop_isl)) +
   scale_fill_gradient(low = "white", high = "steelblue", 
                       name = "Observed links:\nproportion\nof islands\nobserved",
                       breaks = seq(0, 1, 0.2)) +
@@ -2759,6 +2788,88 @@ plant_data <- left_join(overall_plant_degree, plant_occurrence, by = "node_from"
 # For pollinators
 pollinator_data <- left_join(overall_poll_degree, pollinator_occurrence, by = "node_to")
 
+# correlate
+# calculate correlation
+df_to_correlate_occurrence <- plant_data
+df_to_correlate_occurrence$x <- df_to_correlate_occurrence$overall_plant_degree
+df_to_correlate_occurrence$y <- df_to_correlate_occurrence$num_islands
+
+correlation_plants_occ <- cor.test(df_to_correlate_occurrence$x, df_to_correlate_occurrence$y, use = "complete.obs", method = "pearson")
+correlation_plants_occ
+
+# Extract correlation coefficient and p-value
+r_value_occ <- round(correlation_plants_occ$estimate, 2)
+p_value_occ <- formatC(correlation_plants_occ$p.value, digits = 2)  # or round as you prefer
+label_text_plants_occ <- paste0("r = ", r_value_occ, ", p = ", p_value_occ)
+
+# plot occurrs
+
+plant_degree_occurrence <- ggplot(df_to_correlate_occurrence, aes(x = x, y = y)) +
+  geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Overall degree",
+    y = "Number of islands occurrs",
+    title = paste("Plants:", label_text_plants_occ)   # <--- add label in title
+  ) +
+  theme_minimal() + tme
+
+# same for pollinators
+df_to_correlate_poll_occ <- pollinator_data
+df_to_correlate_poll_occ$x <- df_to_correlate_poll_occ$overall_poll_degree
+df_to_correlate_poll_occ$y <- df_to_correlate_poll_occ$num_islands
+
+correlation_poll_occ <- cor.test(df_to_correlate_poll_occ$x, df_to_correlate_poll_occ$y, use = "complete.obs", method = "pearson")
+correlation_poll_occ
+
+# Extract correlation coefficient and p-value
+r_value_poll <- round(correlation_poll_occ$estimate, 2)
+p_value_poll <- formatC(correlation_poll_occ$p.value, digits = 2)  # or round as you prefer
+label_text_polls_occ <- paste0("r = ", r_value_poll, ", p = ", p_value_poll)
+
+poll_degree_occurrence <- ggplot(df_to_correlate_poll_occ, aes(x = x, y = y)) +
+  geom_point(alpha = 0.6, size = 2, color = "rosybrown2") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Overall degree",
+    y = "Number of islands occurrs",
+    title = paste("Pollinators:", label_text_polls_occ)   # <--- add label in title
+  ) +
+  theme_minimal() + tme
+
+# # Create the final figure
+# Your two plots (remove individual axis labels)
+plant_degree_occ_clean <- plant_degree_occurrence +
+  labs(x = NULL, y = NULL)
+
+poll_degree_occ_clean <- poll_degree_occurrence +
+  labs(x = NULL, y = NULL)
+
+# Add bottom label with padding
+final_plot_occ <- plot_grid(
+  # main plots
+  plot_grid(plant_degree_occ_clean, poll_degree_occ_clean, ncol = 2, align = "hv"),
+  # x label
+  ggdraw() + draw_label("Overall degree", fontface = "bold", size = 16),
+  ncol = 1,
+  rel_heights = c(1, 0.08)  # second element is space for x-axis label
+)
+
+# Add y label with padding
+final_plot_occ <- plot_grid(
+  ggdraw() + draw_label("Number of islands present",
+                        angle = 90, fontface = "bold", size = 16),
+  final_plot_occ,
+  ncol = 2,
+  rel_widths = c(0.08, 1)   # first element is space for y-axis label
+)
+
+final_plot_occ
+
+# # Save to PDF
+# pdf("degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
+# grid::grid.draw(final_plot_occ)
+# dev.off()
 
 ## Combine key plots into figures -----------
 
