@@ -1188,20 +1188,29 @@ custom_colors <- c("Single location" = "steelblue",
 # plot the histogram: 
 
 hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
-                     y_axis_label = "Count of instances",
-                     x_axis_label = "F1 score") + 
+                      y_axis_label = "Count of instances",
+                      x_axis_label = "F1 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
-  theme(axis.text.x = element_text(hjust = 0.5)  # center tick labels
+  theme(
+    axis.text.x = element_text(hjust = 0.5),  # center tick labels
+    legend.position = "bottom",               # move legend below
+    legend.box = "horizontal"                 # optional: lay it out horizontally
   )
 
 hist_f1a # Fig. 2b
 
+results_diags <- result_summary %>% filter(layer_comparison == "Single location")
+results_offs <- result_summary %>% filter(layer_comparison == "Added location")
+
+range(results_diags$f1_score)
+range(results_offs$f1_score)
+
 # # Base‐R PDF device
 # pdf(
-#   file   = "hist_f1a.pdf",
-#   width  = 5,    # inches
-#   height = 4,
+#   file   = "hist_f1a_legend_bottom.pdf",
+#   width  = 6,    # inches
+#   height = 7,
 #   family = "Helvetica"   # or another installed font
 # )
 # print(hist_f1a)
@@ -1781,23 +1790,16 @@ df_labels <- df_to_correlate %>%
   )
 
 # plot
+
 plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
   geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
-    y = "Number of predicted, non-observed interactions",
-    title = "Plants"
+    y = "Number of predicted, \nnon-observed interactions",
+    title = paste("Plants:", label_text_plants)   # <--- add label in title
   ) +
-  theme_minimal() + tme +
-  annotate("text",
-           x = Inf,
-           y = Inf,
-           hjust = 1.1,
-           vjust = 1.2,   # Adjust depending on your data range
-           label = label_text_plants,
-           size = 5,
-           color = "black")
+  theme_minimal() + tme
 
 # add repel‐text layer
 plant_degree <- plant_degree +
@@ -1812,11 +1814,11 @@ plant_degree <- plant_degree +
   )
 
 # same for pollinators
-df_to_correlate <- never_poll_degree_overall
-df_to_correlate$x <- df_to_correlate$overall_poll_degree
-df_to_correlate$y <- df_to_correlate$count_never_observed
+df_to_correlate_poll <- never_poll_degree_overall
+df_to_correlate_poll$x <- df_to_correlate_poll$overall_poll_degree
+df_to_correlate_poll$y <- df_to_correlate_poll$count_never_observed
 
-correlation_poll <- cor.test(df_to_correlate$x, df_to_correlate$y, use = "complete.obs", method = "pearson")
+correlation_poll <- cor.test(df_to_correlate_poll$x, df_to_correlate_poll$y, use = "complete.obs", method = "pearson")
 correlation_poll
 
 # Extract correlation coefficient and p-value
@@ -1824,26 +1826,46 @@ r_value <- round(correlation_poll$estimate, 2)
 p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you prefer
 label_text_polls <- paste0("r = ", r_value, ", p = ", p_value)
 
-poll_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "thistle") +
+poll_degree <- ggplot(df_to_correlate_poll, aes(x = x, y = y)) +
+  geom_point(alpha = 0.6, size = 2, color = "rosybrown2") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
     y = "Number of predicted, \nnon-observed interactions",
-    title = "Pollinators"
+    title = paste("Pollinators:", label_text_polls)   # <--- add label in title
   ) +
-  theme_minimal() + tme +
-  annotate("text",
-           x = Inf,
-           y = Inf,
-           hjust = 1.1,
-           vjust = 1.2,   # Adjust depending on your data range
-           label = label_text_polls,
-           size = 5,
-           color = "black")
+  theme_minimal() + tme
 
-# Create the figure
-final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 6c
+# # Create the figure
+# final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 6c
+
+# Your two plots (remove individual axis labels)
+plant_degree_clean <- plant_degree +
+  labs(x = NULL, y = NULL)
+
+poll_degree_clean <- poll_degree +
+  labs(x = NULL, y = NULL)
+
+# Add bottom label with padding
+final_plot <- plot_grid(
+  # main plots
+  plot_grid(plant_degree_clean, poll_degree_clean, ncol = 2, align = "hv"),
+  # x label
+  ggdraw() + draw_label("Overall degree", fontface = "bold", size = 16),
+  ncol = 1,
+  rel_heights = c(1, 0.08)  # second element is space for x-axis label
+)
+
+# Add y label with padding
+final_plot <- plot_grid(
+  ggdraw() + draw_label("Number of predicted,\nnon-observed links",
+                        angle = 90, fontface = "bold", size = 16),
+  final_plot,
+  ncol = 2,
+  rel_widths = c(0.08, 1)   # first element is space for y-axis label
+)
+
+final_plot # fig. 3c
 
 # # Save to PDF
 # pdf("degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
@@ -2572,7 +2594,7 @@ island_heatmap_f1 <-
   labs(x = "Added location", y = "Predicted location", fill = "F1 score") +
   theme_minimal() +
   theme(
-    text = element_text(size = 18),
+    text = element_text(size = 9),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
     panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
@@ -2706,17 +2728,137 @@ shapiro_f1 <- result_summary_island %>%
 levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
+## ---- no. of islands in which species occur ----
+# Assuming your table is called df
+
+# Combine plant and pollinator columns into one column of species occurrences
+
+df_occurrence <- df_filtered %>%
+  filter(test_layer == train_layer)
+
+# For plants (node_to)
+plant_occurrence <- df_occurrence %>%
+  group_by(node_from) %>%
+  summarise(num_islands = n_distinct(test_layer)) %>%
+  arrange(desc(num_islands))
+
+# For pollinators (node_from)
+pollinator_occurrence <- df_occurrence %>%
+  group_by(node_to) %>%
+  summarise(num_islands = n_distinct(test_layer)) %>%
+  arrange(desc(num_islands))
+
+# View results
+print(plant_occurrence)
+print(pollinator_occurrence)
+
+# join with degree data
+# for plants
+plant_data <- left_join(overall_plant_degree, plant_occurrence, by = "node_from")
+
+# For pollinators
+pollinator_data <- left_join(overall_poll_degree, pollinator_occurrence, by = "node_to")
+
+
 ## Combine key plots into figures -----------
 
 # Fig. 2:
 
-# Fig. 2a is island_heatmap_f1
-# Fig. 2b is hist_f1a
+# Fig. 2a is p_f1 from subset_analysis.R
+# Fig. 2b is p_nnse from subset_analysis.R
+# Fig. 2c is island_heatmap_f1
+# Fig. 2d is hist_f1a
 
-fig2 <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(1,0.2,0.2,0.2), "cm")), 
-                  hist_f1a + theme(plot.margin = unit(c(1,0,3,0.5), "cm")),
-                  labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
+
+fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+                  hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+                  labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
                   rel_widths = c(1,0.95))
+fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+                    p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+                    labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
+                    rel_widths = c(1,0.95))
+
+fig2_complete <- fig2ab/fig2
+
+fig2_complete <- plot_grid(
+  p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
+  p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
+  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  labels = c("(a)", "(b)", "(c)", "(d)"),
+  label_size = 14,
+  ncol = 2,
+  rel_widths = c(0.5, 0.5, 1, 1),  # apply width per column if needed
+  rel_heights = c(0.5, 0.5, 1, 1)  # apply width per column if needed
+  
+)
+
+library(cowplot)
+library(grid)
+
+# Top row: a and b (narrower)
+row1 <- plot_grid(
+  p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
+  p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
+  labels = c("(a)","(b)"),
+  label_size = 14,
+  ncol = 3,
+  rel_widths = c(0.5, 0.3,0.5)
+)
+
+# Bottom row: c and d (full width)
+row2 <- plot_grid(
+  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  labels = c("(c)", "(d)"),
+  label_size = 14,
+  ncol = 2,
+  rel_widths = c(1, 1),
+  label_y = c(1.1, 1.1)  # move c and d labels higher
+)
+
+# Final figure: stack rows, left-align
+fig2_complete <- plot_grid(
+  row1,
+  row2,
+  ncol = 1,
+  align = "v",    # vertical alignment
+  axis = "l",     # align on left edge
+  rel_heights = c(1, 1)  # top row shorter
+)
+
+library(cowplot)
+library(grid)
+
+# Top row: a and b, then 2 empty slots (to pad to same width as bottom row)
+row1 <- plot_grid(
+  p_f1 + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL, #unit(c(top, right, bottom, left)
+  p_nnse + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL,
+  labels = c("(a)", "","(b)", ""),  # no labels for empty slots
+  label_size = 14,
+  ncol = 4,
+  rel_widths = c(0.5, 0.5, 0.5, 0.5) # adjust padding space
+)
+
+# Bottom row: c and d (full width)
+row2 <- plot_grid(
+  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  labels = c("(c)", "(d)"),
+  label_size = 14,
+  ncol = 2,
+  rel_widths = c(1, 1),
+  label_y = c(1.1, 1.1)  # move c and d labels up
+)
+
+# Final combined figure
+fig2_complete <- plot_grid(
+  row1,
+  row2,
+  ncol = 1,
+  rel_heights = c(1, 1)
+)
 
 
 # Fig. 3:
