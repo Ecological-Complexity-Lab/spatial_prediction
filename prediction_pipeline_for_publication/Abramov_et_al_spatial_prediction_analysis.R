@@ -2781,84 +2781,84 @@ fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
 
 fig2_complete <- fig2ab/fig2
 
-fig2_complete <- plot_grid(
-  p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-  p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  labels = c("(a)", "(b)", "(c)", "(d)"),
-  label_size = 14,
-  ncol = 2,
-  rel_widths = c(0.5, 0.5, 1, 1),  # apply width per column if needed
-  rel_heights = c(0.5, 0.5, 1, 1)  # apply width per column if needed
-  
-)
-
-library(cowplot)
-library(grid)
-
-# Top row: a and b (narrower)
-row1 <- plot_grid(
-  p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-  p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-  labels = c("(a)","(b)"),
-  label_size = 14,
-  ncol = 3,
-  rel_widths = c(0.5, 0.3,0.5)
-)
-
-# Bottom row: c and d (full width)
-row2 <- plot_grid(
-  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  labels = c("(c)", "(d)"),
-  label_size = 14,
-  ncol = 2,
-  rel_widths = c(1, 1),
-  label_y = c(1.1, 1.1)  # move c and d labels higher
-)
-
-# Final figure: stack rows, left-align
-fig2_complete <- plot_grid(
-  row1,
-  row2,
-  ncol = 1,
-  align = "v",    # vertical alignment
-  axis = "l",     # align on left edge
-  rel_heights = c(1, 1)  # top row shorter
-)
-
-library(cowplot)
-library(grid)
-
-# Top row: a and b, then 2 empty slots (to pad to same width as bottom row)
-row1 <- plot_grid(
-  p_f1 + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL, #unit(c(top, right, bottom, left)
-  p_nnse + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL,
-  labels = c("(a)", "","(b)", ""),  # no labels for empty slots
-  label_size = 14,
-  ncol = 4,
-  rel_widths = c(0.5, 0.5, 0.5, 0.5) # adjust padding space
-)
-
-# Bottom row: c and d (full width)
-row2 <- plot_grid(
-  island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  labels = c("(c)", "(d)"),
-  label_size = 14,
-  ncol = 2,
-  rel_widths = c(1, 1),
-  label_y = c(1.1, 1.1)  # move c and d labels up
-)
-
-# Final combined figure
-fig2_complete <- plot_grid(
-  row1,
-  row2,
-  ncol = 1,
-  rel_heights = c(1, 1)
-)
+# fig2_complete <- plot_grid(
+#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
+#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
+#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   labels = c("(a)", "(b)", "(c)", "(d)"),
+#   label_size = 14,
+#   ncol = 2,
+#   rel_widths = c(0.5, 0.5, 1, 1),  # apply width per column if needed
+#   rel_heights = c(0.5, 0.5, 1, 1)  # apply width per column if needed
+#   
+# )
+# 
+# library(cowplot)
+# library(grid)
+# 
+# # Top row: a and b (narrower)
+# row1 <- plot_grid(
+#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
+#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
+#   labels = c("(a)","(b)"),
+#   label_size = 14,
+#   ncol = 3,
+#   rel_widths = c(0.5, 0.3,0.5)
+# )
+# 
+# # Bottom row: c and d (full width)
+# row2 <- plot_grid(
+#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   labels = c("(c)", "(d)"),
+#   label_size = 14,
+#   ncol = 2,
+#   rel_widths = c(1, 1),
+#   label_y = c(1.1, 1.1)  # move c and d labels higher
+# )
+# 
+# # Final figure: stack rows, left-align
+# fig2_complete <- plot_grid(
+#   row1,
+#   row2,
+#   ncol = 1,
+#   align = "v",    # vertical alignment
+#   axis = "l",     # align on left edge
+#   rel_heights = c(1, 1)  # top row shorter
+# )
+# 
+# library(cowplot)
+# library(grid)
+# 
+# # Top row: a and b, then 2 empty slots (to pad to same width as bottom row)
+# row1 <- plot_grid(
+#   p_f1 + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL, #unit(c(top, right, bottom, left)
+#   p_nnse + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL,
+#   labels = c("(a)", "","(b)", ""),  # no labels for empty slots
+#   label_size = 14,
+#   ncol = 4,
+#   rel_widths = c(0.5, 0.5, 0.5, 0.5) # adjust padding space
+# )
+# 
+# # Bottom row: c and d (full width)
+# row2 <- plot_grid(
+#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+#   labels = c("(c)", "(d)"),
+#   label_size = 14,
+#   ncol = 2,
+#   rel_widths = c(1, 1),
+#   label_y = c(1.1, 1.1)  # move c and d labels up
+# )
+# 
+# # Final combined figure
+# fig2_complete <- plot_grid(
+#   row1,
+#   row2,
+#   ncol = 1,
+#   rel_heights = c(1, 1)
+# )
 
 
 # Fig. 3:
@@ -2866,13 +2866,21 @@ fig2_complete <- plot_grid(
 # Fig. 3a is map_missing_links_diags_offs
 # Fig. 3b is pie_chart
 # Fig. 3c is plant_degree and poll_degree combined
-bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) , 
-                        combine_plots(plant_degree, poll_degree), 
+# bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
+#                         combine_plots(plant_degree, poll_degree),
+#                         rel_widths = c(0.6, 1),
+#                         labels = c('(b)', '(c)'), label_size = 12)
+
+bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
+                        final_plot,
                         rel_widths = c(0.6, 1),
                         labels = c('(b)', '(c)'), label_size = 12)
 fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
                   bottom_row, labels = c('(a)', ''), 
                   ncol = 1, rel_heights = c(1, 0.7), label_size = 12)
+
+
+
 # pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf", 
 #     width  = 13,    # inches
 #     height = 11,
