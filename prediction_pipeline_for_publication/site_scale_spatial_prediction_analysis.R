@@ -1339,3 +1339,109 @@ jaccard_site_nnse <- make_facet_scatter_plot(data = canary_results_jaccard,
 jaccard_site_nnse
 
 ## ---- distance decay ----
+#### ---- add distances and location names ----
+distance_table <- read.csv("prediction_pipeline_for_publication/distance_between_sites_canary.csv", row.names = NULL)
+
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# Modify the 'from' and 'to' columns in distance_table
+distance_table <- distance_table %>%
+  mutate(from = gsub("_", " ", from),
+         to = gsub("_", " ", to))
+
+result_summary_site <- result_summary %>%
+  # Join to add train_layer_name
+  left_join(net_name %>% 
+              rename(train_layer = layer_id, 
+                     train_layer_name = name), 
+            by = "train_layer") %>%
+  # Join to add test_layer_name
+  left_join(net_name %>% 
+              rename(test_layer = layer_id, 
+                     test_layer_name = name), 
+            by = "test_layer")
+
+# remove sites form within the same island - only use information from different islands for distance decay
+result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
+# extract island names
+result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
+result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
+
+# filter rows where island names are different
+filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
+
+# plot
+cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme) + labs(y = "F1 score")
+# pdf(
+#   file   = "cor_plot_site_dif_f1.pdf",
+#   width  = 4,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# print(cor_plot_site_dif_f1)
+# dev.off()     # close the file
+
+#### ---- MRM for site scale ----
+layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
+
+# initialize empty matrices
+f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
+                           dimnames=list(layers_site, layers_site))
+dist_mat_km_site <- f1_mat_site
+
+# fill in each cell [i,j] with the corresponding f1_score and distance_km
+for(i in layers_site) for(j in layers_site) {
+  # subset rows where train=i and test=j
+  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
+  if(nrow(sub)==1) {
+    f1_mat_site[i,j]      <- sub$f1_score
+    dist_mat_km_site[i,j] <- sub$distance_km
+  }
+}
+
+# because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+
+f1_sym_site      <- sym_average(f1_mat_site)
+dist_sym_km_site <- sym_average(dist_mat_km_site)
+
+# convert to “dist” objects (lower triangle)
+dist_f1_site      <- as.dist(f1_sym_site)
+dist_km_site     <- as.dist(dist_sym_km_site)
+
+# run the MRM
+#    — this will regress the F1‐distance matrix on the geographic–distance matrix
+set.seed(42)   # for reproducibility of permutations
+mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
+
+# results
+print(mrm_out_site)
+
+### ---- Fig. S1: compare scales ----
+
+df_long <- bind_rows(
+  result_summary_site   %>% mutate(scale = "Site"),
+  result_summary_island %>% mutate(scale = "Island")
+) %>%
+  pivot_longer(
+    cols      = c("f1_score", "nnse"),
+    names_to  = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = factor(metric, levels = c(
+    "f1_score", "nnse"
+  )))
+
+
+
+
+
+
+
+
+
+
