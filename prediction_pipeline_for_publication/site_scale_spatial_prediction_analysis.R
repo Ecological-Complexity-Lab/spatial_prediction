@@ -1338,3 +1338,4 @@ jaccard_site_nnse <- make_facet_scatter_plot(data = canary_results_jaccard,
                                            facet_scales = "free_x")
 jaccard_site_nnse
 
+## ---- distance decay ----
