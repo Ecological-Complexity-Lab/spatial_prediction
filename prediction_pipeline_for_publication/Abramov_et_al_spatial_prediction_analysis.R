@@ -1948,7 +1948,8 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   labs(x = "Pollinator", y = "Plant") +
   theme(
     axis.text.x = element_blank(), 
-    axis.text.y = element_text(size = 9),
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
     legend.position = "bottom",         # Place legends at the bottom
     legend.box = "horizontal" 
   ) + tme +
@@ -2204,8 +2205,8 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   theme_void() +                              # remove axes/background
   theme(
     legend.title = element_blank(),
-    legend.text = element_text(size = 17),
-    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    legend.text = element_text(size = 16),
+    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
     legend.position  = "bottom",
     legend.direction = "vertical"
   ) +
@@ -2214,7 +2215,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
     aes(x = 1.2,label = n),
     position = position_stack(vjust = 0.5),
     color = "white",
-    size = 7
+    size = 6
   )
 
 pie_chart
@@ -2427,7 +2428,7 @@ for (layers_to_train in 1:num_layers) {
 }
 
 # save results
-saveRDS(result_site, file = "prediction_pipeline_for_publication/results/predictions_site_scale.rds")
+#saveRDS(result_site, file = "prediction_pipeline_for_publication/results/predictions_site_scale.rds")
 
 # # result_site includes predictions for all combinations of sites, 50 iterations of links withholding and prediction for each combination
 # convert negatives to zeros
@@ -2988,11 +2989,11 @@ bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2),
                         labels = c('(b)', '(c)'), label_size = 12)
 fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
                   bottom_row, labels = c('(a)', ''), 
-                  ncol = 1, rel_heights = c(1, 0.7), label_size = 12)
+                  ncol = 1, rel_heights = c(1.1, 0.7), label_size = 12)
 
 
 
-# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf", 
+# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf",
 #     width  = 13,    # inches
 #     height = 11,
 #     family = "Helvetica"   # or another installed font
