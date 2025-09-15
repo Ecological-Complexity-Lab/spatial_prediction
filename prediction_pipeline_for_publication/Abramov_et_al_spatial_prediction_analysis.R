@@ -433,8 +433,8 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
       scales = "free",     # ← free both x and y per facet
       labeller = labeller(
         evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(density_P  = "Density of matrix P",
-                         density_C  = "Density of matrix C")
+        measure_type = c(density_P  = "Connectance of matrix P",
+                         density_C  = "Connectance of matrix C")
       ),
       switch = "y"
     ) +
@@ -449,8 +449,10 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
     ) +
     
     scale_x_continuous(
-      name   = "Network density",
-      expand = expansion(mult = c(0.05, 0.1))
+      name   = "Network connectance",
+      breaks = scales::breaks_width(0.02),       # 0.02 between ticks
+      labels = scales::label_number(accuracy = 0.01),
+      expand = expansion(mult = c(0.05, 0.05))
     ) +
     
     scale_y_continuous(
@@ -967,8 +969,8 @@ for (layers_to_train in 1:num_layers) {
 }
 # combined_results includes predictions for all combinations of islands, 50 iterations of links withholding and prediction for each combination
 # save the results
-# saveRDS(combined_results, 
-#         file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+saveRDS(combined_results,
+        file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
 combined_results <- 
         readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
 combined_results <- combined_results %>% 
@@ -1404,6 +1406,7 @@ df_f1_nnse_density <- result_summary %>%
   pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
 netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tme
+netdensity_f1_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f1_nnse
 
 # pdf(
@@ -2727,7 +2730,7 @@ nnse_f1_scales
 
 # #Base‐R PDF device
 # pdf(
-#   file   = "scales_fig2.pdf",
+#   file   = "nnse_f1_scales.pdf",
 #   width  = 7,    # inches
 #   height = 4,
 #   family = "Helvetica"   # or another installed font
@@ -2993,7 +2996,7 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 
 
 
-# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf",
+# pdf(file   = "results/paper_figs/missing_interactions_degree.pdf",
 #     width  = 13,    # inches
 #     height = 11,
 #     family = "Helvetica"   # or another installed font
@@ -3004,14 +3007,182 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 
 # Fig. 4:
 
-# Fig. 4a is jaccard_isl_f1
-# Fig. 4b is cor_plot_dif_isl_f1
-fig4 <- plot_grid(jaccard_isl_f1, 
-                  cor_plot_dif_isl_f1 + labs(y = "F1 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
-                  labels = c('(a)', '(b)'),
-                  ncol = 1,
-                  rel_heights = c(1,1))
+# Fig. 4a,b,c are jaccard_isl_f1
+# Fig. 4d is cor_plot_dif_isl_f1
+# fig4 <- plot_grid(jaccard_isl_f1, 
+#                   cor_plot_dif_isl_f1 + labs(y = "F1 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
+#                   labels = c('(a)', '(b)'),
+#                   ncol = 1,
+#                   rel_heights = c(1,1))
+# 
+library(ggplot2)
+library(cowplot)
+library(grid)
+library(dplyr)
+library(tidyr)
+library(scales)
 
+## ---------- helpers -------------------------------------------------------
+
+# Remove any text/label annotation layers (e.g., annotate("text", ...))
+drop_text_layers <- function(p) {
+  if (!length(p$layers)) return(p)
+  is_text_layer <- vapply(
+    p$layers,
+    function(L) any(grepl("GeomText|GeomLabel", class(L$geom), ignore.case = TRUE)),
+    logical(1)
+  )
+  p$layers <- p$layers[!is_text_layer]
+  p
+}
+
+# Compute "r = ..., p = ..." once
+rp_text <- function(x, y, data, digits_r = 2, digits_p = 3) {
+  ct <- cor.test(data[[y]], data[[x]], use = "complete.obs", method = "pearson")
+  r_value <- round(unname(ct$estimate), digits_r)
+  p_value <- if (ct$p.value < 1e-3) formatC(ct$p.value, format = "e", digits = 2)
+  else formatC(ct$p.value, format = "f", digits = digits_p)
+  paste0("r = ", r_value, ", p = ", p_value)
+}
+
+# Add a centered, plain header ABOVE the plot area and RESERVE space for it
+# so headers don't overlap the plot and can't be clipped.
+# Add a centered, plain header ABOVE the plot area and RESERVE space for it
+# Works with older cowplot (no `padding` arg)
+# Works with older cowplot: no padding=, no clip=
+add_center_header <- function(p, header_text, size = 11, header_height = 0.12) {
+  # Hide facet strips; we provide our own header
+  p <- p + theme(strip.text = element_blank())
+  
+  # A tiny plot that only renders the centered header text
+  header <- ggdraw() +
+    draw_label(
+      label = header_text,
+      x = 0.5, y = 0.4,         # centered, near the top
+      hjust = 0.5, vjust = 1,
+      fontface = "plain", size = size
+    )
+  
+  # Stack header above the plot; reserve vertical space via rel_heights
+  plot_grid(
+    header, p,
+    ncol = 1,
+    rel_heights = c(header_height, 1),
+    align = "v"
+  )
+}
+
+
+
+## ---------- plotting function (Jaccard) -----------------------------------
+
+make_facet_scatter_plot2 <- function(
+    data,
+    evaluator = "f1_score",
+    pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+    names_to = "jaccard_type",
+    values_to = "jaccard_value",
+    facet_scales = "free_x",
+    tme = theme_minimal()  # pass your theme here
+) {
+  df_long <- data %>%
+    pivot_longer(cols = all_of(pivot_cols), names_to = names_to, values_to = values_to)
+  
+  facet_labels <- c(
+    jaccard_edges        = "Interaction overlap",
+    jaccard_plants       = "Plants overlap",
+    jaccard_pollinators  = "Pollinators overlap"
+  )
+  
+  ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "thistle") +
+    facet_wrap(as.formula(paste("~", names_to)),
+               scales = facet_scales,
+               labeller = as_labeller(facet_labels)) +
+    scale_x_continuous(labels = number_format(accuracy = 0.02)) +
+    labs(x = "Jaccard similarity", y = "F1 score") +     # <-- (3) nice axis titles
+    tme +                                            # your theme
+    theme(
+      strip.text   = element_text(size = 12, face = "plain"),
+      panel.border = element_rect(color = "black", fill = NA, size = 1),
+      axis.ticks   = element_line(color = "black"),
+      axis.text.x  = element_text(size = 12)
+    )
+}
+
+## ---------- build panels --------------------------------------------------
+
+# (a) Pollinators
+p_a_core <- make_facet_scatter_plot2(
+  data = canary_results_jaccard,
+  evaluator = "f1_score",
+  pivot_cols = "jaccard_pollinators",
+  facet_scales = "free_x",
+  tme = tme
+)
+label_a <- paste0("Pollinator overlap: ", rp_text("jaccard_pollinators", "f1_score", canary_results_jaccard))
+p_a <- add_center_header(p_a_core, label_a, size = 12)
+
+# (b) Plants — keep y ticks; drop only the y-axis title (right column)
+p_b_core <- make_facet_scatter_plot2(
+  data = canary_results_jaccard,
+  evaluator = "f1_score",
+  pivot_cols = "jaccard_plants",
+  facet_scales = "free_x",
+  tme = tme
+) + theme(axis.title.y = element_blank())
+label_b <- paste0("Plant overlap: ", rp_text("jaccard_plants", "f1_score", canary_results_jaccard))
+p_b <- add_center_header(p_b_core, label_b, size = 12)
+
+# (c) Edges
+p_c_core <- make_facet_scatter_plot2(
+  data = canary_results_jaccard,
+  evaluator = "f1_score",
+  pivot_cols = "jaccard_edges",
+  facet_scales = "free_x",
+  tme = tme
+)
+label_c <- paste0("Edge overlap: ", rp_text("jaccard_edges", "f1_score", canary_results_jaccard))
+p_c <- add_center_header(p_c_core, label_c, size = 12)
+
+# (d) Correlation — remove in-panel stats; header carries the stats
+p_d_core <- cor_plot_dif_isl_f1 +
+  tme +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.x  = element_text(size = 12)   # <— shrink x tick labels here
+  )
+p_d_core <- drop_text_layers(p_d_core)   # strip annotate("text", ...) if present
+label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f1_score", result_summary_island_dif))
+p_d <- add_center_header(p_d_core, label_d, size = 12)
+
+## ---------- arrange 2×2 ---------------------------------------------------
+
+isl_jaccard_distance <- plot_grid(
+  p_a, p_b, p_c, p_d,
+  labels = c("(a)", "(b)", "(c)", "(d)"),
+  ncol = 2,
+  align = "hv",
+  axis  = "tblr",
+  label_size = 13,
+  # raise the labels so headers sit below them (increase if your headers still touch)
+  label_y = c(0.96, 0.96, 0.96, 0.96),
+  label_x = c(0, 0, 0, 0),
+  rel_widths = c(1,0.95,1,0.95)
+  
+)
+
+isl_jaccard_distance
+
+# pdf(
+#   file   = "results/paper_figs/isl_jaccard_distance.pdf",
+#   width  = 8,    # inches
+#   height = 8,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(isl_jaccard_distance)
+# dev.off()     # close the file
 
 ## save figures into pdfs
 
@@ -3033,12 +3204,4 @@ fig4 <- plot_grid(jaccard_isl_f1,
 # fig3
 # dev.off() 
 # 
-# # Fig. 4
-# pdf(file   = "results/paper_figs/jaccard_isl_f1.pdf", 
-#     width  = 9,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig4
-# dev.off()
-# 
+
