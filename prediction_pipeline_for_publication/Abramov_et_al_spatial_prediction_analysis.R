@@ -842,6 +842,9 @@ aggregated_df <- aggregated_df %>%
 # View updated aggregated_df
 print(aggregated_df)
 
+# save aggregated network to a file
+write.csv(aggregated_df, file = "prediction_pipeline_for_publication/results/network_island_scale.csv", row.names = FALSE)
+
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
