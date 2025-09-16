@@ -4,6 +4,7 @@
 
 # Libraries -------------
 library(tidyverse)
+library(softImpute)
 source("prediction_pipeline_for_publication/common.R") # load common functions
 
 # Parameters -------------
@@ -14,6 +15,15 @@ degree_cutoff <- 7 # minimum degree to include a species in the analysis
 n_layers_pf_cutoff <- 3 # minimum number of layers a species must be in to calculate partner fidelity
 threshold <- 0.6 # threshold for converting probabilities to binary predictions
 set.seed(42) # the answer to everything
+
+# Themes ---------
+tme <-  theme(axis.text = element_text(size = 18, color = "black"),
+              axis.title = element_text(size = 18, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
+theme_set(theme_bw())
 
 # Functions -------------
 single_species_prediction <- function(networks, plant) {
@@ -319,4 +329,107 @@ ggplot(both, aes(x = sorensen, y = mean_f1)) +
     x = "Partner Fidelity (Sorensen Similarity)",
     y = "Mean F1 Score"
   ) +
-  theme_minimal()
+  theme_minimal() + tme
+
+# ---- pollinators with degree above 4 ----
+degree_cutoff <- 4
+
+all_results_polls <- NULL
+for (pol in polls) {
+  n_layers <- networks %>%
+    filter(node_to == pol) %>%
+    group_by(layer_from) %>%
+    summarise(degree = n()) %>%
+    filter(degree >= degree_cutoff) %>%
+    pull(layer_from) %>% length()
+  
+  if (n_layers > 1) { # this analysis includes 9 pollinators
+    print(paste0(pol, ": " , n_layers, " layers")) 
+    ress_pol <- single_species_prediction(networks, pol)
+    
+    ress_pol$species <- pol
+    ress_pol <- ress_pol %>% select(species, everything())
+    all_results_polls <- rbind(all_results_polls, ress_pol)
+  }
+  
+}
+
+# Add F1 score calculation
+
+species_f1_poll <- all_results_polls %>%
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values)) %>% 
+  filter(removed == 1) %>%
+  mutate(
+    predicted_prob   = sigmoid(predicted_values),
+    original_binary  = if_else(original_links > 0, 1, 0)
+  ) %>%
+  mutate(
+    predicted_bin = if_else(predicted_prob > threshold, 1, 0)
+  ) %>%
+  group_by(species, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin == 1),
+    FN = sum(original_binary == 1 & predicted_bin == 0),
+    TN = sum(original_binary == 0 & predicted_bin == 0),
+    FP = sum(original_binary == 0 & predicted_bin == 1),
+    precision        = TP / (TP + FP),
+    recall           = TP / (TP + FN),
+    f1_score         = 2 * (precision * recall) / (precision + recall),
+  ) %>%
+  ungroup()
+
+species_f1_poll %>% select(species, 
+                      P_layer = test_layer, 
+                      A_layer = train_layer, 
+                      iter = itr, 
+                      f1 = f1_score) %>% 
+  write.csv("prediction_pipeline_for_publication/results/single_species_prediction_f1_scores_polls.csv", row.names = FALSE)
+
+f1_res_poll <- species_f1_poll %>%
+  group_by(species, train_layer, test_layer) %>%
+  summarise(mean_f1 = mean(f1_score, na.rm = TRUE),
+            sd_f1 = sd(f1_score, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+f1_res_poll
+
+# fidelity
+
+df_fidelity <- networks %>% filter(weight != 0)
+
+#### ---- calculate plants fidelity ----
+# for each plant (node_from) and layer, gather the pollinators (node_to).
+df_poll_partners <- df_fidelity %>%
+  distinct(layer_from, node_from, node_to) %>%
+  group_by(node_to, layer_from) %>%
+  summarise(partners = list(unique(node_from)), .groups = "drop")
+
+# For each plant, compute Sorensen similarity across all pairs of layers.
+df_sorensen_polls <- 
+  df_poll_partners %>% 
+  group_by(node_to) %>% 
+  group_modify(~calculate_PF_Sor(.x))
+
+# clean results
+df_sorensen_polls <- df_sorensen_polls %>% drop_na() %>% 
+  select(species = node_to , 
+         train_layer = layer1, 
+         test_layer = layer2, 
+         sorensen)
+
+# Plot results -------------
+# combine prediction performance and partner fidelity
+both_poll <- f1_res_poll %>%
+  left_join(df_sorensen_polls, by = c("species", "train_layer", "test_layer"))
+
+# plot as scatter plot with trand line
+ggplot(both_poll, aes(x = sorensen, y = mean_f1)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "rosybrown2", fill = "lightblue") +
+  labs(
+    title = "Pollinators",
+    x = "Partner fidelity (Sorensen Similarity)",
+    y = "Mean F1 score"
+  ) +
+  theme_minimal() + tme
