@@ -412,8 +412,8 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
       scales = "free",     # ← free both x and y per facet
       labeller = labeller(
         evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(density_P  = "Density of matrix P",
-                         density_C  = "Density of matrix C")
+        measure_type = c(density_P  = "Connectance of matrix P",
+                         density_C  = "Connectance of matrix C")
       ),
       switch = "y"
     ) +
@@ -428,8 +428,10 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
     ) +
     
     scale_x_continuous(
-      name   = "Network density",
-      expand = expansion(mult = c(0.05, 0.1))
+      name   = "Network connectance",
+      breaks = scales::breaks_width(0.02),       # 0.02 between ticks
+      labels = scales::label_number(accuracy = 0.01),
+      expand = expansion(mult = c(0.05, 0.05))
     ) +
     
     scale_y_continuous(
@@ -442,13 +444,15 @@ plot_f1_nnse_vs_density_free_both <- function(data) {
     theme_minimal() +
     theme(
       strip.placement    = "outside",
-      strip.text.x       = element_text(size = 14),
+      strip.text.x       = element_text(size = 12),
       strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
       panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
       axis.ticks         = element_line(color = "black"),
       strip.background   = element_blank(),
-      axis.text.x     = element_text(size = 12),
-      panel.spacing.x    = unit(0.7, "cm")
+      panel.spacing.x    = unit(0.7, "cm"),
+      axis.text.x  = element_text(size = 10),
+      axis.text.y  = element_text(size = 10)
+      
     )
 }
 
@@ -1422,6 +1426,62 @@ mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
 print(mrm_out_site)
 
 ### ---- Fig. S1: compare scales ----
+# read island scale results
+combined_results_island <- 
+  readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+combined_results_island <- combined_results_island %>% 
+  filter(k == 2) %>% 
+  filter(!(input_lambda %in%  c(1, 5, 50, 100)))
+
+df_island <- combined_results_island %>%
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
+
+# create the evaluation table
+df_removed_island <- df_island %>%
+  filter(removed == 1) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0))
+
+result_summary_island <- df_removed_island %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
+    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
+    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
+    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
+    specificity = TN / (TN + FP),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    f1_score = 2 * (precision * recall) / (precision + recall),
+    balanced_accuracy = (recall + specificity) / 2,
+    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
+    mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
+    rmse = sqrt(mse),
+    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
+      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
+    nnse = 1 / (2 - nse)
+  ) %>%
+  ungroup() %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    TP = mean(TP, na.rm = TRUE),
+    FN = mean(FN, na.rm = TRUE),
+    TN = mean(TN, na.rm = TRUE),
+    FP = mean(FP, na.rm = TRUE),
+    specificity = mean(specificity, na.rm = TRUE),
+    precision = mean(precision, na.rm = TRUE),
+    recall = mean(recall, na.rm = TRUE),
+    f1_score = mean(f1_score, na.rm = TRUE),
+    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
+    mcc = mean(mcc, na.rm = TRUE),
+    mse = mean(mse, na.rm = TRUE),
+    rmse = mean(rmse, na.rm = TRUE),
+    nse  = mean(nse,  na.rm = TRUE),
+    nnse = mean(nnse, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
 
 df_long <- bind_rows(
   result_summary_site   %>% mutate(scale = "Site"),
@@ -1435,6 +1495,78 @@ df_long <- bind_rows(
   mutate(metric = factor(metric, levels = c(
     "f1_score", "nnse"
   )))
+
+# test for assumptions
+# normality
+
+df_long %>%
+  group_by(metric, scale) %>%
+  shapiro_test(value)   # Shapiro-Wilk normality test
+
+# mostly, data is not normally distributed, so better use wilcoxon 
+# plot
+# pretty facet titles with units:
+metric_labels <- c(
+  f1_score          = "F1 score",
+  nnse              = "NNSE"
+)
+
+nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
+  geom_boxplot(
+    notch        = TRUE,
+    outlier.size = 1,
+    position     = position_dodge(width = 0.75)
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales        = "free_y",
+    labeller      = as_labeller(metric_labels),
+    ncol          = 4,
+    switch        = "y"             # move the strip to the left side
+  ) +
+  stat_compare_means(
+    method         = "wilcox.test",
+    label          = "p.format",    # print the full p‐value
+    p.format.args  = list(
+      digits     = 2,               # two digits after decimal
+      scientific = TRUE             # use e-notation for small p’s
+    ),
+    label.y        = Inf,
+    vjust          = 1.5,
+    label.x        = 1.45,
+    tip.length     = 0.01,
+    size           = 3.5              # adjust this for font size
+  ) +
+  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
+                               "Island" = "wheat2")) +
+  labs(
+    x = NULL,
+    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.placement       = "outside",           # draw strips outside the plot panel
+    strip.text.y.left     = element_text(
+      angle = 90,          # horizontal text
+      face  = "bold",
+      size  = 12
+    ),
+    axis.text.x           = element_blank(),
+    axis.ticks.x          = element_blank(),
+    legend.position       = "bottom"
+  ) + tme
+
+nnse_f1_scales
+
+# #Base‐R PDF device
+# pdf(
+#   file   = "nnse_f1_scales.pdf",
+#   width  = 7,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(nnse_f1_scales)
+# dev.off()     # close the file
 
 
 
