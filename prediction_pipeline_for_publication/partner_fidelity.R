@@ -4,6 +4,7 @@
 
 # Libraries -------------
 library(tidyverse)
+library(ggplot2)
 library(softImpute)
 source("prediction_pipeline_for_publication/common.R") # load common functions
 
@@ -168,6 +169,7 @@ single_species_prediction <- function(networks, plant) {
   return(combined_results)
 }
 
+# calculate sorensen PF of each two layers per plant
 calculate_PF_Sor <- function(x) {
   # check if number of layers is more then cutoff
   if (length(unique(x$layer_from)) < n_layers_pf_cutoff) {
@@ -198,6 +200,35 @@ calculate_PF_Sor <- function(x) {
   }
   return(output)
 }
+
+# calculate the average degree of each two layers per plant
+calculate_avg_degree <- function(x) {
+  if (nrow(x) < 2) {
+    return(data.frame(avg_degree = NA))
+  }
+  
+  output <- NULL
+  x_df <- as.data.frame(x)
+  rownames(x_df) <- x$layer_from
+  
+  idx_pairs <- combn(x$layer_from, 2)
+  for (pair_id in 1:ncol(idx_pairs)) {
+    idx <- idx_pairs[, pair_id]
+    l1 <- idx[1]
+    l2 <- idx[2]
+    
+    deg1 <- x_df[l1,"degree"]
+    deg2 <- x_df[l2,"degree"]
+    avg_deg <- (deg1 + deg2) / 2
+    
+    output <- rbind(output, 
+                    data.frame(layer1 = c(l1, l2), 
+                               layer2 = c(l2, l1), 
+                               avg_degree = avg_deg))
+  }
+  return(output)
+}
+
 
 # Load data -------------
 # read networks
@@ -319,17 +350,49 @@ df_sorensen <- df_sorensen %>% drop_na() %>%
 # combine prediction performance and partner fidelity
 both <- f1_res %>%
   left_join(df_sorensen, by = c("species", "train_layer", "test_layer"))
- 
-# plot as scatter plot with trand line
-ggplot(both, aes(x = sorensen, y = mean_f1)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "blue", fill = "lightblue") +
+saveRDS(both, "prediction_pipeline_for_publication/results/partner_fidelity_and_f1.rds")
+
+# calculate average degree per plant per layer pair
+plant_layer_pair_degree <- 
+  networks %>%
+  group_by(node_from, layer_from) %>%
+  summarise(degree = n())
+  group_by(node_from) %>% 
+  group_modify(~calculate_avg_degree(.x)) %>% drop_na() %>% 
+  select(species = node_from , 
+         train_layer = layer1, 
+         test_layer = layer2, 
+         avg_degree)
+
+treeoth <- both %>%
+  left_join(plant_layer_pair_degree, by = c("species", "train_layer", "test_layer"))
+
+# plot as scatter plot with trend line, color by species per layer pair. 
+# add point size by average degree
+ggplot(treeoth, aes(x = sorensen, y = mean_f1, color = species)) +
+  geom_point(alpha = 0.5, aes(size = avg_degree/2)) +
+  geom_smooth(method = "lm", se = TRUE, color = "black", fill = "lightblue") +
   labs(
-    title = "Relationship between Partner Fidelity and Link Prediction F1 Score",
+    title = "Partner Fidelity vs Link Prediction F1 Score",
     x = "Partner Fidelity (Sorensen Similarity)",
-    y = "Mean F1 Score"
+    y = "Mean F1 Score",
+    size = "Average Degree"
   ) +
   theme_minimal() + tme
+  theme(legend.position = "right")
+
+# degree range
+hist(treeoth$avg_degree)
+
+# plot scatter of average values per plant
+treeoth %>% group_by(species) %>%
+  summarise(mean_deg = mean(avg_degree, na.rm = T),
+            sd_deg = sd(avg_degree, na.rm = T),
+            avg_pf = mean(sorensen, na.rm = T),
+            avg_f1 = mean(mean_f1, na.rm = T),
+            n = n()) %>% 
+  ggplot(aes(x = avg_pf, y = avg_f1, color = species))  + 
+  geom_point(aes(size = mean_deg))
 
 # ---- pollinators with degree above 4 ----
 degree_cutoff <- 4
