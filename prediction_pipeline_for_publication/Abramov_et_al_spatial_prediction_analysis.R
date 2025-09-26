@@ -23,6 +23,8 @@ library(softImpute)
 library(ecodist)
 library(rstatix)
 library(ggrepel)
+library(pROC)
+library(PRROC)
 
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 18, color = "black"),
@@ -843,12 +845,16 @@ aggregated_df <- aggregated_df %>%
 print(aggregated_df)
 
 # save aggregated network to a file
-write.csv(aggregated_df, file = "prediction_pipeline_for_publication/results/network_island_scale.csv", row.names = FALSE)
+# write.csv(aggregated_df, file = "prediction_pipeline_for_publication/results/network_island_scale.csv", row.names = FALSE)
 
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
-# skip the next part and read the data if you already have it
+# read the data if you already have it
+combined_results <- 
+  readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+
+# or alternatively run the prediction pipeline
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
 
@@ -974,8 +980,8 @@ for (layers_to_train in 1:num_layers) {
 # save the results
 saveRDS(combined_results,
         file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
-combined_results <- 
-        readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+
+# after reading or producing the results, filter these (important!):
 combined_results <- combined_results %>% 
   filter(k == 2) %>% 
   filter(!(input_lambda %in%  c(1, 5, 50, 100)))
@@ -1090,6 +1096,46 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
 # print(optimal_threshold)
 # dev.off()     # close the file
 
+# non-thresholded evaluation
+
+df_eval <- df %>%
+  filter(removed == 1) %>%
+  mutate(
+    predicted_prob  = sigmoid(predicted_values),
+    original_binary = if_else(original_links > 0, 1L, 0L)
+  ) %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    # ROC-AUC (coerce to numeric!)
+    auc_roc = tryCatch({
+      roc_obj <- roc(response = original_binary,
+                     predictor = predicted_prob,
+                     quiet = TRUE, na.rm = TRUE,
+                     levels = c(0,1), direction = "<")
+      as.numeric(auc(roc_obj))   # <-- important
+    }, error = function(e) NA_real_),
+    
+    # PR-AUC (guard against all-one-class cases)
+    auc_pr = tryCatch({
+      pos <- predicted_prob[original_binary == 1]
+      neg <- predicted_prob[original_binary == 0]
+      if (length(pos) == 0 || length(neg) == 0) return(NA_real_)
+      pr_obj <- pr.curve(scores.class0 = pos, scores.class1 = neg, curve = FALSE)
+      pr_obj$auc.integral
+    }, error = function(e) NA_real_)
+  ) %>%
+  ungroup()
+
+df_eval_summary <- df_eval %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    auc_roc_mean = mean(auc_roc, na.rm = TRUE),
+    auc_roc_sd   = sd(auc_roc,   na.rm = TRUE),
+    auc_pr_mean  = mean(auc_pr,  na.rm = TRUE),
+    auc_pr_sd    = sd(auc_pr,    na.rm = TRUE),
+    .groups = "drop"
+  )
+
 
 # 1) pivot to wide so F1 and balanced_accuracy are columns
 # we aim to find the optimal balance between ba and f1
@@ -1177,6 +1223,83 @@ result_summary <- df_removed %>%
 
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
+
+# non-thresholded evaluation
+# Add names to main table
+df_eval_summary <- df_eval_summary %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+# now heatmaps
+# roc
+island_heatmap_auc <- 
+  ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
+                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 14),
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(island_heatmap_auc)
+
+# pr
+island_heatmap_pr <- 
+  ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_pr_mean)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
+                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added location", y = "Predicted location", fill = "PR-AUC") +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 14),
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(island_heatmap_pr)
+
+# combine 
+
+pr_roc <- plot_grid(
+  island_heatmap_auc + theme(plot.margin = unit(c(0,0,0,0), "cm")),
+  island_heatmap_pr,
+  rel_widths = c(1, 1),
+  labels = c("(a)", "(b)"),
+  label_size = 16,
+  label_y = 0.8  # adjust this (e.g., 0.95, 0.9) to move labels closer
+)
+
+# supplementary figure pr_roc
+# pdf(file   = "results/paper_figs/pr_roc.pdf",
+#     width  = 13,    # inches
+#     height = 10,
+#     family = "Helvetica"   # or another installed font
+# )
+# pr_roc
+# dev.off()
 
 ### ---- Fig. 2b: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
@@ -2649,6 +2772,7 @@ print(island_heatmap_f1)
 # )
 # print(island_heatmap_f1)
 # dev.off()     # close the file
+
 
 ### ---- Fig. S1: compare scales ----
 
