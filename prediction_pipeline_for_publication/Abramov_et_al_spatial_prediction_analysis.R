@@ -1246,7 +1246,7 @@ island_heatmap_auc <-
   labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
-    text = element_text(size = 14),
+    text = element_text(size = 18),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
     panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
@@ -1270,7 +1270,7 @@ island_heatmap_pr <-
   labs(x = "Added location", y = "Predicted location", fill = "PR-AUC") +
   theme_minimal() +
   theme(
-    text = element_text(size = 14),
+    text = element_text(size = 18),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
     panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
@@ -1285,10 +1285,10 @@ print(island_heatmap_pr)
 
 pr_roc <- plot_grid(
   island_heatmap_auc + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-  island_heatmap_pr,
-  rel_widths = c(1, 1),
+  island_heatmap_pr + theme(axis.title.y = element_blank()),
+  rel_widths = c(1, 0.92),
   labels = c("(a)", "(b)"),
-  label_size = 16,
+  label_size = 18,
   label_y = 0.8  # adjust this (e.g., 0.95, 0.9) to move labels closer
 )
 
