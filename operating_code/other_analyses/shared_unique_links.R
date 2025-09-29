@@ -125,28 +125,48 @@ df_plot_f1 <- f1_by_itr %>%
   mutate(category = factor(category, levels = c("unique_in_P","shared")))
 
 # --- Basic boxplot across all iters/combos ---
-ggplot(df_plot_f1, aes(x = category, y = f1)) +
-  geom_boxplot(outlier.shape = NA, width = 0.6, notch = TRUE) +
-  geom_jitter(width = 0.12, alpha = 0.35, size = 1.6) +
-  stat_summary(fun = median, geom = "point", size = 2.5, shape = 23, fill = "white") +
+ggplot(df_plot_f1, aes(x = category, y = f1, fill = category)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width = 0.6,
+    notch = TRUE,
+    color = "grey30" # border color of boxplots
+  ) +
+  geom_jitter(
+    width = 0.12,
+    alpha = 0.2,
+    size = 1.6,
+    color = "lightsteelblue"
+  ) +
+  stat_summary(
+    fun = median,
+    geom = "point",
+    size = 2.5,
+    shape = 23,
+    fill = "white"
+  ) +
   labs(x = NULL, y = "F1 score") +
   stat_compare_means(
-    method         = "wilcox.test",
-    label          = "p.format",    # print the full p‐value
-    p.format.args  = list(
-      digits     = 2,               # two digits after decimal
-      scientific = TRUE             # use e-notation for small p’s
-    ),
-    label.y        = Inf,
-    vjust          = 1.5,
-    label.x        = 1.45,
-    tip.length     = 0.01,
-    size           = 3.5              # adjust this for font size
+    method        = "wilcox.test",
+    label         = "p.format",
+    p.format.args = list(digits = 2, scientific = TRUE),
+    label.y       = Inf,
+    vjust         = 1.5,
+    label.x       = 1.5,
+    tip.length    = 0.01,
+    size          = 3.5
   ) +
-  theme_classic() + tme
-
-
-metric_labels <- c(
-  unique_in_P          = "Unique to P",
-  shared              = "Shared"
-)
+  scale_fill_manual(
+    values = c("unique_in_P" = "lightsteelblue2",
+               "shared"      = "wheat2")
+  ) +
+  scale_x_discrete(
+    labels = c("Unique to P", "Shared")
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(size = 13, face = "bold"),
+    axis.text.y = element_text(size = 12),
+    axis.title.y = element_text(size = 14, face = "bold")
+  ) + tme
