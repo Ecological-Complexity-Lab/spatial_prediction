@@ -30,11 +30,16 @@ cross_annot <- df %>%
   mutate(
     # category only defined for test-layer EXISTING links
     category = dplyr::case_when(
-      isTRUE(in_test) & isTRUE(in_train) ~ "shared",
-      isTRUE(in_test) & !isTRUE(in_train) ~ "unique",
+      in_test & in_train ~ "shared",
+      in_test & is.na(in_train) ~ "unique_in_P",
+      is.na(in_test) & in_train ~ "unique_in_A",
+      is.na(in_test) & is.na(in_train) ~ "non_link",
       TRUE ~ NA_character_
     )
   )
+
+table(cross_annot$category)
+sum(is.na(cross_annot$category))
 
 # =========================================================
 # 3) EVALUATION on removed==1, per (train,test,itr), for unique/shared
@@ -53,13 +58,39 @@ cross_eval <- cross_annot %>%
     y_pred = as.integer(y_prob >= best_optimal_threshold)
   )
 
+# Shows counts of 0/1 by category; negatives will appear under NA (expected)
+with(cross_eval, table(category, y_true, useNA = "ifany"))
+
+eff_counts_by_group <- cross_eval %>%
+  group_by(train_layer, test_layer, itr) %>%
+  summarise(
+    n_neg        = sum(y_true == 0, na.rm = TRUE),
+    n_pos_shared = sum(y_true == 1 & category == "shared", na.rm = TRUE),
+    n_pos_unique = sum(y_true == 1 & category == "unique_in_P", na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(c(n_pos_shared, n_pos_unique),
+               names_to = "category", values_to = "n_pos") %>%
+  mutate(
+    category = ifelse(category == "n_pos_shared", "shared", "unique_in_P"),
+    n_total  = n_neg + n_pos,
+    pos_rate = n_pos / pmax(n_total, 1)
+  )
+
+eff_counts_by_group
+with(eff_counts_by_group, table(category, n_pos))
+
 metric_fun <- function(d) {
   tp <- sum(d$y_pred == 1 & d$y_true == 1, na.rm = TRUE)
   fp <- sum(d$y_pred == 1 & d$y_true == 0, na.rm = TRUE)
   fn <- sum(d$y_pred == 0 & d$y_true == 1, na.rm = TRUE)
-  f1 <- if ((2*tp + fp + fn) > 0) 2*tp/(2*tp + fp + fn) else NA_real_
+  recall <- (tp / (tp + fn))
+  precision <- tp / (tp + fp)
+  f1 <- 2 * (precision * recall) / (precision + recall)
   tibble(tp = tp, fp = fp, fn = fn, f1 = f1)
 }
+
+# add a step to balance f1 somehow
 
 # F1 for SHARED: use all removed negatives + removed positives tagged "shared"
 res_shared <- cross_eval %>%
@@ -71,49 +102,51 @@ res_shared <- cross_eval %>%
 
 # F1 for UNIQUE: use all removed negatives + removed positives tagged "unique"
 res_unique <- cross_eval %>%
-  filter(y_true == 0 | category == "unique") %>%
+  filter(y_true == 0 | category == "unique_in_P") %>%
   group_by(train_layer, test_layer, itr) %>%
   do(metric_fun(.)) %>%
   ungroup() %>%
-  mutate(category = "unique")
+  mutate(category = "unique_in_P")
 
 f1_by_itr <- bind_rows(res_shared, res_unique)
 
-# (optional) sanity: how many positives per group?
-pos_counts <- cross_eval %>%
-  filter(y_true == 1, !is.na(category)) %>%
-  count(train_layer, test_layer, itr, category, name = "n_pos_in_cat")
 
-# =========================================================
-# 4) Compare F1 across train/test combos for shared vs unique
-# =========================================================
-# Per (train,test,itr,category)
-f1_by_itr  # <- main per-iteration results
 
-# Summary per (train,test,category)
-f1_combo_summary <- f1_by_itr %>%
-  group_by(train_layer, test_layer, category) %>%
-  summarise(
-    n_itrs   = n(),
-    mean_f1  = mean(f1, na.rm = TRUE),
-    median_f1= median(f1, na.rm = TRUE),
-    .groups = "drop"
-  )
+f1_by_itr %>%
+  mutate(l=tp+fp) %>% 
+  group_by(category) %>% 
+  summarise(m=mean(tp),
+            n=n(),
+            s=sum(l)) # we have much mire links considered for unique interactions than shared. so the higher f1 for unique interactions might be size effect.
 
-# Difference (shared - unique) per (train,test,itr)
-f1_diff_per_itr <- f1_by_itr %>%
-  select(train_layer, test_layer, itr, category, f1) %>%
-  tidyr::pivot_wider(names_from = category, values_from = f1) %>%
-  mutate(diff_shared_minus_unique = shared - unique)
+# ---- compare ----
+df_plot_f1 <- f1_by_itr %>%
+  filter(category %in% c("unique_in_P","shared"), !is.na(f1)) %>%
+  mutate(category = factor(category, levels = c("unique_in_P","shared")))
 
-# Difference (shared - unique) averaged per (train,test)
-f1_diff_summary <- f1_diff_per_itr %>%
-  group_by(train_layer, test_layer) %>%
-  summarise(
-    mean_diff = mean(diff_shared_minus_unique, na.rm = TRUE),
-    median_diff = median(diff_shared_minus_unique, na.rm = TRUE),
-    .groups = "drop"
-  )
+# --- Basic boxplot across all iters/combos ---
+ggplot(df_plot_f1, aes(x = category, y = f1)) +
+  geom_boxplot(outlier.shape = NA, width = 0.6, notch = TRUE) +
+  geom_jitter(width = 0.12, alpha = 0.35, size = 1.6) +
+  stat_summary(fun = median, geom = "point", size = 2.5, shape = 23, fill = "white") +
+  labs(x = NULL, y = "F1 score") +
+  stat_compare_means(
+    method         = "wilcox.test",
+    label          = "p.format",    # print the full p‐value
+    p.format.args  = list(
+      digits     = 2,               # two digits after decimal
+      scientific = TRUE             # use e-notation for small p’s
+    ),
+    label.y        = Inf,
+    vjust          = 1.5,
+    label.x        = 1.45,
+    tip.length     = 0.01,
+    size           = 3.5              # adjust this for font size
+  ) +
+  theme_classic() + tme
 
-# Useful objects to inspect:
-# within_existing, cross_annot (with categories), f1_by_itr, f1_combo_summary, f1_diff_per_itr, f1_diff_summary, pos_counts
+
+metric_labels <- c(
+  unique_in_P          = "Unique to P",
+  shared              = "Shared"
+)
