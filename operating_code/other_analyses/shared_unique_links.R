@@ -9,9 +9,9 @@ best_optimal_threshold <- 0.6
 # =========================================================
 
 # check if nodes are the same in self prediction and added location
-layer1 <- df %>% filter (test_layer == 1 & itr == 1 & train_layer == 2)
+layer1 <- df %>% filter(test_layer == 1 & itr == 1 & train_layer == 2)
 view(layer1)
-layer1_self <- df %>% filter (test_layer == 1 & itr == 1 & train_layer == 1)
+layer1_self <- df %>% filter(test_layer == 1 & itr == 1 & train_layer == 1)
 view(layer1_self)
 
 layer1_polls <- unique(layer1$node_to)
@@ -45,34 +45,47 @@ length(layer1_plants) # extra check for plants
 # present_test  <- within_existing %>% rename(test_layer  = layer, in_test  = present)
 # present_train <- within_existing %>% rename(train_layer = layer, in_train = present)
 
-cross_annot <- df %>%
-  filter(train_layer != test_layer) %>%
-  left_join(present_test,  by = c("test_layer","node_from","node_to")) %>%
-  left_join(present_train, by = c("train_layer","node_from","node_to")) %>%
+library(dplyr)
+library(tidyr)
+
+# 1) For each layer (using test_layer as the layer ID), mark which pairs exist (original_links != 0)
+links_by_layer <- df %>%
+  group_by(test_layer, node_from, node_to) %>%
+  summarise(is_link = any(original_links != 0, na.rm = TRUE), .groups = "drop")
+
+# 2) Join those "existence" flags for the current TEST layer (P) and the TRAIN layer (A)
+df_labeled <- df %>%
+  # existence of this pair in the TEST layer P
+  left_join(links_by_layer %>%
+              rename(in_P = is_link),
+            by = c("test_layer", "node_from", "node_to")) %>%
+  # existence of this pair in the TRAIN layer A (note: compare via the other test layer's set)
+  left_join(links_by_layer %>%
+              rename(train_layer = test_layer, in_A = is_link),
+            by = c("train_layer", "node_from", "node_to")) %>%
   mutate(
-    # category only defined for test-layer EXISTING links
-    category = dplyr::case_when(
-      in_test & in_train ~ "shared",
-      in_test & is.na(in_train) ~ "unique_in_P",
-      is.na(in_test) & in_train ~ "unique_in_A",
-      is.na(in_test) & is.na(in_train) ~ "non_link",
-      TRUE ~ NA_character_
+    in_P = coalesce(in_P, FALSE),
+    in_A = coalesce(in_A, FALSE),
+    overlap_label = case_when(
+      original_links == 0               ~ "non-link",     # absent in current TEST layer
+      in_P & in_A                       ~ "shared",
+      in_P & !in_A                      ~ "unique_to_P",
+      !in_P & in_A                      ~ "unique_to_A",
+      TRUE                              ~ "non-link"      # safety fallback
     )
   )
 
-table(cross_annot$category)
-sum(is.na(cross_annot$category))
+# focus only on cross-layer comparisons
+df_labeled_cross <- df_labeled %>% filter(train_layer != test_layer)
 
-# =========================================================
-# 3) EVALUATION on removed==1, per (train,test,itr), for unique/shared
-#    - binarize predictions with sigmoid + best_optimal_threshold
-#    - compute TP/FP/FN and F1
-#    We compute F1 for each category by using:
-#      positives = removed == 1 & category == {that category}
-#      negatives = removed == 1 & original_links == 0
-#    (positives from the *other* category are excluded from that category's pool)
-# =========================================================
-cross_eval <- cross_annot %>%
+# (Optional) Quick sanity counts
+label_counts <- df_labeled_cross %>%
+  count(train_layer, test_layer, overlap_label, name = "n")
+
+label_counts
+
+# evaluate
+cross_eval <- df_labeled_cross %>%
   filter(removed == 1) %>%
   mutate(
     y_true = as.integer(original_links != 0),
@@ -80,27 +93,9 @@ cross_eval <- cross_annot %>%
     y_pred = as.integer(y_prob >= best_optimal_threshold)
   )
 
+
 # Shows counts of 0/1 by category; negatives will appear under NA (expected)
-with(cross_eval, table(category, y_true, useNA = "ifany"))
-
-eff_counts_by_group <- cross_eval %>%
-  group_by(train_layer, test_layer, itr) %>%
-  summarise(
-    n_neg        = sum(y_true == 0, na.rm = TRUE),
-    n_pos_shared = sum(y_true == 1 & category == "shared", na.rm = TRUE),
-    n_pos_unique = sum(y_true == 1 & category == "unique_in_P", na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  pivot_longer(c(n_pos_shared, n_pos_unique),
-               names_to = "category", values_to = "n_pos") %>%
-  mutate(
-    category = ifelse(category == "n_pos_shared", "shared", "unique_in_P"),
-    n_total  = n_neg + n_pos,
-    pos_rate = n_pos / pmax(n_total, 1)
-  )
-
-eff_counts_by_group
-with(eff_counts_by_group, table(category, n_pos))
+with(cross_eval, table(overlap_label, y_true, useNA = "ifany")) # we have about 10 times more unique links than shared
 
 metric_fun <- function(d) {
   tp <- sum(d$y_pred == 1 & d$y_true == 1, na.rm = TRUE)
@@ -112,42 +107,39 @@ metric_fun <- function(d) {
   tibble(tp = tp, fp = fp, fn = fn, f1 = f1)
 }
 
-# add a step to balance f1 somehow
-
 # F1 for SHARED: use all removed negatives + removed positives tagged "shared"
 res_shared <- cross_eval %>%
-  filter(y_true == 0 | category == "shared") %>%
+  filter(y_true == 0 | overlap_label == "shared") %>%
   group_by(train_layer, test_layer, itr) %>%
   do(metric_fun(.)) %>%
   ungroup() %>%
-  mutate(category = "shared")
+  mutate(overlap_label = "shared")
 
 # F1 for UNIQUE: use all removed negatives + removed positives tagged "unique"
 res_unique <- cross_eval %>%
-  filter(y_true == 0 | category == "unique_in_P") %>%
+  filter(y_true == 0 | overlap_label == "unique_to_P") %>%
   group_by(train_layer, test_layer, itr) %>%
   do(metric_fun(.)) %>%
   ungroup() %>%
-  mutate(category = "unique_in_P")
+  mutate(overlap_label = "unique_to_P")
 
 f1_by_itr <- bind_rows(res_shared, res_unique)
 
-
-
-f1_by_itr %>%
-  mutate(l=tp+fp) %>% 
-  group_by(category) %>% 
-  summarise(m=mean(tp),
-            n=n(),
-            s=sum(l)) # we have much mire links considered for unique interactions than shared. so the higher f1 for unique interactions might be size effect.
-
+f1_by_itr %>% 
+  mutate(predicted_positives = tp + fp) %>%    # l
+  group_by(overlap_label) %>% 
+  summarise(
+    mean_true_positives = mean(tp),            # m
+    count_observations = n(),                  # n
+    total_predicted_positives = sum(predicted_positives)  # s
+  )
 # ---- compare ----
 df_plot_f1 <- f1_by_itr %>%
-  filter(category %in% c("unique_in_P","shared"), !is.na(f1)) %>%
-  mutate(category = factor(category, levels = c("unique_in_P","shared")))
+  filter(overlap_label %in% c("unique_to_P","shared"), !is.na(f1)) %>%
+  mutate(overlap_label = factor(overlap_label, levels = c("unique_to_P","shared")))
 
 # --- Basic boxplot across all iters/combos ---
-ggplot(df_plot_f1, aes(x = category, y = f1, fill = category)) +
+ggplot(df_plot_f1, aes(x = overlap_label, y = f1, fill = overlap_label)) +
   geom_boxplot(
     outlier.shape = NA,
     width = 0.6,
@@ -179,7 +171,7 @@ ggplot(df_plot_f1, aes(x = category, y = f1, fill = category)) +
     size          = 3.5
   ) +
   scale_fill_manual(
-    values = c("unique_in_P" = "lightsteelblue2",
+    values = c("unique_to_P" = "lightsteelblue2",
                "shared"      = "wheat2")
   ) +
   scale_x_discrete(
@@ -192,3 +184,4 @@ ggplot(df_plot_f1, aes(x = category, y = f1, fill = category)) +
     axis.text.y = element_text(size = 12),
     axis.title.y = element_text(size = 14, face = "bold")
   ) + tme
+
