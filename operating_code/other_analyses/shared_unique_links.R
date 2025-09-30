@@ -1,27 +1,49 @@
-best_optimal_threshold <- 0.6
 library(dplyr)
 library(tidyr)
 
 # ---- configurable threshold + helper ----
 sigmoid <- function(x) 1/(1 + exp(-x))
-
+best_optimal_threshold <- 0.6
 # =========================================================
 # 1) WITHIN-LAYER: all unique existing links (original_links != 0)
 # =========================================================
-within_existing <- df %>%
-  filter(train_layer == test_layer) %>%
-  transmute(layer = train_layer, node_from, node_to,
-            present = original_links != 0) %>%
-  group_by(layer, node_from, node_to) %>%
-  summarise(present = any(present, na.rm = TRUE), .groups = "drop") %>%
-  filter(present)   # keep only existing links
+
+# check if nodes are the same in self prediction and added location
+layer1 <- df %>% filter (test_layer == 1 & itr == 1 & train_layer == 2)
+view(layer1)
+layer1_self <- df %>% filter (test_layer == 1 & itr == 1 & train_layer == 1)
+view(layer1_self)
+
+layer1_polls <- unique(layer1$node_to)
+layer1_self_polls <- unique(layer1_self$node_to)
+
+intersect(layer1_polls, layer1_self_polls)
+length(intersect(layer1_polls, layer1_self_polls))
+length(layer1_polls) # they're the same. so we can just compare link prediction between cross-layer combos
+
+layer1_plants <- unique(layer1$node_from)
+layer1_self_plants <- unique(layer1_self$node_from)
+
+intersect(layer1_plants, layer1_self_plants)
+length(intersect(layer1_plants, layer1_self_plants))
+length(layer1_plants) # extra check for plants
+
+
+# 
+# within_existing <- df %>%
+#   filter(train_layer == test_layer) %>%
+#   transmute(layer = train_layer, node_from, node_to,
+#             present = original_links != 0) %>%
+#   group_by(layer, node_from, node_to) %>%
+#   summarise(present = any(present, na.rm = TRUE), .groups = "drop") %>%
+#   filter(present)   # keep only existing links
 
 # =========================================================
 # 2) CROSS-LAYER: tag test-layer EXISTING links as unique/shared
 #    (unique = present in test only; shared = present in test AND train)
 # =========================================================
-present_test  <- within_existing %>% rename(test_layer  = layer, in_test  = present)
-present_train <- within_existing %>% rename(train_layer = layer, in_train = present)
+# present_test  <- within_existing %>% rename(test_layer  = layer, in_test  = present)
+# present_train <- within_existing %>% rename(train_layer = layer, in_train = present)
 
 cross_annot <- df %>%
   filter(train_layer != test_layer) %>%
