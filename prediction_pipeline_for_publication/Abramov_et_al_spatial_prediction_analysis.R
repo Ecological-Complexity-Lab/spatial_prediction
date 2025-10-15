@@ -228,7 +228,7 @@ sym_average <- function(m) {
 # plotting functions
 # functions for diagonal and off-diagonal comparison
 plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
-                        stat_label_y = NULL, stat_size = 3) {
+                         stat_label_y = NULL, stat_size = 3) {
   
   # Calculate max value for y-axis and position for stat label
   max_y <- max(data[[metric]], na.rm = TRUE)
@@ -850,136 +850,146 @@ print(aggregated_df)
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
-# read the data if you already have it
-combined_results <- 
-  readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+results_file <- "prediction_pipeline_for_publication/results/predictions_island_scale.rds"
 
-# or alternatively run the prediction pipeline
+# read the data if you already have it
+# combined_results <- 
+#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+# 
+
+
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
 
-# Loop through all combinations of layers_to_train and layer_to_predict
-for (layers_to_train in 1:num_layers) {
-  for (layer_to_predict in 1:num_layers) {
-    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-    
-    # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
-    
-    # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
-    
-    node_to <- rownames(P) # for the results
-    node_from <- colnames(P)
-    
-    ### ---- a. withhold links in P ----
-    # map out the 0s and 1s in P
-    num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
-    ones_in_P <- which(P > 0, arr.ind = TRUE)
-    
-    num_0_to_remove <- num_1_to_remove
-    prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
-    zeros_in_P <- which(P == 0, arr.ind = TRUE)
-    
-    # debug print
-    print(paste("1 remove:", num_1_to_remove))
-    print(paste("all 1   :", nrow(ones_in_P)))
-    print(paste("0s to remove:", num_0_to_remove))
-    print(paste("all zeros   :", nrow(zeros_in_P)))
-    print(paste("prop of zeros removed   : ", prop_0_removed))
-    
-    # Randomly select zeros to withhold - bootstrapping
-    bootstrapping_results <- NULL
-    P_original <- P # save it for later
-    
-    for (i in 1:n_sim) {
-      # remove 1s
-      remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
-      P[remove_indices] <- NA  # Set removed links to NA
+if (file.exists(results_file)) {
+  print("Existing results file found — reading the file and proceeding to analysis")
+  
+  combined_results <- readRDS(results_file)
+  print("finished loading prediction results")
+  
+} else { # or alternatively run the prediction pipeline
+  # Loop through all combinations of layers_to_train and layer_to_predict
+  for (layers_to_train in 1:num_layers) {
+    for (layer_to_predict in 1:num_layers) {
+      print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
       
-      # sample 0s
-      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
-      P[zeros_to_remove_indices] <- NA
+      # Build the aggregated matrix A for training
+      A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
       
-      ### ---- creating a combined matrix C ----
-      # Combine A and P into a single matrix C with NAs representing missing data
-      all_row_ids <- unique(c(rownames(A), rownames(P)))
-      all_col_ids <- unique(c(colnames(A), colnames(P)))
-      C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
-                  dimnames = list(all_row_ids, all_col_ids))
+      # Build the layer to predict matrix P
+      P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
       
-      # Place A into C
-      C[rownames(A), colnames(A)] <- A
+      node_to <- rownames(P) # for the results
+      node_from <- colnames(P)
       
-      # Place P into C
-      # Ensure that existing entries are not overwritten; sum overlapping entries
-      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-                                            NA, 
-                                            C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+      ### ---- a. withhold links in P ----
+      # map out the 0s and 1s in P
+      num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
+      ones_in_P <- which(P > 0, arr.ind = TRUE)
       
-
-      # Apply biScale to center matrices
-      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+      num_0_to_remove <- num_1_to_remove
+      prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
+      zeros_in_P <- which(P == 0, arr.ind = TRUE)
       
-      sum(is.na(C))
+      # debug print
+      print(paste("1 remove:", num_1_to_remove))
+      print(paste("all 1   :", nrow(ones_in_P)))
+      print(paste("0s to remove:", num_0_to_remove))
+      print(paste("all zeros   :", nrow(zeros_in_P)))
+      print(paste("prop of zeros removed   : ", prop_0_removed))
       
-      ### ---- b. prediction with SVD ----
-      k_values <- c(2, 5, 10)
-      lam0 <- lambda0(C)
-      lambda_values <- c(1, 5, 50, 100, lam0)
+      # Randomly select zeros to withhold - bootstrapping
+      bootstrapping_results <- NULL
+      P_original <- P # save it for later
       
-      # Initialize variables to store the best results
-      results <- data.frame(k = integer(),
-                            lambda = numeric(),
-                            original_links = numeric(),
-                            predicted_values = numeric(),
-                            input_lambda = numeric())
-      not_removed_all <- NULL
-      
-      # Loop over all combinations of k and lambda
-      for (k in k_values) {
-        for (lambda in lambda_values) {
-          # imputation
-          r <- implement_impute(C, k, lambda)
-          r$results$input_lambda <- lambda
-          r$not_removed$input_lambda <- lambda
-          results <- rbind(results, r$results)
-          not_removed_all <- rbind(not_removed_all, r$not_removed)
+      for (i in 1:n_sim) {
+        # remove 1s
+        remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+        P[remove_indices] <- NA  # Set removed links to NA
+        
+        # sample 0s
+        zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
+        P[zeros_to_remove_indices] <- NA
+        
+        ### ---- creating a combined matrix C ----
+        # Combine A and P into a single matrix C with NAs representing missing data
+        all_row_ids <- unique(c(rownames(A), rownames(P)))
+        all_col_ids <- unique(c(colnames(A), colnames(P)))
+        C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                    dimnames = list(all_row_ids, all_col_ids))
+        
+        # Place A into C
+        C[rownames(A), colnames(A)] <- A
+        
+        # Place P into C
+        # Ensure that existing entries are not overwritten; sum overlapping entries
+        C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                              NA, 
+                                              C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+        
+        
+        # Apply biScale to center matrices
+        C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+        
+        sum(is.na(C))
+        
+        ### ---- b. + d. prediction with SVD and apply for all network combinations ----
+        k_values <- c(2, 5, 10)
+        lam0 <- lambda0(C)
+        lambda_values <- c(1, 5, 50, 100, lam0)
+        
+        # Initialize variables to store the best results
+        results <- data.frame(k = integer(),
+                              lambda = numeric(),
+                              original_links = numeric(),
+                              predicted_values = numeric(),
+                              input_lambda = numeric())
+        not_removed_all <- NULL
+        
+        # Loop over all combinations of k and lambda
+        for (k in k_values) {
+          for (lambda in lambda_values) {
+            # imputation
+            r <- implement_impute(C, k, lambda)
+            r$results$input_lambda <- lambda
+            r$not_removed$input_lambda <- lambda
+            results <- rbind(results, r$results)
+            not_removed_all <- rbind(not_removed_all, r$not_removed)
+          }
         }
+        
+        ### ---- save results for current k/lambda combination ----
+        # After finishing the k/lambda loops, append the 'results' to 'combined_results'
+        # ---- (D) Append to combined_results
+        complete_edges_all <- rbind(results, not_removed_all)
+        complete_edges_all$itr <- i
+        bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
+        
+        # reset P
+        P <- P_original
       }
       
-      ### ---- save results for current k/lambda combination ----
-      # After finishing the k/lambda loops, append the 'results' to 'combined_results'
-      # ---- (D) Append to combined_results
-      complete_edges_all <- rbind(results, not_removed_all)
-      complete_edges_all$itr <- i
-      bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
-      
-      # reset P
-      P <- P_original
-    }
-    
-    combined_results <- rbind(
-      combined_results,
-      cbind(
-        data.frame(
-          emln_id = emln_id,
-          train_layer = layers_to_train,
-          test_layer = layer_to_predict,
-          prop_ones_removed = prop_ones_to_remove,
-          amount_of_removed_1 = num_1_to_remove,
-          amount_of_removed_0 = num_0_to_remove,
-          prop_0_removed = prop_0_removed
-        ),
-        bootstrapping_results
+      combined_results <- rbind(
+        combined_results,
+        cbind(
+          data.frame(
+            emln_id = emln_id,
+            train_layer = layers_to_train,
+            test_layer = layer_to_predict,
+            prop_ones_removed = prop_ones_to_remove,
+            amount_of_removed_1 = num_1_to_remove,
+            amount_of_removed_0 = num_0_to_remove,
+            prop_0_removed = prop_0_removed
+          ),
+          bootstrapping_results
+        )
       )
-    )
+    }
   }
-}
-# combined_results includes predictions for all combinations of islands, 50 iterations of links withholding and prediction for each combination
-# save the results
-saveRDS(combined_results,
-        file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+  # combined_results includes predictions for all combinations of islands, 50 iterations of links withholding and prediction for each combination
+  # save the results
+  saveRDS(combined_results, file = results_file)
+} 
 
 # after reading or producing the results, filter these (important!):
 combined_results <- combined_results %>% 
@@ -1000,7 +1010,7 @@ length(plant_species)
 length(pollinator_species)
 
 ### ---- c. evaluation ----
-### ---- Fig. S7: selecting optimal threshold ----
+### ---- Fig. S8: selecting optimal threshold ----
 # select the threshold for classifying links as 1s or 0s based on balance between f1 and balanced accuracy
 
 # 0) set an array of thresholds
@@ -1066,15 +1076,15 @@ df_avg <- df_thresh %>%
   pivot_longer(-threshold,
                names_to  = "metric",
                values_to = "value")
-  
+
 df_avg_plot <- df_avg %>% mutate(metric = recode(metric,
-                         specificity       = "Specificity",
-                         precision         = "Precision",
-                         recall            = "Recall",
-                         f1_score          = "F1 score",
-                         balanced_accuracy = "Balanced accuracy",
-                         mcc               = "MCC"
-  ))
+                                                 specificity       = "Specificity",
+                                                 precision         = "Precision",
+                                                 recall            = "Recall",
+                                                 f1_score          = "F1 score",
+                                                 balanced_accuracy = "Balanced accuracy",
+                                                 mcc               = "MCC"
+))
 
 # 4) plot
 optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) +
@@ -1095,8 +1105,6 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
 # )
 # print(optimal_threshold)
 # dev.off()     # close the file
-
-# non-thresholded evaluation
 
 df_eval <- df %>%
   filter(removed == 1) %>%
@@ -1157,7 +1165,7 @@ df_removed <- df %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-### ---- Fig. S8: predicted vs. observed weights ----
+### ---- Fig. S10: predicted vs. observed weights ----
 predicted_original <- df_removed %>%
   ggplot(aes(x = original_links, y = predicted_values)) +
   geom_point(alpha = 0.6, color = "lightsteelblue") +
@@ -1224,7 +1232,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-# non-thresholded evaluation
+### ---- Fig. S9: plot non-thresholded evaluation ----
 # Add names to main table
 df_eval_summary <- df_eval_summary %>%
   left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
@@ -1301,7 +1309,7 @@ pr_roc <- plot_grid(
 # pr_roc
 # dev.off()
 
-### ---- Fig. 2b: distribution of evaluators with/without external data ----
+### ---- Fig. 2d: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 
 result_summary <- result_summary %>%
@@ -1496,7 +1504,7 @@ df_summary
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. 5: correlate network size with evaluators ----
+#### ---- Fig. S13: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1524,7 +1532,7 @@ netsize_f1_nnse
 # print(netsize_f1_nnse)
 # dev.off()     # close the file
 
-#### ---- Fig. S12: density ----
+#### ---- Fig. S5: density ----
 
 df_f1_nnse_density <- result_summary %>%
   select(f1_score, nnse, density_P, density_C) %>%
@@ -1607,17 +1615,17 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- Fig. 4: plot Jaccard ----
+#### ---- Fig. 4a,b,c: plot Jaccard ----
 # we filter only pairs of different islands for this analysis, since Jaccard index for the same island is 1 for all islands
 canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
 
 jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_jaccard, 
-                                        evaluator = "f1_score",
-                                        pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                        x_lab = "Jaccard similarity",
-                                        y_lab = "F1 score",
-                                        facet_scales = "free_x")
+                                          evaluator = "f1_score",
+                                          pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                          x_lab = "Jaccard similarity",
+                                          y_lab = "F1 score",
+                                          facet_scales = "free_x")
 jaccard_isl_f1 # Fig. 4
 
 # # Base‐R PDF device
@@ -1631,175 +1639,12 @@ jaccard_isl_f1 # Fig. 4
 # dev.off()     # close the file
 
 jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
-                                           evaluator = "nnse",
-                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                           x_lab = "Jaccard similarity",
-                                           y_lab = "NNSE",
-                                           facet_scales = "free_x")
+                                            evaluator = "nnse",
+                                            pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                            x_lab = "Jaccard similarity",
+                                            y_lab = "NNSE",
+                                            facet_scales = "free_x")
 jaccard_isl_nnse
-
-### ---- partner fidelity correlation with evaluators ----
-
-# filter existing interactions in cases where train = test layer (we want to calculate the average similarity in partner composition of each species in different locations)
-df_fidelity <- df %>% filter(train_layer == test_layer) %>% 
-  filter(original_links != 0) %>% filter(itr == 1) # all iterations are the same for existing links that were not removed
-
-#### ---- plants fidelity ----
-# for each plant (node_from) and layer, gather the pollinators (node_to).
-df_plant_partners <- df_fidelity %>%
-  distinct(node_from, train_layer, node_to) %>%
-  group_by(node_from, train_layer) %>%
-  summarise(partners = list(unique(node_to)), .groups = "drop")
-
-# 2. For each plant, compute mean Sorensen similarity across all pairs of layers.
-df_sorensen <- df_plant_partners %>%
-  group_by(node_from) %>%
-  summarise(
-    mean_sorensen_plants = {
-      n_layers <- n()
-      # If the plant is only in one layer, there are no pairs, so return NA. select only species the occur in at least 3 islands
-      if (n_layers < 3) {
-        NA_real_
-      } else {
-        # Get all pairwise combinations of rows in this group
-        idx_pairs <- combn(n_layers, 2)
-        # Compute Sorensen for each pair
-        sims <- apply(idx_pairs, 2, function(idx) {
-          p1 <- partners[[idx[1]]]
-          p2 <- partners[[idx[2]]]
-          a  <- length(intersect(p1, p2))          # shared partners
-          b  <- length(setdiff(p1, p2))            # unique to first layer
-          c  <- length(setdiff(p2, p1))            # unique to second layer
-          2 * a / (2 * a + b + c)
-        })
-        mean(sims)  # average Sorensen for that plant
-      }
-    }
-  )
-
-# we filter out single-island predictions since what is relevant here is prediction across space
-df_off <- df %>% 
-  filter(train_layer != test_layer) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
-  mutate(original_binary = if_else(original_links > 0, 1, 0))
-
-df_merged <- df_off %>%
-  left_join(df_sorensen, by = "node_from")
-
-#### ---- pollinators fidelity ----
-df_pollinators <- df_fidelity %>%
-  distinct(node_to, train_layer, node_from) %>%
-  group_by(node_to, train_layer) %>%
-  summarise(partners = list(unique(node_from)), .groups = "drop")
-
-# 2. For each pollinator, compute mean Sorensen similarity across all pairs of layers.
-df_sorensen_pollinators <- df_pollinators %>%
-  group_by(node_to) %>%
-  summarise(
-    mean_sorensen_pollinators = {
-      n_layers <- n()
-      # If the plant is only in one layer, there are no pairs, so return NA
-      if (n_layers < 3) {
-        NA_real_
-      } else {
-        # Get all pairwise combinations of rows in this group
-        idx_pairs <- combn(n_layers, 2)
-        # Compute Sorensen for each pair
-        sims <- apply(idx_pairs, 2, function(idx) {
-          p1 <- partners[[idx[1]]]
-          p2 <- partners[[idx[2]]]
-          a  <- length(intersect(p1, p2))          # shared partners
-          b  <- length(setdiff(p1, p2))            # unique to first layer
-          c  <- length(setdiff(p2, p1))            # unique to second layer
-          2 * a / (2 * a + b + c)
-        })
-        mean(sims)  # average Sorensen for that plant
-      }
-    }
-  )
-
-df_merged <- df_merged %>%
-  left_join(df_sorensen_pollinators, by = "node_to") # joint plant and pollinator fidelities
-
-#### ---- per-species f1 ----
-# how many removed 1s and 0s do we have for each species?
-# For plants:
-removed_count_plants <- df_merged %>%
-  filter(removed == 1) %>% 
-  group_by(plant = node_from) %>%
-  summarise(
-    n_removed_0    = sum(original_binary == 0, na.rm = TRUE),
-    n_removed_1    = sum(original_binary == 1, na.rm = TRUE),
-  ) %>%
-  arrange(plant)
-
-# For pollinators:
-removed_count_polls <- df_merged %>%
-  filter(removed == 1) %>% 
-  group_by(pollinator = node_to) %>%
-  summarise(
-    n_removed_0    = sum(original_binary == 0, na.rm = TRUE),
-    n_removed_1    = sum(original_binary == 1, na.rm = TRUE),
-  ) %>%
-  arrange(pollinator)
-
-# calculate balanced f1 for each species by sampling its removed links 50 times in a balanced subset and calculating f1 for each
-df_clean <- df_merged %>%
-  filter(removed == 1) %>% 
-  filter(!is.na(original_binary), !is.na(predicted_bin_sigm))
-
-set.seed(42)
-
-# 3) For pollinators (node_to), bootstrap 50× per species
-df_balanced_f1_polls <- df_clean %>%
-  group_by(species = node_to) %>%
-  group_modify(~ {
-    f1s <- replicate(50, compute_balanced_f1(.x))
-    tibble(
-      mean_f1 = mean(f1s, na.rm = TRUE),
-      sd_f1   = sd(  f1s, na.rm = TRUE)
-    )
-  }) %>%
-  ungroup()
-
-# 4) Do the same for plants (node_from)
-df_balanced_f1_plants <- df_clean %>%
-  group_by(species = node_from) %>%
-  group_modify(~ {
-    f1s <- replicate(50, compute_balanced_f1(.x))
-    tibble(
-      mean_f1 = mean(f1s, na.rm = TRUE),
-      sd_f1   = sd(  f1s, na.rm = TRUE)
-    )
-  }) %>%
-  ungroup()
-
-# join them together
-df_for_plot_balanced <- bind_rows(
-  df_balanced_f1_polls %>%
-    left_join(df_sorensen_pollinators, by = c("species" = "node_to")) %>%
-    mutate(avg_sorensen_plants = NA_real_),
-  
-  df_balanced_f1_plants %>%
-    left_join(df_sorensen, by = c("species" = "node_from")) %>%
-    mutate(avg_sorensen_pollinators = NA_real_)
-)
-
-#### ---- Fig. S13: plot fidelity ----
-balanced_f1_fidelity <- make_full_correlation_plot(
-  data            = df_for_plot_balanced,
-  evaluator       = "mean_f1",
-  pollinator_x    = "mean_sorensen_pollinators",
-  plant_x         = "mean_sorensen_plants",
-  shared_x_lab    = "Mean partner fidelity (Sørensen)",
-  shared_y_lab    = "F1 score per species"
-)
-
-# pdf("balanced_f1_fidelity.pdf", width = 6, height = 4)
-# grid::grid.draw(balanced_f1_fidelity)
-# dev.off()
-
 
 ### ---- degree impact on link assignment ----
 # here we examine if the algorithm assigns more links to species with higher degree.
@@ -1903,8 +1748,8 @@ label_text_plants <- paste0("r = ", r_value, ", p = ", p_value)
 
 # specify species you want to label, if any
 from_label <- c("Euphorbia_balsamifera_m",
-              "Euphorbia_balsamifera_f",
-              "Launaea_arborescens")
+                "Euphorbia_balsamifera_f",
+                "Launaea_arborescens")
 
 # build a little data‐frame just for the labels
 df_labels <- df_to_correlate %>%
@@ -2098,7 +1943,7 @@ print(map_missing_links)
 # dev.off()     # close the file
 
 
-### ---- Fig. S10: difference in links predicted with/without external data ----
+### ---- Fig. S11: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -2171,7 +2016,7 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   
   # allow a second fill scale
   new_scale_fill() +
-    geom_tile(
+  geom_tile(
     data  = filter(df_plot, !is.na(sigm_cat)),
     aes(fill = sigm_cat),
     alpha = 0.6
@@ -2238,13 +2083,13 @@ df_plot_verified <- diff_df %>%
     sigm_cat = case_when(
       avg_sigm_predicted_diag < best_discrete_threshold &
         avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
-
+      
       avg_sigm_predicted_offs < best_discrete_threshold &
         avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
-
+      
       avg_sigm_predicted_offs >= best_discrete_threshold &
         avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
-
+      
       TRUE ~ NA_character_
     )
   )
@@ -2443,101 +2288,101 @@ result_site <- data.frame()
 for (layers_to_train in 1:num_layers) {
   for (layer_to_predict in 1:num_layers) {
     print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-
+    
     # Build the aggregated matrix A for training
     A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
-
+    
     # Build the layer to predict matrix P
     P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
-
+    
     node_to <- rownames(P) # for the results
     node_from <- colnames(P)
-
+    
     ### ---- a. withhold links in P ----
     # map out the 0s and 1s in P
     num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
     ones_in_P <- which(P > 0, arr.ind = TRUE)
-
+    
     num_0_to_remove <- num_1_to_remove
     prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
     zeros_in_P <- which(P == 0, arr.ind = TRUE)
-
+    
     # debug print
     print(paste("1 remove:", num_1_to_remove))
     print(paste("all 1   :", nrow(ones_in_P)))
     print(paste("0s to remove:", num_0_to_remove))
     print(paste("all zeros   :", nrow(zeros_in_P)))
     print(paste("prop of zeros removed   : ", prop_0_removed))
-
+    
     # Randomly select zeros to withhold - bootstrapping
     bootstrapping_results <- NULL
     P_original <- P # save it for later
-
+    
     for (i in 1:n_sim) {
       # remove 1s
       remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
       P[remove_indices] <- NA  # Set removed links to NA
-
+      
       # sample 0s
       zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
       P[zeros_to_remove_indices] <- NA
-
+      
       ### ---- creating a combined matrix C ----
       # Combine A and P into a single matrix C with NAs representing missing data
       all_row_ids <- unique(c(rownames(A), rownames(P)))
       all_col_ids <- unique(c(colnames(A), colnames(P)))
       C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
                   dimnames = list(all_row_ids, all_col_ids))
-
+      
       # Place A into C
       C[rownames(A), colnames(A)] <- A
-
+      
       # Place P into C
       # Ensure that existing entries are not overwritten; sum overlapping entries
       C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]),
                                             NA,
                                             C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-
-
+      
+      
       # Apply biScale to center matrices
       C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-
+      
       sum(is.na(C))
-
+      
       ### ---- b. prediction with SVD ----
       k_values <- 2
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
-
+      
       # Initialize variables to store the best results
       results <- data.frame(k = integer(),
                             lambda = numeric(),
                             original_links = numeric(),
                             predicted_values = numeric())
       not_removed_all <- NULL
-
+      
       # Loop over all combinations of k and lambda
       for (k in k_values) {
         for (lambda in lambda_values) {
           # imputation
           r <- implement_impute(C, k, lambda)
-
+          
           results <- rbind(results, r$results)
           not_removed_all <- rbind(not_removed_all, r$not_removed)
         }
       }
-
+      
       ### ---- save results for current k/lambda combination ----
       # After finishing the k/lambda loops, append the 'results' to 'combined_results'
       # ---- (D) Append to combined_results
       complete_edges_all <- rbind(results, not_removed_all)
       complete_edges_all$itr <- i
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
-
+      
       # reset P
       P <- P_original
     }
-
+    
     result_site <- rbind(
       result_site,
       cbind(
@@ -2634,7 +2479,7 @@ result_summary_site <- result_summary_site %>%
                                0,              # distance = 0 if same site
                                distance_km))   # otherwise, keep joined distance
 
-#### ---- distance correlation with evaluators ----
+#### ---- Fig. 4d:  distance correlation with evaluators ----
 
 # remove sites form within the same island - only use information from different islands for distance decay
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
@@ -2709,7 +2554,7 @@ layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary
 
 # initialize empty matrices
 f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
-                      dimnames=list(layers_site, layers_site))
+                           dimnames=list(layers_site, layers_site))
 dist_mat_km_site <- f1_mat_site
 
 # fill in each cell [i,j] with the corresponding f1_score and distance_km
@@ -2739,7 +2584,7 @@ mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
 # results
 print(mrm_out_site)
 
-### ---- Fig. 2a heatmap ----
+### ---- Fig. 2c heatmap ----
 
 island_heatmap_f1 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
@@ -2888,7 +2733,7 @@ shapiro_f1 <- result_summary_island %>%
 levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
-## ---- no. of islands in which species occur ----
+## ---- Fig. S12: no. of islands in which species occur ----
 # Assuming your table is called df
 
 # Combine plant and pollinator columns into one column of species occurrences
@@ -3012,106 +2857,28 @@ final_plot_occ
 # Fig. 2d is hist_f1a
 
 
-fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-                  hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-                  labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
-                  rel_widths = c(1,0.95))
-fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-                    p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-                    labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
-                    rel_widths = c(1,0.95))
+# fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# 
+# fig2_complete <- fig2ab/fig2
 
-fig2_complete <- fig2ab/fig2
-
-# fig2_complete <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(a)", "(b)", "(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(0.5, 0.5, 1, 1),  # apply width per column if needed
-#   rel_heights = c(0.5, 0.5, 1, 1)  # apply width per column if needed
-#   
+# Fig. 2
+# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
+#     width  = 15,    # inches
+#     height = 7,
+#     family = "Helvetica"   # or another installed font
 # )
-# 
-# library(cowplot)
-# library(grid)
-# 
-# # Top row: a and b (narrower)
-# row1 <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-#   labels = c("(a)","(b)"),
-#   label_size = 14,
-#   ncol = 3,
-#   rel_widths = c(0.5, 0.3,0.5)
-# )
-# 
-# # Bottom row: c and d (full width)
-# row2 <- plot_grid(
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(1, 1),
-#   label_y = c(1.1, 1.1)  # move c and d labels higher
-# )
-# 
-# # Final figure: stack rows, left-align
-# fig2_complete <- plot_grid(
-#   row1,
-#   row2,
-#   ncol = 1,
-#   align = "v",    # vertical alignment
-#   axis = "l",     # align on left edge
-#   rel_heights = c(1, 1)  # top row shorter
-# )
-# 
-# library(cowplot)
-# library(grid)
-# 
-# # Top row: a and b, then 2 empty slots (to pad to same width as bottom row)
-# row1 <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL, #unit(c(top, right, bottom, left)
-#   p_nnse + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL,
-#   labels = c("(a)", "","(b)", ""),  # no labels for empty slots
-#   label_size = 14,
-#   ncol = 4,
-#   rel_widths = c(0.5, 0.5, 0.5, 0.5) # adjust padding space
-# )
-# 
-# # Bottom row: c and d (full width)
-# row2 <- plot_grid(
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(1, 1),
-#   label_y = c(1.1, 1.1)  # move c and d labels up
-# )
-# 
-# # Final combined figure
-# fig2_complete <- plot_grid(
-#   row1,
-#   row2,
-#   ncol = 1,
-#   rel_heights = c(1, 1)
-# )
+# fig2
+# dev.off()
 
 
-# Fig. 3:
-
-# Fig. 3a is map_missing_links_diags_offs
-# Fig. 3b is pie_chart
-# Fig. 3c is plant_degree and poll_degree combined
-# bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
-#                         combine_plots(plant_degree, poll_degree),
-#                         rel_widths = c(0.6, 1),
-#                         labels = c('(b)', '(c)'), label_size = 12)
+# Fig. 3
 
 bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
                         final_plot,
@@ -3130,7 +2897,6 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 # )
 # fig3
 # dev.off()
-
 
 # Fig. 4:
 
@@ -3198,8 +2964,6 @@ add_center_header <- function(p, header_text, size = 11, header_height = 0.12) {
     align = "v"
   )
 }
-
-
 
 ## ---------- plotting function (Jaccard) -----------------------------------
 
@@ -3310,25 +3074,3 @@ isl_jaccard_distance
 # )
 # print(isl_jaccard_distance)
 # dev.off()     # close the file
-
-## save figures into pdfs
-
-# Fig. 2
-# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
-#     width  = 15,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig2
-# dev.off()
-
-# Fig. 3
-# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf", 
-#     width  = 13,    # inches
-#     height = 11,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig3
-# dev.off() 
-# 
-
