@@ -1943,7 +1943,7 @@ print(map_missing_links)
 # dev.off()     # close the file
 
 
-### ---- Fig. S10: difference in links predicted with/without external data ----
+### ---- Fig. S11: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -2479,7 +2479,7 @@ result_summary_site <- result_summary_site %>%
                                0,              # distance = 0 if same site
                                distance_km))   # otherwise, keep joined distance
 
-#### ---- distance correlation with evaluators ----
+#### ---- Fig. 4d:  distance correlation with evaluators ----
 
 # remove sites form within the same island - only use information from different islands for distance decay
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
@@ -2584,7 +2584,7 @@ mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
 # results
 print(mrm_out_site)
 
-### ---- Fig. 2a heatmap ----
+### ---- Fig. 2c heatmap ----
 
 island_heatmap_f1 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
@@ -2733,7 +2733,7 @@ shapiro_f1 <- result_summary_island %>%
 levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
-## ---- no. of islands in which species occur ----
+## ---- Fig. S12: no. of islands in which species occur ----
 # Assuming your table is called df
 
 # Combine plant and pollinator columns into one column of species occurrences
@@ -2857,106 +2857,28 @@ final_plot_occ
 # Fig. 2d is hist_f1a
 
 
-fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-                    hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-                    labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
-                    rel_widths = c(1,0.95))
-fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-                    p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-                    labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
-                    rel_widths = c(1,0.95))
+# fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# 
+# fig2_complete <- fig2ab/fig2
 
-fig2_complete <- fig2ab/fig2
-
-# fig2_complete <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(a)", "(b)", "(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(0.5, 0.5, 1, 1),  # apply width per column if needed
-#   rel_heights = c(0.5, 0.5, 1, 1)  # apply width per column if needed
-#   
+# Fig. 2
+# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
+#     width  = 15,    # inches
+#     height = 7,
+#     family = "Helvetica"   # or another installed font
 # )
-# 
-# library(cowplot)
-# library(grid)
-# 
-# # Top row: a and b (narrower)
-# row1 <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(1,0.5,0.3,2), "cm")),
-#   p_nnse + theme(plot.margin = unit(c(1,0.5,0.3,0), "cm")),
-#   labels = c("(a)","(b)"),
-#   label_size = 14,
-#   ncol = 3,
-#   rel_widths = c(0.5, 0.3,0.5)
-# )
-# 
-# # Bottom row: c and d (full width)
-# row2 <- plot_grid(
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(1, 1),
-#   label_y = c(1.1, 1.1)  # move c and d labels higher
-# )
-# 
-# # Final figure: stack rows, left-align
-# fig2_complete <- plot_grid(
-#   row1,
-#   row2,
-#   ncol = 1,
-#   align = "v",    # vertical alignment
-#   axis = "l",     # align on left edge
-#   rel_heights = c(1, 1)  # top row shorter
-# )
-# 
-# library(cowplot)
-# library(grid)
-# 
-# # Top row: a and b, then 2 empty slots (to pad to same width as bottom row)
-# row1 <- plot_grid(
-#   p_f1 + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL, #unit(c(top, right, bottom, left)
-#   p_nnse + theme(plot.margin = unit(c(0.2,0,0.3,5), "cm")), NULL,
-#   labels = c("(a)", "","(b)", ""),  # no labels for empty slots
-#   label_size = 14,
-#   ncol = 4,
-#   rel_widths = c(0.5, 0.5, 0.5, 0.5) # adjust padding space
-# )
-# 
-# # Bottom row: c and d (full width)
-# row2 <- plot_grid(
-#   island_heatmap_f1 + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   hist_f1a + theme(plot.margin = unit(c(0,0,0,0), "cm")),
-#   labels = c("(c)", "(d)"),
-#   label_size = 14,
-#   ncol = 2,
-#   rel_widths = c(1, 1),
-#   label_y = c(1.1, 1.1)  # move c and d labels up
-# )
-# 
-# # Final combined figure
-# fig2_complete <- plot_grid(
-#   row1,
-#   row2,
-#   ncol = 1,
-#   rel_heights = c(1, 1)
-# )
+# fig2
+# dev.off()
 
 
-# Fig. 3:
-
-# Fig. 3a is map_missing_links_diags_offs
-# Fig. 3b is pie_chart
-# Fig. 3c is plant_degree and poll_degree combined
-# bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
-#                         combine_plots(plant_degree, poll_degree),
-#                         rel_widths = c(0.6, 1),
-#                         labels = c('(b)', '(c)'), label_size = 12)
+# Fig. 3
 
 bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
                         final_plot,
@@ -2975,7 +2897,6 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 # )
 # fig3
 # dev.off()
-
 
 # Fig. 4:
 
@@ -3043,8 +2964,6 @@ add_center_header <- function(p, header_text, size = 11, header_height = 0.12) {
     align = "v"
   )
 }
-
-
 
 ## ---------- plotting function (Jaccard) -----------------------------------
 
@@ -3155,25 +3074,3 @@ isl_jaccard_distance
 # )
 # print(isl_jaccard_distance)
 # dev.off()     # close the file
-
-## save figures into pdfs
-
-# Fig. 2
-# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
-#     width  = 15,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig2
-# dev.off()
-
-# Fig. 3
-# pdf(file   = "results/paper_figs/missing_interactions_degree_fig3.pdf", 
-#     width  = 13,    # inches
-#     height = 11,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig3
-# dev.off() 
-# 
-
