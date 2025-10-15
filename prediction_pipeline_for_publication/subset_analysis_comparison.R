@@ -621,6 +621,16 @@ p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
     axis.title.x        = element_blank()  # we'll add a shared x‐label later
   )
 
+# pdf(
+#   file   = "p_nnse.pdf",
+#   width  = 5,    # inches
+#   height = 5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(p_nnse)
+# dev.off()     # close the file
+# 
+
 p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
   geom_boxplot(notch = TRUE, alpha = 0.6) +
   stat_compare_means(
@@ -638,6 +648,16 @@ p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
     panel.grid.major.x  = element_blank(),
     axis.title.x        = element_blank()
   )
+
+# pdf(
+#   file   = "p_f1.pdf",
+#   width  = 5,    # inches
+#   height = 5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(p_f1)
+# dev.off()     # close the file
+
 
 # combine with a shared x-axis label
 combined <- (p_nnse | p_f1) +       # side by side
