@@ -1,6 +1,6 @@
 # ---- Subset analysis: comparing analyses quality ----
 # here we compare prediction quality when using the entire species pools of A and P for prediction vs. prediction done based on subsetting only the species they share
-# for reproducing Fig. S8
+# for reproducing Fig. 2a,b
 ## ---- load libraries ----
 library(tidyverse)
 library(emln)

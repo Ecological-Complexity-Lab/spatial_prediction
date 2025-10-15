@@ -162,6 +162,19 @@ sigmoid <- function(x) {
   1 / (1 + exp(-x))
 }
 
+# for MRM test
+sym_average <- function(m) {
+  mm <- m
+  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
+    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
+      avg       <- mean(c(m[i,j], m[j,i]))
+      mm[i,j]   <- avg
+      mm[j,i]   <- avg
+    }
+  }
+  mm
+}
+
 # calculate balanced per-species f1 score
 # 2) A helper that, given one species’ data.frame, 
 #    does one draw of a balanced F₁
@@ -701,6 +714,45 @@ combine_plots <- function(p1, p2,
   
   return(final_plot)
 }
+
+make_cor_plot <- function(data, evaluator, 
+                          distance_col = "distance_km", 
+                          x_lab = "Geographic distance (km)",
+                          y_lab = NULL,
+                          extra_theme = NULL) {
+  # Use evaluator as y_lab if no alternative is provided
+  if (is.null(y_lab)) {
+    y_lab <- evaluator
+  }
+  
+  # Compute correlation between evaluator and distance
+  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  ) 
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Create plot with label in the upper right corner using Inf coordinates
+  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+    geom_point(color = "salmon2", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+    labs(x = x_lab, y = y_lab) +
+    # The following places the label at the upper right of the plot area
+    annotate("text", x = Inf, y = Inf, label = label_text,
+             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+  
+  # Optionally add additional theme modifications
+  if (!is.null(extra_theme)) {
+    plot <- plot + extra_theme
+  }
+  
+  return(plot)
+}
+
 
 ## ---- 1. prediction ----
 # Load matrices
@@ -1359,16 +1411,28 @@ distance_table <- distance_table %>%
          to = gsub("_", " ", to))
 
 result_summary_site <- result_summary %>%
-  # Join to add train_layer_name
-  left_join(net_name %>% 
-              rename(train_layer = layer_id, 
-                     train_layer_name = name), 
-            by = "train_layer") %>%
-  # Join to add test_layer_name
-  left_join(net_name %>% 
-              rename(test_layer = layer_id, 
-                     test_layer_name = name), 
-            by = "test_layer")
+  select(-train_layer_name, -test_layer_name) %>%   # remove old columns if they exist
+  left_join(
+    net_name %>%
+      rename(train_layer = layer_id, train_layer_name = name),
+    by = "train_layer"
+  ) %>%
+  left_join(
+    net_name %>%
+      rename(test_layer = layer_id, test_layer_name = name),
+    by = "test_layer"
+  )
+
+# Add to main table
+result_summary_site <- result_summary_site %>%
+  left_join(
+    distance_table,
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               distance_km))   # otherwise, keep joined distance
+
 
 # remove sites form within the same island - only use information from different islands for distance decay
 result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
