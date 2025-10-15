@@ -3589,7 +3589,7 @@ df_top_10 <- predicted_links %>%
   # Take the first 10 rows
   slice(1:10)
 
-missing_links <- ggplot(df_top_10, 
+top_10_missing_links <- ggplot(df_top_10, 
        aes(x = reorder(paste(node_to, node_from, sep = " - "), mean_pred),
            y = mean_pred,
            fill = p_value < 0.05)) +
@@ -3615,7 +3615,7 @@ missing_links <- ggplot(df_top_10,
   ) +
   theme(axis.title.y = element_text(margin = ggplot2::margin(r = 15)))
 
-missing_links
+top_10_missing_links
 # 
 # pdf(
 #   file   = "missing_links.pdf",
