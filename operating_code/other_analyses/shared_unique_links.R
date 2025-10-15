@@ -139,7 +139,7 @@ df_plot_f1 <- f1_by_itr %>%
   mutate(overlap_label = factor(overlap_label, levels = c("unique_to_P","shared")))
 
 # --- Basic boxplot across all iters/combos ---
-ggplot(df_plot_f1, aes(x = overlap_label, y = f1, fill = overlap_label)) +
+shared_vs_unique_links <- ggplot(df_plot_f1, aes(x = overlap_label, y = f1, fill = overlap_label)) +
   geom_boxplot(
     outlier.shape = NA,
     width = 0.6,
@@ -185,3 +185,11 @@ ggplot(df_plot_f1, aes(x = overlap_label, y = f1, fill = overlap_label)) +
     axis.title.y = element_text(size = 14, face = "bold")
   ) + tme
 
+# pdf(
+#   file   = "shared_vs_unique_links.pdf",
+#   width  = 4,
+#   height = 4,
+#   family = "Helvetica"
+# )
+# print(shared_vs_unique_links)
+# dev.off()     # close the file
