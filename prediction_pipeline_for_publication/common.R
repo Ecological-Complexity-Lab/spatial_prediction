@@ -55,13 +55,21 @@ implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_in
   
   # Extract the reconstructed P matrix from C_reconstructed
   P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
-  
   # Combine indices of removed ones and zeros
   if (is.null(dim(remove_indices))) { # handles when remove_indices has only one row
-    test_indices <- rbind(
-      data.frame(row = remove_indices["row"], col = remove_indices["col"], label = 1),
-      data.frame(row = zeros_to_remove_indices[, "row"], col = zeros_to_remove_indices[, "col"], label = rep(0, nrow(zeros_to_remove_indices)))
-    )
+    if (is.null(dim(zeros_to_remove_indices))) { # handles when remove_indices has only one row
+      test_indices <- rbind(
+        data.frame(row = remove_indices["row"], col = remove_indices["col"], label = 1),
+        data.frame(row = zeros_to_remove_indices["row"], col = zeros_to_remove_indices["col"], label = 0)
+      )
+    } else{
+      test_indices <- rbind(
+        data.frame(row = remove_indices["row"], col = remove_indices["col"], label = 1),
+        data.frame(row = zeros_to_remove_indices[, "row"], col = zeros_to_remove_indices[, "col"], label = rep(0, nrow(zeros_to_remove_indices)))
+      )
+    }
+    
+
   } else {
     test_indices <- rbind(
       data.frame(row = remove_indices[, "row"], col = remove_indices[, "col"], label = rep(1, nrow(remove_indices))),
@@ -127,3 +135,4 @@ implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_in
   
   return(list_results)
 }
+
