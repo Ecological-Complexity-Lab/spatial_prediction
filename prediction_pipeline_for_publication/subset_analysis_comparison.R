@@ -182,135 +182,149 @@ print(aggregated_df)
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
-# skip to reading the data file if you already have it
+results_file <- "prediction_pipeline_for_publication/results/predictions_island_scale.rds"
+
+# read the prediction data if you already have it, and if not generate predictions
+
 # Initialize a data frame to store combined results for all layer combinations
 df_all <- data.frame()
 
-# Loop through all combinations of layers_to_train and layer_to_predict
-for (layers_to_train in 1:num_layers) {
-  for (layer_to_predict in 1:num_layers) {
-    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-    
-    # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
-    
-    # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
-    
-    node_to <- rownames(P) # for the results
-    node_from <- colnames(P)
-    
-    ### ---- a. withhold links in P ----
-    # map out the 0s and 1s in P
-    num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
-    ones_in_P <- which(P > 0, arr.ind = TRUE)
-    
-    num_0_to_remove <- num_1_to_remove
-    prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
-    zeros_in_P <- which(P == 0, arr.ind = TRUE)
-    
-    # debug print
-    print(paste("1 remove:", num_1_to_remove))
-    print(paste("all 1   :", nrow(ones_in_P)))
-    print(paste("0s to remove:", num_0_to_remove))
-    print(paste("all zeros   :", nrow(zeros_in_P)))
-    print(paste("prop of zeros removed   : ", prop_0_removed))
-    
-    # Randomly select zeros to withhold - bootstrapping
-    bootstrapping_results <- NULL
-    P_original <- P # save it for later
-    
-    for (i in 1:n_sim) {
-      # remove 1s
-      remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
-      P[remove_indices] <- NA  # Set removed links to NA
+if (file.exists(results_file)) {
+  print("Existing results file found — reading the file and proceeding to analysis")
+  
+  df_all <- readRDS(results_file)
+  print("finished loading prediction results")
+  
+} else { # or alternatively run the prediction pipeline
+  # Loop through all combinations of layers_to_train and layer_to_predict
+  for (layers_to_train in 1:num_layers) {
+    for (layer_to_predict in 1:num_layers) {
+      print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
       
-      # sample 0s
-      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
-      P[zeros_to_remove_indices] <- NA
+      # Build the aggregated matrix A for training
+      A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
       
-      ### ---- creating a combined matrix C ----
-      # Combine A and P into a single matrix C with NAs representing missing data
-      all_row_ids <- unique(c(rownames(A), rownames(P)))
-      all_col_ids <- unique(c(colnames(A), colnames(P)))
-      C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
-                  dimnames = list(all_row_ids, all_col_ids))
+      # Build the layer to predict matrix P
+      P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
       
-      # Place A into C
-      C[rownames(A), colnames(A)] <- A
+      node_to <- rownames(P) # for the results
+      node_from <- colnames(P)
       
-      # Place P into C
-      # Ensure that existing entries are not overwritten; sum overlapping entries
-      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-                                            NA, 
-                                            C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+      ### ---- a. withhold links in P ----
+      # map out the 0s and 1s in P
+      num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
+      ones_in_P <- which(P > 0, arr.ind = TRUE)
       
+      num_0_to_remove <- num_1_to_remove
+      prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
+      zeros_in_P <- which(P == 0, arr.ind = TRUE)
       
-      # Apply biScale to center matrices
-      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+      # debug print
+      print(paste("1 remove:", num_1_to_remove))
+      print(paste("all 1   :", nrow(ones_in_P)))
+      print(paste("0s to remove:", num_0_to_remove))
+      print(paste("all zeros   :", nrow(zeros_in_P)))
+      print(paste("prop of zeros removed   : ", prop_0_removed))
       
-      sum(is.na(C))
+      # Randomly select zeros to withhold - bootstrapping
+      bootstrapping_results <- NULL
+      P_original <- P # save it for later
       
-      ### ---- b. prediction with SVD ----
-      k_values <- 2
-      lam0 <- lambda0(C)
-      lambda_values <- c(lam0)
-      
-      # Initialize variables to store the best results
-      results <- data.frame(k = integer(),
-                            lambda = numeric(),
-                            original_links = numeric(),
-                            predicted_values = numeric())
-      not_removed_all <- NULL
-      
-      # Loop over all combinations of k and lambda
-      for (k in k_values) {
-        for (lambda in lambda_values) {
-          # imputation
-          r <- implement_impute(C, k, lambda)
-          
-          results <- rbind(results, r$results)
-          not_removed_all <- rbind(not_removed_all, r$not_removed)
+      for (i in 1:n_sim) {
+        # remove 1s
+        remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+        P[remove_indices] <- NA  # Set removed links to NA
+        
+        # sample 0s
+        zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
+        P[zeros_to_remove_indices] <- NA
+        
+        ### ---- creating a combined matrix C ----
+        # Combine A and P into a single matrix C with NAs representing missing data
+        all_row_ids <- unique(c(rownames(A), rownames(P)))
+        all_col_ids <- unique(c(colnames(A), colnames(P)))
+        C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                    dimnames = list(all_row_ids, all_col_ids))
+        
+        # Place A into C
+        C[rownames(A), colnames(A)] <- A
+        
+        # Place P into C
+        # Ensure that existing entries are not overwritten; sum overlapping entries
+        C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                              NA, 
+                                              C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+        
+        
+        # Apply biScale to center matrices
+        C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+        
+        sum(is.na(C))
+        
+        ### ---- b. + d. prediction with SVD and apply for all network combinations ----
+        k_values <- c(2, 5, 10)
+        lam0 <- lambda0(C)
+        lambda_values <- c(1, 5, 50, 100, lam0)
+        
+        # Initialize variables to store the best results
+        results <- data.frame(k = integer(),
+                              lambda = numeric(),
+                              original_links = numeric(),
+                              predicted_values = numeric(),
+                              input_lambda = numeric())
+        not_removed_all <- NULL
+        
+        # Loop over all combinations of k and lambda
+        for (k in k_values) {
+          for (lambda in lambda_values) {
+            # imputation
+            r <- implement_impute(C, k, lambda)
+            r$results$input_lambda <- lambda
+            r$not_removed$input_lambda <- lambda
+            results <- rbind(results, r$results)
+            not_removed_all <- rbind(not_removed_all, r$not_removed)
+          }
         }
+        
+        ### ---- save results for current k/lambda combination ----
+        # After finishing the k/lambda loops, append the 'results' to 'df_all'
+        # ---- (D) Append to df_all
+        complete_edges_all <- rbind(results, not_removed_all)
+        complete_edges_all$itr <- i
+        bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
+        
+        # reset P
+        P <- P_original
       }
       
-      ### ---- save results for current k/lambda combination ----
-      # After finishing the k/lambda loops, append the 'results' to 'combined_results'
-      # ---- (D) Append to combined_results
-      complete_edges_all <- rbind(results, not_removed_all)
-      complete_edges_all$itr <- i
-      bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
-      
-      # reset P
-      P <- P_original
-    }
-    
-    df_all <- rbind(
-      df_all,
-      cbind(
-        data.frame(
-          emln_id = emln_id,
-          train_layer = layers_to_train,
-          test_layer = layer_to_predict,
-          prop_ones_removed = prop_ones_to_remove,
-          amount_of_removed_1 = num_1_to_remove,
-          amount_of_removed_0 = num_0_to_remove,
-          prop_0_removed = prop_0_removed
-        ),
-        bootstrapping_results
+      df_all <- rbind(
+        df_all,
+        cbind(
+          data.frame(
+            emln_id = emln_id,
+            train_layer = layers_to_train,
+            test_layer = layer_to_predict,
+            prop_ones_removed = prop_ones_to_remove,
+            amount_of_removed_1 = num_1_to_remove,
+            amount_of_removed_0 = num_0_to_remove,
+            prop_0_removed = prop_0_removed
+          ),
+          bootstrapping_results
+        )
       )
-    )
+    }
   }
-}
+  # df_all includes predictions for all combinations of islands, 50 iterations of links withholding and prediction for each combination
+  # save the results
+  saveRDS(df_all, file = results_file)
+} 
 
-# or read it
-# combined_results <-
-#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
-# df_all <- combined_results %>%
-#   filter(k == 2) %>%
-#   filter(!(input_lambda %in%  c(1, 5, 50, 100)))
+# after reading or producing the results, filter these (important!):
+df_all <- df_all %>% 
+  filter(k == 2) %>% 
+  filter(!(input_lambda %in%  c(1, 5, 50, 100)))
 
-### ---- only shared species ----
+## ---- only shared species ----
 set.seed(42)
 # Initialize a data frame to store combined results for all layer combinations
 df_shared_species <- data.frame()
@@ -397,7 +411,7 @@ for (layers_to_train in 1:num_layers) {
       
       sum(is.na(C))
       
-      ### ---- b. prediction with SVD ----
+      ### ---- b. + d. prediction with SVD ----
       k_values <- 2
       lam0 <- lambda0(C)
       lambda_values <- c(lam0)
@@ -421,8 +435,8 @@ for (layers_to_train in 1:num_layers) {
       }
       
       ### ---- save results for current k/lambda combination ----
-      # After finishing the k/lambda loops, append the 'results' to 'combined_results'
-      # ---- (D) Append to combined_results
+      # After finishing the k/lambda loops, append the 'results' to 'df_shared_species'
+      # ---- (D) Append to df_shared_species
       complete_edges_all <- rbind(results, not_removed_all)
       complete_edges_all$itr <- i
       bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)

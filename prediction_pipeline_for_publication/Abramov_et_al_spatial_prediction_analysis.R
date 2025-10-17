@@ -852,11 +852,7 @@ num_layers <- length(unique(aggregated_df$layer_from))
 
 results_file <- "prediction_pipeline_for_publication/results/predictions_island_scale.rds"
 
-# read the data if you already have it
-# combined_results <- 
-#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
-# 
-
+# read the prediction data if you already have it, and if not generate predictions
 
 # Initialize a data frame to store combined results for all layer combinations
 combined_results <- data.frame()
@@ -1233,6 +1229,20 @@ head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
 ### ---- Fig. S9: plot non-thresholded evaluation ----
+# first add layer names
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# create a new grouped tibble for island names
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
 # Add names to main table
 df_eval_summary <- df_eval_summary %>%
   left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
@@ -1468,21 +1478,8 @@ result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
 # summerize (table ST1)
-# first add layer names
-net <- emln::load_emln(60) # canary islands
-net$layers
-net_name <- net$layers %>% select(layer_id, name)
-net_name
-net_name <- net_name %>%
-  mutate(name = gsub("_", " ", name))
 
-# create a new grouped tibble
-new_layer_names <- net_name %>%
-  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
-  group_by(group_id) %>%
-  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
-
-# Add to main table
+# Add island names to main table
 result_summary <- result_summary %>%
   left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
   rename(train_layer_name = name) %>%
@@ -2206,9 +2203,6 @@ pie_chart
 #### ---- add distances and location names ----
 distance_table <- read.csv("prediction_pipeline_for_publication/distance_between_sites_canary.csv", row.names = NULL)
 
-# proceed for both island scale and site scale and compare the trends
-
-#### ---- island scale ----
 # create new table with averaged distances at the island level
 distance_island_table <- distance_table %>%
   mutate(
@@ -2247,263 +2241,21 @@ result_summary_island <- result_summary_island %>%
                                0,              # distance = 0 if same site
                                avg_distance_km))   # otherwise, keep joined distance
 
-#### ---- site scale ----
-# add names and distances to the main table
-net <- emln::load_emln(60) # canary islands
-net$layers
-net_name <- net$layers %>% select(layer_id, name)
-net_name
-net_name <- net_name %>%
-  mutate(name = gsub("_", " ", name))
-
-# Modify the 'from' and 'to' columns in distance_table
-distance_table <- distance_table %>%
-  mutate(from = gsub("_", " ", from),
-         to = gsub("_", " ", to))
-
-# load site scale data
-# result_site <- 
-#   readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_site_scale.rds"))
-# or run the analysis at site scale
-set.seed(42)
-
-# Load matrices
-d <- load_emln(emln_id)
-A_l <- d$extended
-
-# Extract numeric layer numbers
-A_l <- A_l %>%
-  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1,
-                                   paste0("layer_", layer_num, "_", layer_num + 1),
-                                   paste0("layer_", layer_num - 1, "_", layer_num)))
-
-# Total number of layers
-num_layers <- length(unique(A_l$layer_from))
-
-# Initialize a data frame to store combined results for all layer combinations
-result_site <- data.frame()
-
-# Loop through all combinations of layers_to_train and layer_to_predict
-for (layers_to_train in 1:num_layers) {
-  for (layer_to_predict in 1:num_layers) {
-    print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
-    
-    # Build the aggregated matrix A for training
-    A <- build_interaction_matrix(data = A_l, layers_to_filter = layers_to_train)
-    
-    # Build the layer to predict matrix P
-    P <- build_interaction_matrix(data = A_l, layers_to_filter = layer_to_predict)
-    
-    node_to <- rownames(P) # for the results
-    node_from <- colnames(P)
-    
-    ### ---- a. withhold links in P ----
-    # map out the 0s and 1s in P
-    num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
-    ones_in_P <- which(P > 0, arr.ind = TRUE)
-    
-    num_0_to_remove <- num_1_to_remove
-    prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
-    zeros_in_P <- which(P == 0, arr.ind = TRUE)
-    
-    # debug print
-    print(paste("1 remove:", num_1_to_remove))
-    print(paste("all 1   :", nrow(ones_in_P)))
-    print(paste("0s to remove:", num_0_to_remove))
-    print(paste("all zeros   :", nrow(zeros_in_P)))
-    print(paste("prop of zeros removed   : ", prop_0_removed))
-    
-    # Randomly select zeros to withhold - bootstrapping
-    bootstrapping_results <- NULL
-    P_original <- P # save it for later
-    
-    for (i in 1:n_sim) {
-      # remove 1s
-      remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
-      P[remove_indices] <- NA  # Set removed links to NA
-      
-      # sample 0s
-      zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
-      P[zeros_to_remove_indices] <- NA
-      
-      ### ---- creating a combined matrix C ----
-      # Combine A and P into a single matrix C with NAs representing missing data
-      all_row_ids <- unique(c(rownames(A), rownames(P)))
-      all_col_ids <- unique(c(colnames(A), colnames(P)))
-      C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
-                  dimnames = list(all_row_ids, all_col_ids))
-      
-      # Place A into C
-      C[rownames(A), colnames(A)] <- A
-      
-      # Place P into C
-      # Ensure that existing entries are not overwritten; sum overlapping entries
-      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]),
-                                            NA,
-                                            C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-      
-      
-      # Apply biScale to center matrices
-      C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-      
-      sum(is.na(C))
-      
-      ### ---- b. prediction with SVD ----
-      k_values <- 2
-      lam0 <- lambda0(C)
-      lambda_values <- c(lam0)
-      
-      # Initialize variables to store the best results
-      results <- data.frame(k = integer(),
-                            lambda = numeric(),
-                            original_links = numeric(),
-                            predicted_values = numeric())
-      not_removed_all <- NULL
-      
-      # Loop over all combinations of k and lambda
-      for (k in k_values) {
-        for (lambda in lambda_values) {
-          # imputation
-          r <- implement_impute(C, k, lambda)
-          
-          results <- rbind(results, r$results)
-          not_removed_all <- rbind(not_removed_all, r$not_removed)
-        }
-      }
-      
-      ### ---- save results for current k/lambda combination ----
-      # After finishing the k/lambda loops, append the 'results' to 'combined_results'
-      # ---- (D) Append to combined_results
-      complete_edges_all <- rbind(results, not_removed_all)
-      complete_edges_all$itr <- i
-      bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
-      
-      # reset P
-      P <- P_original
-    }
-    
-    result_site <- rbind(
-      result_site,
-      cbind(
-        data.frame(
-          emln_id = emln_id,
-          train_layer = layers_to_train,
-          test_layer = layer_to_predict,
-          prop_ones_removed = prop_ones_to_remove,
-          amount_of_removed_1 = num_1_to_remove,
-          amount_of_removed_0 = num_0_to_remove,
-          prop_0_removed = prop_0_removed
-        ),
-        bootstrapping_results
-      )
-    )
-  }
-}
-
-# save results
-#saveRDS(result_site, file = "prediction_pipeline_for_publication/results/predictions_site_scale.rds")
-
-# # result_site includes predictions for all combinations of sites, 50 iterations of links withholding and prediction for each combination
-# convert negatives to zeros
-result_site <- result_site %>%
-  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
-
-# create the evaluation table
-df_removed_site <- result_site %>%
-  filter(removed == 1) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
-  mutate(original_binary = if_else(original_links > 0, 1, 0))
-
-result_summary_site <- df_removed_site %>%
-  group_by(emln_id, train_layer, test_layer, itr) %>%
-  summarise(
-    TP = sum(original_binary == 1 & predicted_bin_sigm == 1),
-    FN = sum(original_binary == 1 & predicted_bin_sigm == 0),
-    TN = sum(original_binary == 0 & predicted_bin_sigm == 0),
-    FP = sum(original_binary == 0 & predicted_bin_sigm == 1),
-    specificity = TN / (TN + FP),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
-    balanced_accuracy = (recall + specificity) / 2,
-    mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
-    mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
-    rmse = sqrt(mse),
-    nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
-      sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
-    nnse = 1 / (2 - nse)
-  ) %>%
-  ungroup() %>%
-  group_by(emln_id, train_layer, test_layer) %>%
-  summarise(
-    TP = mean(TP, na.rm = TRUE),
-    FN = mean(FN, na.rm = TRUE),
-    TN = mean(TN, na.rm = TRUE),
-    FP = mean(FP, na.rm = TRUE),
-    specificity = mean(specificity, na.rm = TRUE),
-    precision = mean(precision, na.rm = TRUE),
-    recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
-    balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
-    mcc = mean(mcc, na.rm = TRUE),
-    mse = mean(mse, na.rm = TRUE),
-    rmse = mean(rmse, na.rm = TRUE),
-    nse  = mean(nse,  na.rm = TRUE),
-    nnse = mean(nnse, na.rm = TRUE)
-  ) %>%
-  ungroup()
-
-
-result_summary_site <- result_summary_site %>%
-  # Join to add train_layer_name
-  left_join(net_name %>% 
-              rename(train_layer = layer_id, 
-                     train_layer_name = name), 
-            by = "train_layer") %>%
-  # Join to add test_layer_name
-  left_join(net_name %>% 
-              rename(test_layer = layer_id, 
-                     test_layer_name = name), 
-            by = "test_layer")
-
-
-# Add to main table
-result_summary_site <- result_summary_site %>%
-  left_join(
-    distance_table,
-    by = c("train_layer_name" = "from", "test_layer_name" = "to")
-  ) %>%
-  mutate(distance_km = if_else(train_layer_name == test_layer_name,
-                               0,              # distance = 0 if same site
-                               distance_km))   # otherwise, keep joined distance
-
 #### ---- Fig. 4d:  distance correlation with evaluators ----
 
 # remove sites form within the same island - only use information from different islands for distance decay
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
-result_summary_site_dif <- result_summary_site %>% filter(train_layer != test_layer)
-
-# extract island names
-result_summary_site_dif$train_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$train_layer_name)
-result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_site_dif$test_layer_name)
-
-# filter rows where island names are different
-filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
 
 # plot
-cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme) + labs(y = "F1 score")
 cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
-distance_dif_plot_f1 <- combine_two_plots(cor_plot_site_dif_f1, cor_plot_dif_isl_f1)
 
 # pdf(
-#   file   = "cor_plot_site_dif_f1.pdf",
+#   file   = "cor_plot_dif_isl_f1",
 #   width  = 4,
 #   height = 4,
 #   family = "Helvetica"
 # )
-# print(cor_plot_site_dif_f1)
+# print(cor_plot_dif_isl_f1)
 # dev.off()     # close the file
 
 
@@ -2549,41 +2301,6 @@ mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
 # 5. results
 print(mrm_out)
 
-#### ---- MRM for site scale ----
-layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
-
-# initialize empty matrices
-f1_mat_site      <- matrix(NA, nrow=length(layers_site), ncol=length(layers_site),
-                           dimnames=list(layers_site, layers_site))
-dist_mat_km_site <- f1_mat_site
-
-# fill in each cell [i,j] with the corresponding f1_score and distance_km
-for(i in layers_site) for(j in layers_site) {
-  # subset rows where train=i and test=j
-  sub <- result_summary_site_dif[result_summary_site_dif$train_layer==i & result_summary_site_dif$test_layer==j, ]
-  if(nrow(sub)==1) {
-    f1_mat_site[i,j]      <- sub$f1_score
-    dist_mat_km_site[i,j] <- sub$distance_km
-  }
-}
-
-# because MRM uses symmetric distance matrices, average [i,j] & [j,i]
-
-f1_sym_site      <- sym_average(f1_mat_site)
-dist_sym_km_site <- sym_average(dist_mat_km_site)
-
-# convert to “dist” objects (lower triangle)
-dist_f1_site      <- as.dist(f1_sym_site)
-dist_km_site     <- as.dist(dist_sym_km_site)
-
-# run the MRM
-#    — this will regress the F1‐distance matrix on the geographic–distance matrix
-set.seed(42)   # for reproducibility of permutations
-mrm_out_site <- MRM(dist_f1_site ~ dist_km_site, nperm=999)
-
-# results
-print(mrm_out_site)
-
 ### ---- Fig. 2c heatmap ----
 
 island_heatmap_f1 <- 
@@ -2616,98 +2333,6 @@ print(island_heatmap_f1)
 #   family = "Helvetica"   # or another installed font
 # )
 # print(island_heatmap_f1)
-# dev.off()     # close the file
-
-
-### ---- Fig. S1: compare scales ----
-
-df_long <- bind_rows(
-  result_summary_site   %>% mutate(scale = "Site"),
-  result_summary_island %>% mutate(scale = "Island")
-) %>%
-  pivot_longer(
-    cols      = c("f1_score", "nnse"),
-    names_to  = "metric",
-    values_to = "value"
-  ) %>%
-  mutate(metric = factor(metric, levels = c(
-    "f1_score", "nnse"
-  )))
-
-# test for assumptions
-# normality
-
-df_long %>%
-  group_by(metric, scale) %>%
-  shapiro_test(value)   # Shapiro-Wilk normality test
-
-# df_long %>%
-#   ggqqplot(x = "value", facet.by = c("metric", "scale"))
-
-# mostly, data is not normally distributed, so better use wilcoxon 
-
-# plot
-# pretty facet titles with units:
-metric_labels <- c(
-  f1_score          = "F1 score",
-  nnse              = "NNSE"
-)
-
-nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
-  geom_boxplot(
-    notch        = TRUE,
-    outlier.size = 1,
-    position     = position_dodge(width = 0.75)
-  ) +
-  facet_wrap(
-    ~ metric,
-    scales        = "free_y",
-    labeller      = as_labeller(metric_labels),
-    ncol          = 4,
-    switch        = "y"             # move the strip to the left side
-  ) +
-  stat_compare_means(
-    method         = "wilcox.test",
-    label          = "p.format",    # print the full p‐value
-    p.format.args  = list(
-      digits     = 2,               # two digits after decimal
-      scientific = TRUE             # use e-notation for small p’s
-    ),
-    label.y        = Inf,
-    vjust          = 1.5,
-    label.x        = 1.45,
-    tip.length     = 0.01,
-    size           = 3.5              # adjust this for font size
-  ) +
-  scale_fill_manual(values = c("Site"   = "lightsteelblue2",
-                               "Island" = "wheat2")) +
-  labs(
-    x = NULL,
-    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    strip.placement       = "outside",           # draw strips outside the plot panel
-    strip.text.y.left     = element_text(
-      angle = 90,          # horizontal text
-      face  = "bold",
-      size  = 12
-    ),
-    axis.text.x           = element_blank(),
-    axis.ticks.x          = element_blank(),
-    legend.position       = "bottom"
-  ) + tme
-
-nnse_f1_scales
-
-# #Base‐R PDF device
-# pdf(
-#   file   = "nnse_f1_scales.pdf",
-#   width  = 7,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(nnse_f1_scales)
 # dev.off()     # close the file
 
 ### ---- additional stats ----
@@ -2908,14 +2533,8 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 #                   ncol = 1,
 #                   rel_heights = c(1,1))
 # 
-library(ggplot2)
-library(cowplot)
-library(grid)
-library(dplyr)
-library(tidyr)
-library(scales)
 
-## ---------- helpers -------------------------------------------------------
+# helpers
 
 # Remove any text/label annotation layers (e.g., annotate("text", ...))
 drop_text_layers <- function(p) {
@@ -2965,7 +2584,7 @@ add_center_header <- function(p, header_text, size = 11, header_height = 0.12) {
   )
 }
 
-## ---------- plotting function (Jaccard) -----------------------------------
+# plotting function (Jaccard)
 
 make_facet_scatter_plot2 <- function(
     data,
@@ -3002,7 +2621,7 @@ make_facet_scatter_plot2 <- function(
     )
 }
 
-## ---------- build panels --------------------------------------------------
+# build panels
 
 # (a) Pollinators
 p_a_core <- make_facet_scatter_plot2(
@@ -3048,7 +2667,7 @@ p_d_core <- drop_text_layers(p_d_core)   # strip annotate("text", ...) if presen
 label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f1_score", result_summary_island_dif))
 p_d <- add_center_header(p_d_core, label_d, size = 12)
 
-## ---------- arrange 2×2 ---------------------------------------------------
+# arrange 2×2
 
 isl_jaccard_distance <- plot_grid(
   p_a, p_b, p_c, p_d,

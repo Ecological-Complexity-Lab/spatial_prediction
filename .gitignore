@@ -95,6 +95,18 @@ results/10_iterations/canary/island_canary_weighted_analysis_cache/html/evaluati
 results/10_iterations/canary/island_canary_weighted_analysis_cache/html/__packages
 results/50_iterations/missing_links.pdf
 *.csv
+<<<<<<< Updated upstream
 results/50_iterations/jaccard_isl_f1.pdf
 *.pdf
 results/50_iterations/jaccard_isl_f1.pdf
+=======
+results/50_iterations/missing_links.pdf
+>>>>>>> Stashed changes
+prediction_pipeline_for_publication/results/predictions_island_scale.rds
+prediction_pipeline_for_publication/results/predictions_island_scale.rds
+prediction_pipeline_for_publication/results/predictions_island_scale_all_nas.rds
+prediction_pipeline_for_publication/results/predictions_site_scale.rds
+results/50_iterations/jaccard_isl_f1.pdf
+*.pdf
+operating_code/other_analyses/removed_all_links/predictions_island_scale_all_nas.rds
+prediction_pipeline_for_publication/results/predictions_island_scale.rds
