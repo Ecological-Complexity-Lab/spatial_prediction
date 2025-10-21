@@ -2201,7 +2201,7 @@ pie_chart
 
 ### ---- distance decay ----
 #### ---- add distances and location names ----
-distance_table <- read.csv("results/distance_between_sites_canary.csv", row.names = NULL)
+distance_table <- read.csv("data/distance_between_sites_canary.csv", row.names = NULL)
 
 # create new table with averaged distances at the island level
 distance_island_table <- distance_table %>%

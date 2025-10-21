@@ -1105,11 +1105,10 @@ results <- data.frame()
 # Loop through all combinations of emln_id, layers_to_train, and layer_to_predict
 # Load matrices
 d <- load_emln(emln_id)
-graph_list <- get_igraph(d, bipartite = TRUE, directed = FALSE)$layers_igraph
 A_l <- d$extended
 
 # Total number of layers
-num_layers <- length(graph_list)
+num_layers <- length(unique(A_l$layer_from))
 
 for (layers_to_train in 1:num_layers) {
   for (layer_to_predict in 1:num_layers) {
@@ -1396,7 +1395,7 @@ jaccard_site_nnse
 
 ## ---- distance decay ----
 #### ---- add distances and location names ----
-distance_table <- read.csv("results/distance_between_sites_canary.csv", row.names = NULL)
+distance_table <- read.csv("data/distance_between_sites_canary.csv", row.names = NULL)
 
 net <- emln::load_emln(60) # canary islands
 net$layers
