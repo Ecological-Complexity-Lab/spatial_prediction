@@ -17,7 +17,7 @@ thresholds <- seq(0, 1, by = 0.1)
 las <- c(1, 5, 50, 100)
 
 # read data
-alll <- readRDS("prediction_pipeline_for_publication/results/predictions_island_scale.rds")
+alll <- readRDS("results/predictions_island_scale.rds")
 all_ks <- alll %>% filter(input_lambda %in% las) %>%
   mutate(input_lambda = factor(input_lambda, levels = las))
 

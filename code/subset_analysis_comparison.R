@@ -182,7 +182,7 @@ print(aggregated_df)
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
-results_file <- "prediction_pipeline_for_publication/results/predictions_island_scale.rds"
+results_file <- "results/predictions_island_scale.rds"
 
 # read the prediction data if you already have it, and if not generate predictions
 

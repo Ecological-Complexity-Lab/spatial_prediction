@@ -1396,7 +1396,7 @@ jaccard_site_nnse
 
 ## ---- distance decay ----
 #### ---- add distances and location names ----
-distance_table <- read.csv("prediction_pipeline_for_publication/distance_between_sites_canary.csv", row.names = NULL)
+distance_table <- read.csv("results/distance_between_sites_canary.csv", row.names = NULL)
 
 net <- emln::load_emln(60) # canary islands
 net$layers
@@ -1492,7 +1492,7 @@ print(mrm_out_site)
 ### ---- Fig. S1: compare scales ----
 # read island scale results
 combined_results_island <- 
-  readRDS(file = paste0("prediction_pipeline_for_publication/results/predictions_island_scale.rds"))
+  readRDS(file = paste0("results/predictions_island_scale.rds"))
 combined_results_island <- combined_results_island %>% 
   filter(k == 2) %>% 
   filter(!(input_lambda %in%  c(1, 5, 50, 100)))

@@ -850,7 +850,7 @@ print(aggregated_df)
 # Total number of layers
 num_layers <- length(unique(aggregated_df$layer_from))
 
-results_file <- "prediction_pipeline_for_publication/results/predictions_island_scale.rds"
+results_file <- "results/predictions_island_scale.rds"
 
 # read the prediction data if you already have it, and if not generate predictions
 
@@ -2201,7 +2201,7 @@ pie_chart
 
 ### ---- distance decay ----
 #### ---- add distances and location names ----
-distance_table <- read.csv("prediction_pipeline_for_publication/distance_between_sites_canary.csv", row.names = NULL)
+distance_table <- read.csv("results/distance_between_sites_canary.csv", row.names = NULL)
 
 # create new table with averaged distances at the island level
 distance_island_table <- distance_table %>%
