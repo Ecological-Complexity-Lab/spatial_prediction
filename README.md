@@ -1,9 +1,9 @@
 # :wave: About
-This repository contains the code and data for the paper: "Predicting missing ecological interactions across space using latent patterns in network structure" - Currently writing in progress.
+This repository contains the code and data for the paper: "Structure knows best: using latent network patterns to predict missing ecological interactions across space" - Currently writing in progress.
 
 
 # :page_facing_up: Paper and citing
-Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Predicting missing ecological interactions across space using latent patterns in network structure**. EcoEvoRxiv? (preprint) 2025. [DOI:TBD](TBD).
+Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Structure knows best: using latent network patterns to predict missing ecological interactions across space**. EcoEvoRxiv? (preprint) 2025. [DOI:TBD](TBD).
 
 
 # Abstract:
