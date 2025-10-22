@@ -1093,14 +1093,14 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
   scale_color_brewer(palette = "Pastel2") +
   tme
 
-# pdf(
-#   file   = "optimal_threshold.pdf",
-#   width  = 5,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(optimal_threshold)
-# dev.off()     # close the file
+pdf(
+  file   = "results/paper_figs/optimal_threshold.pdf",
+  width  = 5,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(optimal_threshold)
+dev.off()     # close the file
 
 df_eval <- df %>%
   filter(removed == 1) %>%
@@ -1176,14 +1176,14 @@ predicted_original <- df_removed %>%
   coord_equal()+
   theme_minimal(base_size = 14) + tme
 
-# pdf(
-#   file   = "predicted_original.pdf",
-#   width  = 6,    # inches
-#   height = 9,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(predicted_original)
-# dev.off()     # close the file
+pdf(
+  file   = "results/paper_figs/predicted_original.pdf",
+  width  = 6,    # inches
+  height = 9,
+  family = "Helvetica"   # or another installed font
+)
+print(predicted_original)
+dev.off()     # close the file
 
 
 df_removed <- df %>%
@@ -1311,13 +1311,13 @@ pr_roc <- plot_grid(
 )
 
 # supplementary figure pr_roc
-# pdf(file   = "results/paper_figs/pr_roc.pdf",
-#     width  = 13,    # inches
-#     height = 10,
-#     family = "Helvetica"   # or another installed font
-# )
-# pr_roc
-# dev.off()
+pdf(file   = "results/paper_figs/pr_roc.pdf",
+    width  = 13,    # inches
+    height = 10,
+    family = "Helvetica"   # or another installed font
+)
+pr_roc
+dev.off()
 
 ### ---- Fig. 2d: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
@@ -1353,14 +1353,14 @@ range(results_diags$f1_score)
 range(results_offs$f1_score)
 
 # # Base‐R PDF device
-# pdf(
-#   file   = "hist_f1a_legend_bottom.pdf",
-#   width  = 6,    # inches
-#   height = 7,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(hist_f1a)
-# dev.off()     # close the file
+pdf(
+  file   = "results/paper_figs/hist_f1a_legend_bottom.pdf",
+  width  = 6,    # inches
+  height = 7,
+  family = "Helvetica"   # or another installed font
+)
+print(hist_f1a)
+dev.off()     # close the file
 
 # stats
 # run t-test via formula interface
@@ -1520,14 +1520,14 @@ df_f1_nnse_size <- result_summary %>%
 netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 5
 netsize_f1_nnse
 
-# pdf(
-#   file   = "netsize_f1_nnse.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(netsize_f1_nnse)
-# dev.off()     # close the file
+pdf(
+  file   = "results/paper_figs/netsize_f1_nnse.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(netsize_f1_nnse)
+dev.off()     # close the file
 
 #### ---- Fig. S5: density ----
 
@@ -1540,14 +1540,14 @@ netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tm
 netdensity_f1_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f1_nnse
 
-# pdf(
-#   file   = "netdensity_f1_nnse.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(netdensity_f1_nnse)
-# dev.off()     # close the file
+pdf(
+  file   = "netdensity_f1_nnse.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(netdensity_f1_nnse)
+dev.off()     # close the file
 
 ### ---- Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
