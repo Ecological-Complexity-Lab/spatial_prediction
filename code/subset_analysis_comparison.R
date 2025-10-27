@@ -572,7 +572,7 @@ analyze_predictions <- function(df, name = "Dataset") {
 res_all <- analyze_predictions(df_all, "All")
 res_shared_species <- analyze_predictions(df_shared_species, "Shared species")
 
-### ---- plot difference between analyses ----
+### ---- Fig. 2a,b: plot difference between analyses ----
 df_all_combined <- bind_rows(
   res_all$result_summary             %>% mutate(dataset = "all"),
   res_shared_species$result_summary %>% mutate(dataset = "shared_species")
@@ -680,12 +680,12 @@ combined <- (p_nnse | p_f1) +       # side by side
 
 print(combined)
 
-# pdf(
-#   file   = "subset_analysis.pdf",
-#   width  = 7,    # inches
-#   height = 5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(combined)
-# dev.off()     # close the file
+pdf(
+  file   = "subset_analysis.pdf",
+  width  = 7,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(combined)
+dev.off()     # close the file
 
