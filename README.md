@@ -1,5 +1,5 @@
 # :wave: About
-This repository contains the code and data for the paper: "Structure knows best: using latent network patterns to predict missing ecological interactions across space" - Currently writing in progress.
+This repository contains the code and data for the paper: "Structure knows best: using latent network patterns to predict ecological interactions across space" - currently writing in progress.
 
 
 # :page_facing_up: Paper and citing
@@ -7,13 +7,50 @@ Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Structur
 
 
 # Abstract:
-Our work provides a methodological framework for choosing the right source of additional information to complete missing interaction data in a target location. In this work we attempted to quantify the effects of spatial context on predictive capacity.
+1. Ecological communities are complex and exhibit considerable spatial variability, presenting challenges in accurately understanding these systems. A primary obstacle in ecological research is the existence of ‘missing links’ between species—inevitable unobserved interactions that limit our comprehension of ecological networks and how they respond to change. While link prediction methods have been developed to address this challenge, most approaches overlook the intrinsic spatial variability of ecological systems.
+2. Here, we introduce a flexible, spatially explicit framework based on matrix decomposition, that lever- ages latent patterns in network structure to predict missing interactions and their strength, without requiring species traits or environmental data. The method integrates information from both a focal network and paired source locations, capturing structural signals across space. We applied this frame- work to plant-pollinator networks across the Canary Islands, performing pairwise predictions among locations, including self-predictions, and explored how between-site spatial variability influences predictive performance.
+3. Predictions revealed that latent network structure contains substantial ecological information, with F1 scores consistently exceeding a random baseline (F1 = 0.68 ± 0.04 SD), while being less sensitive to interaction strength. The method enabled identifying plausible gaps in the data and producing ecologically coherent predictions. Incorporating external information enhanced predictive accuracy in certain cases, but success depended critically on spatial context: predictions were most reliable when derived from nearby, ecologically similar sites or islands with larger networks, and declined with increasing geographic and ecological distance, demonstrating a clear distance-decay effect.
+4. We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. While network structure offers rich predictive information, spatial context is essential for applying it effectively: ignoring spatial variability can obscure ecological signals and inflate predictive error.
 
 # :file_folder: Folder breakdown:
 Detailed in the repository Wiki (under "Directories").
 
 # :file_cabinet: Data used:
 Detailed in the repository Wiki (under "Data").
+Get data from the R EMLN package.
+Case study: Trøjelsgaard et al., 2015.
+Distance between sites: distance_between_sites_canary.csv
 
 # :computer: Code:
 Detailed in the repository Wiki (under "Code").
+
+# :Output:
+plots is pdf format.
+Main code: 
+
+- optimal_threshold (Fig. S8)
+- predicted_original (Fig. S10)
+- pr_roc (Fig. S9)
+- hist_f1a_legend_bottom (Fig. 2d)
+- netsize_f1_nnse (Fig. S13)
+- netdensity_f1_nnse (Fig. 5)
+- degree_unobserved_links (Fig. 3c)
+- map_missing_links (Fig. 3a)
+- map_missing_links_diags_offs (Fig. S11)
+- pie_chart (Fig. 3b)
+- island_heatmap_f1 (Fig. 2c)
+- degree_occuurrence (Fig. S12)
+- isl_jaccard_distance (Fig. 4)
+
+Site scale analysis:
+- hist_f1_site (Fig. S3)
+- site_netsize_f1_nnse (Fig. S6)
+- site_netdensity_f1_nnse (Fig. S7)
+- site_heatmap_f1 (Fig. S2)
+- jaccard_site_f1 (Fig. S4)
+- cor_plot_site_dif_f1 (Fig. S5)
+- nnse_f1_scales (Fig. S1)
+
+Subset analysis:
+- subset_analysis (Fig 2a,b)
+
