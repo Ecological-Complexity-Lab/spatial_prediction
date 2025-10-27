@@ -1055,14 +1055,14 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
 hist_f1a
 
 # # Base‐R PDF device
-# pdf(
-#   file   = "hist_f1_site.pdf",
-#   width  = 5,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(hist_f1a)
-# dev.off()     # close the file
+pdf(
+  file   = "hist_f1_site.pdf",
+  width  = 5,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(hist_f1a)
+dev.off()     # close the file
 
 # stats
 # run t-test via formula interface
@@ -1224,7 +1224,7 @@ df_summary
 
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. S5: correlate network size with evaluators ----
+#### ---- Fig. S6: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1243,16 +1243,16 @@ df_f1_nnse_size <- result_summary %>%
 netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 5
 netsize_f1_nnse
 
-# pdf(
-#   file   = "site_netsize_f1_nnse.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(netsize_f1_nnse)
-# dev.off()     # close the file
+pdf(
+  file   = "site_netsize_f1_nnse.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(netsize_f1_nnse)
+dev.off()     # close the file
 
-#### ---- Fig. S6: density ----
+#### ---- Fig. S7: density ----
 
 df_f1_nnse_density <- result_summary %>%
   select(f1_score, nnse, density_P, density_C) %>%
@@ -1262,14 +1262,14 @@ df_f1_nnse_density <- result_summary %>%
 netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tme
 netdensity_f1_nnse
 
-# pdf(
-#   file   = "site_netdensity_f1_nnse.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(netdensity_f1_nnse)
-# dev.off()     # close the file
+pdf(
+  file   = "site_netdensity_f1_nnse.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(netdensity_f1_nnse)
+dev.off()     # close the file
 
 ### ---- Fig. S2: heatmap ----
 site_heatmap_f1 <- 
@@ -1294,14 +1294,14 @@ site_heatmap_f1 <-
 
 print(site_heatmap_f1)
 
-# pdf(
-#   file   = "site_heatmap_f1.pdf",
-#   width  = 6,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(site_heatmap_f1)
-# dev.off()     # close the file
+pdf(
+  file   = "site_heatmap_f1.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(site_heatmap_f1)
+dev.off()     # close the file
 
 ### ---- Fig. S4: Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
@@ -1376,14 +1376,14 @@ jaccard_site_f1 <- make_facet_scatter_plot(data = canary_results_jaccard,
 jaccard_site_f1
 
 # # Base‐R PDF device
-# pdf(
-#   file   = "jaccard_site_f1.pdf",
-#   width  = 7,    # inches
-#   height = 3.5,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(jaccard_site_f1)
-# dev.off()     # close the file
+pdf(
+  file   = "jaccard_site_f1.pdf",
+  width  = 7,    # inches
+  height = 3.5,
+  family = "Helvetica"   # or another installed font
+)
+print(jaccard_site_f1)
+dev.off()     # close the file
 
 jaccard_site_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
                                            evaluator = "nnse",
@@ -1442,16 +1442,16 @@ result_summary_site_dif$test_island <- sub("^(\\w+).*", "\\1", result_summary_si
 # filter rows where island names are different
 filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island != result_summary_site_dif$test_island, ]
 
-# plot
+### ---- Fig. S5: plot distance decay ----
 cor_plot_site_dif_f1 <- make_cor_plot(filtered_results, evaluator = "f1_score", extra_theme = tme) + labs(y = "F1 score")
-# pdf(
-#   file   = "cor_plot_site_dif_f1.pdf",
-#   width  = 4,
-#   height = 4,
-#   family = "Helvetica"
-# )
-# print(cor_plot_site_dif_f1)
-# dev.off()     # close the file
+pdf(
+  file   = "cor_plot_site_dif_f1.pdf",
+  width  = 4,
+  height = 4,
+  family = "Helvetica"
+)
+print(cor_plot_site_dif_f1)
+dev.off()     # close the file
 
 #### ---- MRM for site scale ----
 layers_site <- sort(unique(c(result_summary_site_dif$train_layer, result_summary_site_dif$test_layer)))
@@ -1622,14 +1622,14 @@ nnse_f1_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
 nnse_f1_scales
 
 # #Base‐R PDF device
-# pdf(
-#   file   = "nnse_f1_scales.pdf",
-#   width  = 7,    # inches
-#   height = 4,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(nnse_f1_scales)
-# dev.off()     # close the file
+pdf(
+  file   = "nnse_f1_scales.pdf",
+  width  = 7,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(nnse_f1_scales)
+dev.off()     # close the file
 
 
 
