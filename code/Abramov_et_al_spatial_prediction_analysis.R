@@ -1,6 +1,6 @@
 # ---- Predicting interactions across space with SVD ----
 # this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
-# here we focus on island scale, but there is a section for comparison between scales.
+# here we focus on island scale, but there is a code for site-scale analysis and comparison between scales.
 # stages are according to the pipeline figure (Fig. 1).
 ### code for publication ###
 ## ---- load libraries ----

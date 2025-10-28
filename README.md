@@ -1,25 +1,28 @@
 # :wave: About
-This repository contains the code and data for the paper: "Structure knows best: using latent network patterns to predict ecological interactions across space" - currently writing in progress.
+This repository contains the code and data for the paper: "Structure knows best: predicting ecological interactions across space through pairwise integration of latent network patterns".
 
 
 # :page_facing_up: Paper and citing
-Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Structure knows best: using latent network patterns to predict missing ecological interactions across space**. EcoEvoRxiv? (preprint) 2025. [DOI:TBD](TBD).
+Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Structure knows best: predicting ecological interactions across space through pairwise integration of latent network patterns**. EcoEvoRxiv? (preprint) 2025. [DOI:TBD](TBD).
 
 
 # Abstract:
 1. Ecological communities are complex and exhibit considerable spatial variability, presenting challenges in accurately understanding these systems. A primary obstacle in ecological research is the existence of ‘missing links’ between species—inevitable unobserved interactions that limit our comprehension of ecological networks and how they respond to change. While link prediction methods have been developed to address this challenge, most approaches overlook the intrinsic spatial variability of ecological systems.
-2. Here, we introduce a flexible, spatially explicit framework based on matrix decomposition, that lever- ages latent patterns in network structure to predict missing interactions and their strength, without requiring species traits or environmental data. The method integrates information from both a focal network and paired source locations, capturing structural signals across space. We applied this frame- work to plant-pollinator networks across the Canary Islands, performing pairwise predictions among locations, including self-predictions, and explored how between-site spatial variability influences predictive performance.
+2. Here, we introduce a flexible, spatially explicit framework based on matrix decomposition, that lever- ages latent patterns in network structure to predict missing interactions and their strength, without requiring species traits or environmental data. The method integrates information from both a focal network and paired source locations, capturing structural signals across space. We applied this framework to plant-pollinator networks across the Canary Islands, performing pairwise predictions among locations, including self-predictions, and explored how between-site spatial variability influences predictive performance.
 3. Predictions revealed that latent network structure contains substantial ecological information, with F1 scores consistently exceeding a random baseline (F1 = 0.68 ± 0.04 SD), while being less sensitive to interaction strength. The method enabled identifying plausible gaps in the data and producing ecologically coherent predictions. Incorporating external information enhanced predictive accuracy in certain cases, but success depended critically on spatial context: predictions were most reliable when derived from nearby, ecologically similar sites or islands with larger networks, and declined with increasing geographic and ecological distance, demonstrating a clear distance-decay effect.
 4. We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. While network structure offers rich predictive information, spatial context is essential for applying it effectively: ignoring spatial variability can obscure ecological signals and inflate predictive error.
 
 # :file_folder: Folder breakdown:
 Detailed in the repository Wiki (under "Directories").
 
-# :file_cabinet: Data used:
+# :file_cabinet: Data:
 Detailed in the repository Wiki (under "Data").
-Get data from the R EMLN package.
-Case study: Trøjelsgaard et al., 2015.
+
+Case study: Trøjelsgaard, K., Jordano, P., Carstensen, D. W., & Olesen, J. M. (2015). Geographical variation in mutualistic networks: Similarity, turnover and partner fidelity. Proceedings. Biological sciences / The Royal Society,282 (1802), 20142925. https://doi.org/10.1098/rspb.2014.2925
+
 Distance between sites: distance_between_sites_canary.csv
+The data are available in the repository set up in original publication: https://datadryad.org/dataset/doi:
+10.5061/dryad.76173.
 
 # :computer: Code:
 Detailed in the repository Wiki (under "Code").
