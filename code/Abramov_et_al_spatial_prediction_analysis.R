@@ -2359,7 +2359,6 @@ levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
 ## ---- Fig. S12: no. of islands in which species occur ----
-# Assuming your table is called df
 
 # Combine plant and pollinator columns into one column of species occurrences
 
