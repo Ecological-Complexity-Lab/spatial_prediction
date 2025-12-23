@@ -74,13 +74,9 @@ df_summary <- df_island %>%
     n_islands_observed = sum(observed == 1L, na.rm = TRUE),
     avg_prop_isl       = n_islands_observed / 7,   # fixed denominator
     
-    avg_sigm_predicted = if (all(observed == 1L)) {
-      NA_real_
-    } else {
-      mean(island_sigm_predicted[observed == 0L], na.rm = TRUE)
-    },
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
     .groups = "drop"
-  )
+  ) # add a column to count islands for which the interaction was predicted
 
 df_summary <- df_summary %>%
   # join pollinator degree by node_to
@@ -91,7 +87,7 @@ df_summary <- df_summary %>%
 
 view(df_summary)
 
-# stopped here. fix the way island_sigm_predicted is calculated to include only observed == 0
+# stopped here. fix the way island_sigm_predicted is calculated to include only observed == 0? but when we predicted we didn't care about all of the other islands. so it does not make sense.
 
 # # filter the interactions that were never observed throughout the data set
 # df_never_observed <- df_summary %>%
@@ -396,11 +392,7 @@ df_summary_diag <- df_island_diag %>%
     n_islands_observed = sum(observed == 1L, na.rm = TRUE),
     avg_prop_isl       = n_islands_observed / 7,   # fixed denominator
     
-    avg_sigm_predicted = if (all(observed == 1L)) {
-      NA_real_
-    } else {
-      mean(island_sigm_predicted[observed == 0L], na.rm = TRUE)
-    },
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -443,11 +435,7 @@ df_summary_offs <- df_island_offs %>%
     n_islands_observed = sum(observed == 1L, na.rm = TRUE),
     avg_prop_isl       = n_islands_observed / 7,   # fixed denominator
     
-    avg_sigm_predicted = if (all(observed == 1L)) {
-      NA_real_
-    } else {
-      mean(island_sigm_predicted[observed == 0L], na.rm = TRUE)
-    },
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -498,13 +486,13 @@ df_plot <- diff_df %>%
   mutate(
     sigm_cat = case_when(
       avg_sigm_predicted_diag < best_discrete_threshold &
-        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+        avg_sigm_predicted_offs > best_discrete_threshold ~ "offs↑ only",
       
       avg_sigm_predicted_offs < best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+        avg_sigm_predicted_diag > best_discrete_threshold ~ "diag↑ only",
       
-      avg_sigm_predicted_offs >= best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+      avg_sigm_predicted_offs > best_discrete_threshold &
+        avg_sigm_predicted_diag > best_discrete_threshold ~ "both↑",
       
       TRUE ~ NA_character_
     )
@@ -563,19 +551,19 @@ map_missing_links_diags_offs
 # print(map_missing_links_diags_offs)
 # dev.off()     # close the file
 # 
-# png(
-#   filename = "map_missing_links_diags_offs.png",
-#   width    = 12,
-#   height   = 7,
-#   units    = "in",
-#   res      = 300,
-#   family   = "Helvetica"
-# )
-# 
-# # --- your plotting code here ---
-# print(map_missing_links_diags_offs)
-# 
-# dev.off()
+png(
+  filename = "map_missing_links_diags_offs.png",
+  width    = 12,
+  height   = 7,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_missing_links_diags_offs)
+
+dev.off()
 
 map_missing_links_noleg <- map_missing_links +
   theme(legend.position = "none")
@@ -583,19 +571,19 @@ map_missing_links_noleg <- map_missing_links +
 map_missing_links_diags_offs_noleg <- map_missing_links_diags_offs +
   theme(legend.position = "none")
 
-# png(
-#   filename = "map_missing_links_diags_offs_noleg.png",
-#   width    = 12,
-#   height   = 6,
-#   units    = "in",
-#   res      = 300,
-#   family   = "Helvetica"
-# )
-# 
-# # --- your plotting code here ---
-# print(map_missing_links_diags_offs_noleg)
-# 
-# dev.off()
+png(
+  filename = "map_missing_links_diags_offs_noleg.png",
+  width    = 12,
+  height   = 6,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_missing_links_diags_offs_noleg)
+
+dev.off()
 # 
 # png(
 #   filename = "map_missing_links_noleg.png",
@@ -619,6 +607,414 @@ df_plot %>%
     n_links = n()
   )
 
+### ---- conference missing links map ----
+all((diff_df$avg_prop_isl_diag) == (diff_df$avg_prop_isl_offs)) # check
+
+map_potential_missing_links <- ggplot(diff_df, aes(x = node_to, y = node_from)) +
+  # # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "steelblue",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but have high predicted value with within-system data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag > best_discrete_threshold & avg_sigm_predicted_offs < best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # third layer that is "a part" of the second layer: overlay additional cells from external predictions
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold & avg_sigm_predicted_diag < best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_offs),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # fourth layer that overlays cells predicted by both approaches
+  geom_tile(
+    data = diff_df %>%
+      mutate(
+        diag_ok = !is.na(avg_sigm_predicted_diag) & avg_sigm_predicted_diag > thr,
+        offs_ok = !is.na(avg_sigm_predicted_offs) & avg_sigm_predicted_offs > thr,
+        max_pred = pmax(avg_sigm_predicted_diag, avg_sigm_predicted_offs, na.rm = TRUE)
+      ) %>%
+      filter(avg_prop_isl_diag == 0, diag_ok, offs_ok),
+    aes(fill = max_pred),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links)
+
+map_potential_missing_links_noleg <- map_potential_missing_links +
+  theme(legend.position = "none")
+
+png(
+  filename = "map_potential_missing_links_noleg.png",
+  width    = 12,
+  height   = 6,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica",
+  bg = "transparent"
+)
+
+# --- your plotting code here ---
+print(map_potential_missing_links_noleg)
+
+dev.off()
+
+# only potential missing links
+
+map_potential_missing_links_orange <- ggplot(diff_df, aes(x = node_to, y = node_from)) +
+  # # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "white",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+
+  # Second layer: overlay only cells that were never observed but have high predicted value with within-system data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag > best_discrete_threshold & avg_sigm_predicted_offs < best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # third layer that is "a part" of the second layer: overlay additional cells from external predictions
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold & avg_sigm_predicted_diag < best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_offs),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # fourth layer that overlays cells predicted by both approaches
+  geom_tile(
+    data = diff_df %>%
+      mutate(
+        diag_ok = !is.na(avg_sigm_predicted_diag) & avg_sigm_predicted_diag > thr,
+        offs_ok = !is.na(avg_sigm_predicted_offs) & avg_sigm_predicted_offs > thr,
+        max_pred = pmax(avg_sigm_predicted_diag, avg_sigm_predicted_offs, na.rm = TRUE)
+      ) %>%
+      filter(avg_prop_isl_diag == 0, diag_ok, offs_ok),
+    aes(fill = max_pred),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links_orange)
+
+map_potential_missing_links_orange_noleg <- map_potential_missing_links_orange +
+  theme(legend.position = "none")
+
+png(
+  filename = "map_potential_missing_links_orange_noleg.png",
+  width    = 12,
+  height   = 6,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_potential_missing_links_orange_noleg)
+
+dev.off()
+
+## ---- External vs. within system prediction for conference ----
+
+map_potential_missing_links_diag_offs <- ggplot(diff_df, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient) - we don't show existing links
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "white",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but predicted only with external data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag < best_discrete_threshold &
+                                avg_sigm_predicted_offs > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_offs),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "salmon", high = "salmon",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # third layer: overlay only cells that were never observed but predicted only with within-system data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs < best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "plum", high = "plum",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # fourth layer: overlay interactions that were predicted using both approaches
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links_diag_offs)
+
+map_potential_missing_links_diag_offs_noleg <- map_potential_missing_links_diag_offs +
+  theme(legend.position = "none")
+
+png(
+  filename = "map_potential_missing_links_diag_offs_noleg_violet.png",
+  width    = 12,
+  height   = 6,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_potential_missing_links_diag_offs_noleg)
+
+dev.off()
+
+diff_df_salmon <- diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag < best_discrete_threshold &
+                                        avg_sigm_predicted_offs > best_discrete_threshold)
+
+unique(diff_df_salmon$node_to)
+
+diff_df_violet <- diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs < best_discrete_threshold &
+                                       avg_sigm_predicted_diag > best_discrete_threshold)
+
+
+diff_df_blue <- diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold &
+                                     avg_sigm_predicted_diag > best_discrete_threshold)
+
+
+### ---- number of prediction instances ----
+# only within-island data
+
+df_summary_diag_count <- df_island_diag %>%
+  group_by(node_from, node_to) %>%
+  summarise(
+    n_islands_observed = sum(observed == 1L, na.rm = TRUE),
+    avg_prop_isl       = n_islands_observed / 7,   # fixed denominator
+    
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+    n_islands_pred = sum(island_sigm_predicted > best_discrete_threshold, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+df_summary_diag_count <- df_summary_diag_count %>%
+  # join pollinator degree by node_to
+  left_join(overall_poll_degree, by = "node_to") %>%
+  # join plant degree by node_from
+  left_join(overall_plant_degree, by = "node_from")
+
+
+view(df_summary_diag_count)
+
+# only with extrnal data
+
+df_summary_offs_counts <- df_island_offs %>%
+  group_by(node_from, node_to) %>%
+  summarise(
+    n_islands_observed = sum(observed == 1L, na.rm = TRUE),
+    avg_prop_isl       = n_islands_observed / 7,   # fixed denominator
+    avg_sigm_predicted = mean(island_sigm_predicted, na.rm = TRUE),
+    n_islands_pred = sum(island_sigm_predicted > best_discrete_threshold, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+df_summary_offs_counts <- df_summary_offs_counts %>%
+  # join pollinator degree by node_to
+  left_join(overall_poll_degree, by = "node_to") %>%
+  # join plant degree by node_from
+  left_join(overall_plant_degree, by = "node_from")
+
+
+view(df_summary_offs_counts)
+
+# create a combined table
+diff_df_count <- full_join(
+  df_summary_offs_counts,
+  df_summary_diag_count,
+  by     = c("node_from","node_to"),
+  suffix = c("_offs","_diag")
+) 
+
+# order species by their degree
+diff_df_count$node_from <- factor(diff_df_count$node_from, levels = plant_order)
+diff_df_count$node_to   <- factor(diff_df_count$node_to, levels = poll_order)
+
+map_potential_missing_links_count <- ggplot(diff_df_count, aes(x = node_to, y = node_from)) +
+  # # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "white",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but have high predicted value with within-system data
+  geom_tile(
+    data = diff_df_count %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag > best_discrete_threshold & avg_sigm_predicted_offs < best_discrete_threshold),
+    aes(fill = n_islands_pred_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "wheat", high = "lightpink3",
+                      name = "Predicted links:\number of islands\npredicted",
+                      breaks = seq(0, 7, 1)) +
+  
+  # # Reset fill scale so the next layer can have its own gradient
+  # new_scale_fill() +
+  
+  # third layer that is "a part" of the second layer: overlay additional cells from external predictions
+  geom_tile(
+    data = diff_df_count %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold & avg_sigm_predicted_diag < best_discrete_threshold),
+    aes(fill = n_islands_pred_offs),
+    alpha = 0.6
+  ) +
+  # scale_fill_gradient(low = "wheat", high = "lightpink3",
+  #                     name = "Predicted links:\number of islands\npredicted",
+  #                     breaks = seq(0, 7, 1)) +
+  # # Reset fill scale so the next layer can have its own gradient
+  # new_scale_fill() +
+  
+  # fourth layer that overlays cells predicted by both approaches
+  geom_tile(
+    data = diff_df_count %>%
+      mutate(
+        diag_ok = !is.na(avg_sigm_predicted_diag) & avg_sigm_predicted_diag > best_discrete_threshold,
+        offs_ok = !is.na(avg_sigm_predicted_offs) & avg_sigm_predicted_offs > best_discrete_threshold,
+        n_max_pred = pmax(n_islands_pred_diag, n_islands_pred_offs, na.rm = TRUE)
+      ) %>%
+      filter(avg_prop_isl_diag == 0, diag_ok, offs_ok),
+    aes(fill = n_max_pred),
+    alpha = 0.6
+  ) +
+  # one shared legend
+  scale_fill_gradient(low = "wheat", high = "lightpink3",
+                      name = "Predicted links:\nnumber of islands\npredicted",
+                      breaks = seq(0, 7, 1)) +
+
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links_count)
+
+png(
+  filename = "map_potential_missing_links_count.png",
+  width    = 12,
+  height   = 7,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_potential_missing_links_count)
+
+dev.off()
+
 ### ---- existing predicted interactions ----
 # if we want to know how each category contributed to verified existing links (that were observed in the system)
 # plot the differences
@@ -627,13 +1023,13 @@ df_plot_verified <- diff_df %>%
   mutate(
     sigm_cat = case_when(
       avg_sigm_predicted_diag < best_discrete_threshold &
-        avg_sigm_predicted_offs >= best_discrete_threshold ~ "offs↑ only",
+        avg_sigm_predicted_offs > best_discrete_threshold ~ "offs↑ only",
       
       avg_sigm_predicted_offs < best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "diag↑ only",
+        avg_sigm_predicted_diag > best_discrete_threshold ~ "diag↑ only",
       
-      avg_sigm_predicted_offs >= best_discrete_threshold &
-        avg_sigm_predicted_diag >= best_discrete_threshold ~ "both↑",
+      avg_sigm_predicted_offs > best_discrete_threshold &
+        avg_sigm_predicted_diag > best_discrete_threshold ~ "both↑",
       
       TRUE ~ NA_character_
     )
@@ -714,6 +1110,136 @@ new_labels <- c(
   "diag↑ only" = "Predicted only by single location" ,
   "both↑"      = "Predicted by both approaches"
 )
+### ---- links added to each pollinator by approach ----
+
+thr <- best_discrete_threshold
+
+diff_df_cat <- diff_df %>%
+  mutate(
+    # logical flags (robust to NA)
+    diag_pred = !is.na(avg_sigm_predicted_diag) &
+      avg_prop_isl_diag == 0 &
+      avg_sigm_predicted_diag > thr,
+    
+    offs_pred = !is.na(avg_sigm_predicted_offs) &
+      avg_prop_isl_diag == 0 &
+      avg_sigm_predicted_offs > thr,
+    
+    pred_category = case_when(
+      diag_pred & offs_pred ~ "both",
+      diag_pred & !offs_pred ~ "local_only",
+      !diag_pred & offs_pred ~ "external_only",
+      TRUE ~ NA_character_
+    )
+  )
+
+pollinator_link_counts <- diff_df_cat %>%
+  filter(!is.na(pred_category)) %>%
+  group_by(node_to, pred_category) %>%
+  summarise(
+    n_additional_links = n(),
+    .groups = "drop"
+  )
+
+pollinator_link_counts_wide <- pollinator_link_counts %>%
+  tidyr::pivot_wider(
+    names_from  = pred_category,
+    values_from = n_additional_links,
+    values_fill = 0
+  )
+
+# sanity check
+pollinator_link_counts_wide %>%
+  mutate(total_predicted = local_only + external_only + both) %>%
+  arrange(desc(total_predicted))
+
+diff_df_cat %>%
+  count(pred_category)
+
+# show specific pollinators on map
+highlight_poll <- "Camponotus_feae"
+
+map_potential_missing_links_diag_offs <- ggplot(diff_df, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient) - we don't show existing links
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "white",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but predicted only with external data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_diag < best_discrete_threshold &
+                                avg_sigm_predicted_offs > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_offs),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "salmon", high = "salmon",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # third layer: overlay only cells that were never observed but predicted only with within-system data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs < best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "plum", high = "plum",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # fourth layer: overlay interactions that were predicted using both approaches
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag == 0 & avg_sigm_predicted_offs > best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_text(size = 4, angle = 90), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" ) +
+  # ) + scale_x_discrete(
+  #   labels = function(x) ifelse(x == "Camponotus_feae",
+  #                               expression(italic("Camponotus feae")),
+  #                               "")) + 
+  tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  })) +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links_diag_offs)
+
+pdf(
+  file   = "map_missing_links_diags_offs_poll_names.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_potential_missing_links_diag_offs)
+dev.off()     # close the file
+
+
 ### ---- Fig. 3b: pie chart ----
 # 3. Make the pie
 pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
@@ -761,3 +1287,86 @@ pie_chart
 # 
 # dev.off()
 # 
+
+### ---- only observed interactions ----
+map_potential_missing_links_diag_offs_verified <- ggplot(diff_df, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient) - we don't show existing links
+  geom_tile(aes(fill = avg_prop_isl_diag)) +
+  scale_fill_gradient(low = "white", high = "white",
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but predicted only with external data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag != 0 & avg_sigm_predicted_diag < best_discrete_threshold &
+                                avg_sigm_predicted_offs > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_offs),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "salmon", high = "salmon",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # third layer: overlay only cells that were never observed but predicted only with within-system data
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag != 0 & avg_sigm_predicted_offs < best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "plum", high = "plum",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # fourth layer: overlay interactions that were predicted using both approaches
+  geom_tile(
+    data = diff_df %>% filter(avg_prop_isl_diag != 0 & avg_sigm_predicted_offs > best_discrete_threshold &
+                                avg_sigm_predicted_diag > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted_diag),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "lightsteelblue", high = "lightsteelblue",
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+print(map_potential_missing_links_diag_offs_verified)
+
+map_potential_missing_links_diag_offs_verified_noleg <- map_potential_missing_links_diag_offs_verified +
+  theme(legend.position = "none")
+
+png(
+  filename = "map_potential_missing_links_diag_offs_verified_noleg.png",
+  width    = 12,
+  height   = 6,
+  units    = "in",
+  res      = 300,
+  family   = "Helvetica"
+)
+
+# --- your plotting code here ---
+print(map_potential_missing_links_diag_offs_verified_noleg)
+
+dev.off()
+
