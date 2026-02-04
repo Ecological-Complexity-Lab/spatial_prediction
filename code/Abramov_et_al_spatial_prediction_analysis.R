@@ -1557,7 +1557,7 @@ netdensity_f1_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f1_nnse
 
 pdf(
-  file   = "netdensity_f1_nnse.pdf",
+  file   = "results/paper_figs/netdensity_f1_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1855,7 +1855,7 @@ final_plot <- plot_grid(
 final_plot # fig. 3c
 
 # # Save to PDF
-pdf("degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
+pdf("results/paper_figs/degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
 grid::grid.draw(final_plot)
 dev.off()
 
@@ -1947,7 +1947,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
 print(map_missing_links)
 
 pdf(
-  file   = "map_missing_links.pdf",
+  file   = "results/paper_figs/map_missing_links.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2070,7 +2070,7 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
 map_missing_links_diags_offs
 
 pdf(
-  file   = "map_missing_links_diags_offs.pdf",
+  file   = "results/paper_figs/map_missing_links_diags_offs.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2207,7 +2207,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
 
 pie_chart
 pdf(
-  file   = "pie_chart.pdf",
+  file   = "results/paper_figs/pie_chart.pdf",
   width  = 7,    # inches
   height = 7,
   family = "Helvetica"   # or another installed font
@@ -2343,7 +2343,7 @@ island_heatmap_f1 <-
 print(island_heatmap_f1)
 
 pdf(
-  file   = "island_heatmap_f1.pdf",
+  file   = "results/paper_figs/island_heatmap_f1.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2483,7 +2483,7 @@ final_plot_occ <- plot_grid(
 final_plot_occ
 
 # # Save to PDF
-pdf("degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
+pdf("results/paper_figs/degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
 grid::grid.draw(final_plot_occ)
 dev.off()
 
