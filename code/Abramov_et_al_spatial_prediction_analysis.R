@@ -918,11 +918,18 @@ if (file.exists(results_file)) {
         C[rownames(A), colnames(A)] <- A
         
         # Place P into C
-        # Ensure that existing entries are not overwritten; sum overlapping entries
-        C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-                                              NA, 
-                                              C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
-        
+        if (layers_to_train != layer_to_predict){
+          # Ensure that existing entries are not overwritten; sum overlapping entries
+          C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                                NA, 
+                                                C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+        } else {
+          # if this predicts using the same layer, don't sum it to itself
+          C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                                NA, 
+                                                (C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])/2)
+        }
+
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
@@ -1423,9 +1430,18 @@ for (layers_to_train in 1:num_layers) {
     C[rownames(A), colnames(A)] <- A
     
     # Place P into C
-    C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
-                                          NA, 
-                                          C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    if (layers_to_train != layer_to_predict){
+      # Ensure that existing entries are not overwritten; sum overlapping entries
+      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                            NA, 
+                                            C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+    } else {
+      # if this predicts using the same layer, don't sum it to itself
+      C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                            NA, 
+                                            (C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])/2)
+    }
+    
     
     # make them all binary for count
     A[A>0] <- 1
