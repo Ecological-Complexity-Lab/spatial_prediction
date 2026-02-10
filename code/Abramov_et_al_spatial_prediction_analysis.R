@@ -1155,9 +1155,13 @@ df_wide <- df_avg %>%
   arrange(threshold)
 
 # 2) discrete approx: minimize abs difference
+#best_discrete <- df_wide %>%
+#  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
+#  slice_min(absdiff, n = 1)
+
+# 2) find the threshold with the optimal f1 score
 best_discrete <- df_wide %>%
-  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
-  slice_min(absdiff, n = 1)
+  slice_max(f1_score, n = 1)
 
 # results:
 best_discrete_threshold <- best_discrete$threshold

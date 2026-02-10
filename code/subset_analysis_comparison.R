@@ -539,8 +539,9 @@ analyze_predictions <- function(df, name = "Dataset") {
   
   df_wide <- df_avg %>%
     pivot_wider(names_from = metric, values_from = value) %>%
-    mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
-    slice_min(absdiff, n = 1)
+    #mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
+    #slice_min(absdiff, n = 1)
+    slice_max(f1_score, n = 1)
   
   best_threshold <- df_wide$threshold
   
