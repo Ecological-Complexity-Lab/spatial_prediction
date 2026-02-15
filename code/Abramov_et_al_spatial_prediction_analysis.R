@@ -2321,6 +2321,79 @@ mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
 # 5. results
 print(mrm_out)
 
+
+# 6. now with composed MRM -> add C connectance, C matrix size, and Jaccard.
+jaccard_mat <- matrix(NA, nrow=length(layers), ncol=length(layers),
+                      dimnames=list(layers, layers))
+c_connectance_mat <- jaccard_mat
+c_mat_size_mat <- jaccard_mat
+
+for(i in layers) for(j in layers) {
+  sub <- result_summary_island_diff[result_summary_island_diff$train_layer==i & result_summary_island_diff$test_layer==j, ]
+  if(nrow(sub)==1) {
+    jaccard_mat[i,j]       <- sub$jaccard_edges
+    c_connectance_mat[i,j] <- sub$density_C
+    c_mat_size_mat[i,j]    <- sub$size_C
+  }
+}
+
+# d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
+jaccard_sym           <- sym_average(jaccard_mat)
+c_connectance_sym     <- sym_average(c_connectance_mat)
+c_mat_size_sym        <- sym_average(c_mat_size_mat)
+
+# e) convert to “dist” objects (lower triangle)
+jaccard           <- as.dist(jaccard_sym)
+c_connectance     <- as.dist(c_connectance_sym)
+c_mat_size        <- as.dist(c_mat_size_sym)
+
+# now run MRM for each possible subset of predictors to see which ones are significant on their own, and which ones remain significant when controlling for others
+# get every possible combination of predictors
+predictors <- c("c_connectance", "c_mat_size", "jaccard")
+predictor_combinations <- unlist(lapply(1:length(predictors), function(n) {
+  combn(predictors, n, simplify = FALSE)
+}), recursive = FALSE)
+# run MRM for each combination
+mrm_results <- lapply(predictor_combinations, function(preds) {
+  formula <- as.formula(paste("dist_f1 ~ dist_km + ", paste(preds, collapse = " + ")))
+  res <- MRM(formula, nperm=999)
+  list(predictors = preds, result = res)
+})
+# extract results into a data frame
+mrm_summary <- do.call(rbind, lapply(mrm_results, function(x) {
+  data.frame(
+    predictors = paste(x$predictors, collapse = " + "),
+    r_squared = x$result$r.squared[1],
+    p_value = x$result$r.squared[2]
+  )
+}))
+print(mrm_summary)
+
+# try to evaluate the best variable combination using AICc ----
+# (aka Akaike Information Criterion corrected for small sample sizes)
+
+# Note: distance-matrix entries are not independent, so AIC/AICc here 
+# should be treated as a model-comparison heuristic (useful for ranking), 
+# not a fully classical likelihood-based IC
+
+# get the number of observations (number of unique pairs)
+n <- length(jaccard) # number of unique pairs (lower triangle of the matrix)
+# calculate AICc for each model
+mrm_summary$aicc <- sapply(mrm_results, function(x) {
+  k <- length(x$predictors) # number of predictors
+  r2 <- x$result$r.squared[1] # R-squared of the model
+  aic <- n * log(1 - r2) + 2 * k
+  aicc <- aic + (2 * k * (k + 1)) / (n - k - 1)
+  return(aicc)
+})
+# rank models by AICc
+mrm_summary <- mrm_summary[order(mrm_summary$aicc), ]
+print(mrm_summary)
+
+# so according to this, the best comvination with lowest AICc is:
+# dist_km + c_connectance
+
+
 ### ---- Fig. 2c heatmap ----
 
 island_heatmap_f1 <- 
