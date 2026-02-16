@@ -2358,9 +2358,15 @@ predictors <- c("c_connectance", "c_mat_size", "jaccard")
 predictor_combinations <- unlist(lapply(1:length(predictors), function(n) {
   combn(predictors, n, simplify = FALSE)
 }), recursive = FALSE)
+
+# for each combination, add dist_km predictor, including only dist_km as a baseline
+predictor_combinations <- 
+  lapply(predictor_combinations, function(preds) {c("dist_km", preds)})
+predictor_combinations <- c(list("dist_km"), predictor_combinations) # add dist_km alone as a baseline
+
 # run MRM for each combination
 mrm_results <- lapply(predictor_combinations, function(preds) {
-  formula <- as.formula(paste("dist_f1 ~ dist_km + ", paste(preds, collapse = " + ")))
+  formula <- as.formula(paste("dist_f1 ~ ", paste(preds, collapse = " + ")))
   res <- MRM(formula, nperm=999)
   list(predictors = preds, result = res)
 })
@@ -2396,7 +2402,7 @@ mrm_summary <- mrm_summary[order(mrm_summary$aicc), ]
 print(mrm_summary)
 
 # so according to this, the best comvination with lowest AICc is:
-# dist_km + c_connectance
+# dist_km + jaccard
 
 
 ### ---- Fig. 2c heatmap ----
