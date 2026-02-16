@@ -935,10 +935,11 @@ df_thresh <- df_prepped %>%
     FN = sum(original_binary == 1 & predicted_bin == 0),
     TN = sum(original_binary == 0 & predicted_bin == 0),
     FP = sum(original_binary == 0 & predicted_bin == 1),
-    specificity      = TN / (TN + FP),
-    precision        = TP / (TP + FP),
-    recall           = TP / (TP + FN),
-    f1_score         = 2 * (precision * recall) / (precision + recall),
+    specificity = TN / (TN + FP),
+    precision   = TP / (TP + FP),
+    recall      = TP / (TP + FN),
+    f1_score    = 2 * (precision * recall) / (precision + recall),
+    f05_score   = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy= (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) /
       sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN)),
@@ -957,6 +958,7 @@ df_thresh <- df_prepped %>%
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
     f1_score = mean(f1_score, na.rm = TRUE),
+    f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
@@ -969,7 +971,7 @@ df_avg <- df_thresh %>%
   group_by(threshold) %>%
   summarise(across(
     c(specificity, precision, recall,
-      f1_score, balanced_accuracy, mcc),
+      f1_score, f05_score, balanced_accuracy, mcc),
     mean, na.rm = TRUE
   )) %>%
   pivot_longer(-threshold,
@@ -988,9 +990,9 @@ df_wide <- df_avg %>%
 #  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
 #  slice_min(absdiff, n = 1)
 
-# 2) find the threshold with the optimal f1 score
+# 2) find the threshold with the optimal f0.5 score
 best_discrete <- df_wide %>%
-  slice_max(f1_score, n = 1)
+  slice_max(f05_score, n = 1)
 
 # results:
 best_discrete_threshold <- best_discrete$threshold
@@ -1019,6 +1021,7 @@ result_summary <- df_removed %>%
     precision = TP / (TP + FP),
     recall = TP / (TP + FN),
     f1_score = 2 * (precision * recall) / (precision + recall),
+    f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy = (recall + specificity) / 2,
     nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
       sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
@@ -1035,6 +1038,7 @@ result_summary <- df_removed %>%
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
     f1_score = mean(f1_score, na.rm = TRUE),
+    f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     nse  = mean(nse,  na.rm = TRUE),
     nnse = mean(nnse, na.rm = TRUE)
@@ -1537,6 +1541,7 @@ result_summary_island <- df_removed_island %>%
     precision = TP / (TP + FP),
     recall = TP / (TP + FN),
     f1_score = 2 * (precision * recall) / (precision + recall),
+    f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy = (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
     mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
@@ -1556,6 +1561,7 @@ result_summary_island <- df_removed_island %>%
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
     f1_score = mean(f1_score, na.rm = TRUE),
+    f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),

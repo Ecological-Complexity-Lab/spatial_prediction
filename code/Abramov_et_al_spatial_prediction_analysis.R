@@ -1039,10 +1039,11 @@ df_thresh <- df_prepped %>%
     FN = sum(original_binary == 1 & predicted_bin == 0),
     TN = sum(original_binary == 0 & predicted_bin == 0),
     FP = sum(original_binary == 0 & predicted_bin == 1),
-    specificity      = TN / (TN + FP),
-    precision        = TP / (TP + FP),
-    recall           = TP / (TP + FN),
-    f1_score         = 2 * (precision * recall) / (precision + recall),
+    specificity = TN / (TN + FP),
+    precision   = TP / (TP + FP),
+    recall      = TP / (TP + FN),
+    f1_score    = 2 * (precision * recall) / (precision + recall),
+    f05_score   = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy= (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) /
       sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN)),
@@ -1061,6 +1062,7 @@ df_thresh <- df_prepped %>%
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
     f1_score = mean(f1_score, na.rm = TRUE),
+    f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
     mse = mean(mse, na.rm = TRUE),
@@ -1073,7 +1075,7 @@ df_avg <- df_thresh %>%
   group_by(threshold) %>%
   summarise(across(
     c(specificity, precision, recall,
-      f1_score, balanced_accuracy, mcc),
+      f1_score, f05_score, balanced_accuracy, mcc),
     mean, na.rm = TRUE
   )) %>%
   pivot_longer(-threshold,
@@ -1085,6 +1087,7 @@ df_avg_plot <- df_avg %>% mutate(metric = recode(metric,
                                                  precision         = "Precision",
                                                  recall            = "Recall",
                                                  f1_score          = "F1 score",
+                                                 f05_score         = "F0.5 score",
                                                  balanced_accuracy = "Balanced accuracy",
                                                  mcc               = "MCC"
 ))
@@ -1159,9 +1162,9 @@ df_wide <- df_avg %>%
 #  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
 #  slice_min(absdiff, n = 1)
 
-# 2) find the threshold with the optimal f1 score
+# 2) find the threshold with the optimal f05 score
 best_discrete <- df_wide %>%
-  slice_max(f1_score, n = 1)
+  slice_max(f05_score, n = 1)
 
 # results:
 best_discrete_threshold <- best_discrete$threshold
@@ -1214,6 +1217,7 @@ result_summary <- df_removed %>%
     precision = TP / (TP + FP),
     recall = TP / (TP + FN),
     f1_score = 2 * (precision * recall) / (precision + recall),
+    f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy = (recall + specificity) / 2,
     nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
       sum((original_links   - mean(original_links, na.rm = TRUE))^2, na.rm = TRUE),
@@ -1230,6 +1234,7 @@ result_summary <- df_removed %>%
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
     f1_score = mean(f1_score, na.rm = TRUE),
+    f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     nse  = mean(nse,  na.rm = TRUE),
     nnse = mean(nnse, na.rm = TRUE)
@@ -1524,7 +1529,7 @@ overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 #### ---- Fig. S13: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
-  select(f1_score, nnse, size_P, density_P, size_C, density_C) %>%
+  select(f1_score, f05_score, nnse, size_P, density_P, size_C, density_C) %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",
@@ -1533,7 +1538,7 @@ df_netsize <- result_summary %>%
 
 
 df_f1_nnse_size <- result_summary %>%
-  select(f1_score, nnse, size_P, size_C) %>%
+  select(f1_score, f05_score, nnse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
@@ -1552,7 +1557,7 @@ dev.off()     # close the file
 #### ---- Fig. S5: density ----
 
 df_f1_nnse_density <- result_summary %>%
-  select(f1_score, nnse, density_P, density_C) %>%
+  select(f1_score, f05_score, nnse, density_P, density_C) %>%
   pivot_longer(cols = c(density_P, density_C), names_to = "measure_type", values_to = "measure_value") %>%
   pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 

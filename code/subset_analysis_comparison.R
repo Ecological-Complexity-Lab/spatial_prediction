@@ -510,6 +510,7 @@ analyze_predictions <- function(df, name = "Dataset") {
       precision        = TP / (TP + FP),
       recall           = TP / (TP + FN),
       f1_score         = 2 * (precision * recall) / (precision + recall),
+      f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
       balanced_accuracy= (recall + specificity) / 2,
       mcc = (TP * TN - FP * FN) /
         sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN)),
@@ -524,7 +525,7 @@ analyze_predictions <- function(df, name = "Dataset") {
     group_by(threshold) %>%
     summarise(across(
       c(specificity, precision, recall,
-        f1_score, balanced_accuracy, mcc),
+        f1_score, f05_score, balanced_accuracy, mcc),
       mean, na.rm = TRUE
     )) %>%
     pivot_longer(-threshold,
@@ -541,7 +542,7 @@ analyze_predictions <- function(df, name = "Dataset") {
     pivot_wider(names_from = metric, values_from = value) %>%
     #mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
     #slice_min(absdiff, n = 1)
-    slice_max(f1_score, n = 1)
+    slice_max(f05_score, n = 1)
   
   best_threshold <- df_wide$threshold
   
@@ -565,6 +566,7 @@ analyze_predictions <- function(df, name = "Dataset") {
       precision = TP / (TP + FP),
       recall = TP / (TP + FN),
       f1_score = 2 * (precision * recall) / (precision + recall),
+      f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
       balanced_accuracy = (recall + specificity) / 2,
       mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
       mse = mean((predicted_values - original_links)^2, na.rm = TRUE),
