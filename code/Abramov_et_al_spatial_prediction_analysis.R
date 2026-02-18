@@ -2314,6 +2314,10 @@ for(i in layers) for(j in layers) {
 f1_sym      <- sym_average(f1_mat)
 dist_sym_km <- sym_average(dist_mat_km)
 
+# save matrices for later use
+write.csv(f1_sym, "results/f1_distance_matrix.csv", row.names = TRUE)
+write.csv(dist_sym_km, "results/distance_matrix_km.csv", row.names = TRUE)
+
 # e) convert to “dist” objects (lower triangle)
 dist_f1      <- as.dist(f1_sym)
 dist_km      <- as.dist(dist_sym_km)
