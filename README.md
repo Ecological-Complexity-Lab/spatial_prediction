@@ -12,6 +12,9 @@ Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Structur
 3. Predictions revealed that latent network structure contains substantial predictive information, with F1 scores consistently exceeding a random baseline (mean F1 = 0.68 ± 0.04 SD), while being less sensitive to interaction strength. The method enabled identifying plausible gaps in the data and producing ecologically coherent predictions. Incorporating information from auxiliary locations enhanced predictive accuracy in certain cases, but success depended critically on spatial context: predictions were most reliable when derived from nearby, ecologically similar sites or islands with larger networks, and declined with increasing geographic and ecological distance, demonstrating a clear distance-decay effect.
 4. We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. While network structure offers rich predictive information, spatial context is essential for applying it effectively: ignoring spatial variability can obscure ecological signals and inflate predictive error. Our framework is computationally efficient, transferable, and readily applicable to any system with spatial or temporal replication. It can be used for a variety of across ecological contexts, including island systems, fragmented landscapes, and environmental gradients, making it a practical and scalable tool for advancing link prediction in ecology.
 
+# :computer: Code:
+Instructions for running the code and reproducing the results are in the repository Wiki under "Code".
+
 # :file_folder: Folder breakdown:
 Detailed in the repository Wiki (under "Directories").
 
@@ -23,9 +26,6 @@ Case study: Trøjelsgaard, K., Jordano, P., Carstensen, D. W., & Olesen, J. M. (
 Distance between sites: distance_between_sites_canary.csv
 The data are available in the repository set up in original publication: https://datadryad.org/dataset/doi:
 10.5061/dryad.76173.
-
-# :computer: Code:
-Detailed in the repository Wiki (under "Code").
 
 # :Output:
 plots is pdf format.
