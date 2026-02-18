@@ -2358,15 +2358,15 @@ c_mat_size        <- as.dist(c_mat_size_sym)
 
 # now run MRM for each possible subset of predictors to see which ones are significant on their own, and which ones remain significant when controlling for others
 # get every possible combination of predictors
-predictors <- c("c_connectance", "c_mat_size", "jaccard")
+predictors <- c("dist_km", "c_connectance", "c_mat_size", "jaccard")
 predictor_combinations <- unlist(lapply(1:length(predictors), function(n) {
   combn(predictors, n, simplify = FALSE)
 }), recursive = FALSE)
 
 # for each combination, add dist_km predictor, including only dist_km as a baseline
-predictor_combinations <- 
-  lapply(predictor_combinations, function(preds) {c("dist_km", preds)})
-predictor_combinations <- c(list("dist_km"), predictor_combinations) # add dist_km alone as a baseline
+#predictor_combinations <- 
+#  lapply(predictor_combinations, function(preds) {c("dist_km", preds)})
+#predictor_combinations <- c(list("dist_km"), predictor_combinations) # add dist_km alone as a baseline
 
 # run MRM for each combination
 mrm_results <- lapply(predictor_combinations, function(preds) {
