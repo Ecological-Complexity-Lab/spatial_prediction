@@ -788,22 +788,22 @@ custom_colors <- c("Single location" = "steelblue",
 
 # plot the histogram: 
 
-hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
+hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
                      y_axis_label = "Count of instances",
                      x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05))
 
-hist_f1a
+hist_f05a
 
 # # Base‐R PDF device
 pdf(
-  file   = "hist_f1_site.pdf",
+  file   = "results/hist_f05_site.pdf",
   width  = 5,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
 )
-print(hist_f1a)
+print(hist_f05a)
 dev.off()     # close the file
 
 # stats
@@ -978,7 +978,7 @@ overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 #### ---- Fig. S6: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
-  select(t_test_f05, nnse, size_P, density_P, size_C, density_C) %>%
+  select(f05_score, nnse, size_P, density_P, size_C, density_C) %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",
@@ -987,15 +987,15 @@ df_netsize <- result_summary %>%
 
 
 df_f05_nnse_size <- result_summary %>%
-  select(t_test_f05, nnse, size_P, size_C) %>%
+  select(f05_score, nnse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
-  pivot_longer(cols = c(t_test_f05, nnse), names_to = "evaluator", values_to = "evaluator_value")
+  pivot_longer(cols = c(f05_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
 netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fig. 5
 netsize_f05_nnse
 
 pdf(
-  file   = "site_netsize_f1_nnse.pdf",
+  file   = "results/site_netsize_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1014,7 +1014,7 @@ netdensity_f05_nnse <- plot_f05_nnse_vs_density_free_both(df_f05_nnse_density) +
 netdensity_f05_nnse
 
 pdf(
-  file   = "site_netdensity_f1_nnse.pdf",
+  file   = "results/site_netdensity_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1046,7 +1046,7 @@ site_heatmap_f05 <-
 print(site_heatmap_f05)
 
 pdf(
-  file   = "site_heatmap_f1.pdf",
+  file   = "results/site_heatmap_f05.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1128,7 +1128,7 @@ jaccard_site_f05
 
 # # Base‐R PDF device
 pdf(
-  file   = "jaccard_site_f1.pdf",
+  file   = "results/jaccard_site_f05.pdf",
   width  = 7,    # inches
   height = 3.5,
   family = "Helvetica"   # or another installed font
@@ -1196,7 +1196,7 @@ filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island
 ### ---- Fig. S5: plot distance decay ----
 cor_plot_site_dif_f05 <- make_cor_plot(filtered_results, evaluator = "f05_score", extra_theme = tme) + labs(y = "F0.5 score")
 pdf(
-  file   = "cor_plot_site_dif_f1.pdf",
+  file   = "results/cor_plot_site_dif_f05.pdf",
   width  = 4,
   height = 4,
   family = "Helvetica"
@@ -1374,7 +1374,7 @@ nnse_f05_scales
 
 # #Base‐R PDF device
 pdf(
-  file   = "nnse_f1_scales.pdf",
+  file   = "results/nnse_f05_scales.pdf",
   width  = 7,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font

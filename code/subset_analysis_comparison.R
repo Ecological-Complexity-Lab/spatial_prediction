@@ -678,7 +678,7 @@ p_f05 <- ggplot(df_plot, aes(x = dataset, y = f05_score, fill = dataset)) +
   )
 
 # pdf(
-#   file   = "p_f1.pdf",
+#   file   = "p_f05.pdf",
 #   width  = 5,    # inches
 #   height = 5,
 #   family = "Helvetica"   # or another installed font
@@ -695,7 +695,7 @@ combined <- (p_nnse | p_f05) +       # side by side
 print(combined)
 
 pdf(
-  file   = "subset_analysis.pdf",
+  file   = "results/subset_analysis.pdf",
   width  = 7,    # inches
   height = 5,
   family = "Helvetica"   # or another installed font

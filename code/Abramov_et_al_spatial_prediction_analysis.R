@@ -1078,7 +1078,7 @@ custom_colors <- c("Single location" = "steelblue",
 
 # plot the histogram: 
 
-hist_f1a <- plot_hist(result_summary, metric = "f05_score", 
+hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
                       y_axis_label = "Count of instances",
                       x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
@@ -1089,7 +1089,7 @@ hist_f1a <- plot_hist(result_summary, metric = "f05_score",
     legend.box = "horizontal"                 # optional: lay it out horizontally
   )
 
-hist_f1a # Fig. 2b
+hist_f05a # Fig. 2b
 
 results_diags <- result_summary %>% filter(layer_comparison == "Single location")
 results_offs <- result_summary %>% filter(layer_comparison == "Added location")
@@ -1099,12 +1099,12 @@ range(results_offs$f05_score)
 
 # # Base‐R PDF device
 pdf(
-  file   = "results/paper_figs/hist_f1a_legend_bottom.pdf",
+  file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
   width  = 6,    # inches
   height = 7,
   family = "Helvetica"   # or another installed font
 )
-print(hist_f1a)
+print(hist_f05a)
 dev.off()     # close the file
 
 # stats
@@ -1275,7 +1275,7 @@ netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fi
 netsize_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netsize_f1_nnse.pdf",
+  file   = "results/paper_figs/netsize_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1295,7 +1295,7 @@ netdensity_f05_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netdensity_f1_nnse.pdf",
+  file   = "results/paper_figs/netdensity_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2067,7 +2067,7 @@ c_connectance_mat <- jaccard_mat
 c_mat_size_mat <- jaccard_mat
 
 for(i in layers) for(j in layers) {
-  sub <- result_summary_island_diff[result_summary_island_diff$train_layer==i & result_summary_island_diff$test_layer==j, ]
+  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
   if(nrow(sub)==1) {
     jaccard_mat[i,j]       <- sub$jaccard_edges
     c_connectance_mat[i,j] <- sub$density_C
@@ -2164,7 +2164,7 @@ island_heatmap_f05 <-
 print(island_heatmap_f05)
 
 pdf(
-  file   = "results/paper_figs/island_heatmap_f1.pdf",
+  file   = "results/paper_figs/island_heatmap_f05.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2315,14 +2315,14 @@ dev.off()
 # Fig. 2a is p_f05 from subset_analysis.R
 # Fig. 2b is p_nnse from subset_analysis.R
 # Fig. 2c is island_heatmap_f05
-# Fig. 2d is hist_f1a
+# Fig. 2d is hist_f05a
 
 
-# fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+# fig2cd <- plot_grid(island_heatmap_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     hist_f05a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
 #                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
 #                     rel_widths = c(1,0.95))
-# fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+# fig2ab <- plot_grid(p_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
 #                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
 #                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
 #                     rel_widths = c(1,0.95))
@@ -2361,10 +2361,10 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 
 # Fig. 4:
 
-# Fig. 4a,b,c are jaccard_isl_f1
-# Fig. 4d is cor_plot_dif_isl_f1
-# fig4 <- plot_grid(jaccard_isl_f1, 
-#                   cor_plot_dif_isl_f1 + labs(y = "F1 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
+# Fig. 4a,b,c are jaccard_isl_f05
+# Fig. 4d is cor_plot_dif_isl_f05
+# fig4 <- plot_grid(jaccard_isl_f05, 
+#                   cor_plot_dif_isl_f05 + labs(y = "F0.5 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
 #                   labels = c('(a)', '(b)'),
 #                   ncol = 1,
 #                   rel_heights = c(1,1))
