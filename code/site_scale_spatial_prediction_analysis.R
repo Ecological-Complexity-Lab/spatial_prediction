@@ -24,6 +24,8 @@ library(ecodist)
 library(rstatix)
 library(ggrepel)
 
+source("code/common.R") 
+
 ## ---- themes ----
 tme <-  theme(axis.text = element_text(size = 14, color = "black"),
               axis.title = element_text(size = 14, face = "bold"),
@@ -34,7 +36,6 @@ tme <-  theme(axis.text = element_text(size = 14, color = "black"),
 theme_set(theme_bw())
 
 ## ---- parameters ----
-emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
 prop_ones_to_remove <- 0.2 # proportion of existing links to withhold
 n_sim <- 50 # number of random link withholding and prediction iterations
 set.seed(42) # the answer to everything
@@ -157,65 +158,6 @@ implement_impute <- function(C, k, lambda) {
   return(list_results)
 }
 
-# transforming raw predictions for binary evaluation
-sigmoid <- function(x) {
-  1 / (1 + exp(-x))
-}
-
-# for MRM test
-sym_average <- function(m) {
-  mm <- m
-  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
-    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
-      avg       <- mean(c(m[i,j], m[j,i]))
-      mm[i,j]   <- avg
-      mm[j,i]   <- avg
-    }
-  }
-  mm
-}
-
-# calculate balanced per-species f1 score
-# 2) A helper that, given one species’ data.frame, 
-#    does one draw of a balanced F₁
-compute_balanced_f1 <- function(df_sp) {
-  # split positives / negatives
-  pos <- df_sp %>% filter(original_binary == 1)
-  neg <- df_sp %>% filter(original_binary == 0)
-  
-  n_pos <- nrow(pos)
-  n_neg <- nrow(neg)
-  
-  # if either class is missing, we can’t compute F1
-  if (n_pos == 0 || n_neg == 0) {
-    return(NA_real_)
-  }
-  
-  # sample size = the smaller of the two
-  n <- min(n_pos, n_neg)
-  
-  # draw one balanced sample
-  samp_pos <- pos %>% sample_n(n)
-  samp_neg <- neg %>% sample_n(n)
-  samp     <- bind_rows(samp_pos, samp_neg)
-  
-  # compute TP, FP, FN
-  TP <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 1)
-  FP <- sum(samp$original_binary == 0 & samp$predicted_bin_sigm == 1)
-  FN <- sum(samp$original_binary == 1 & samp$predicted_bin_sigm == 0)
-  
-  # precision, recall
-  precision <- if ((TP + FP) > 0) TP / (TP + FP) else NA_real_
-  recall    <- if ((TP + FN) > 0) TP / (TP + FN) else NA_real_
-  
-  # F1
-  if (is.na(precision) || is.na(recall) || (precision + recall) == 0) {
-    return(NA_real_)
-  } else {
-    return(2 * precision * recall / (precision + recall))
-  }
-}
-
 # plotting functions
 # functions for diagonal and off-diagonal comparison
 plot_boxplot <- function(data, metric, y_axis_label = "Balanced accuracy", 
@@ -262,138 +204,6 @@ plot_hist <- function(data, metric,
       panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
     ) +
     scale_fill_manual(values = custom_colors) + tme
-}
-
-plot_netsize <- function(data, evaluator = "f1_score",
-                         facet_labels = NULL,
-                         evaluator_label = NULL,
-                         title_text = NULL) {
-  
-  evaluator_sym <- rlang::sym(evaluator)  # Treat evaluator as a column
-  
-  # Calculate correlations
-  cor_table <- data %>%
-    group_by(measure_type) %>%
-    summarise(
-      cor_value = cor(!!evaluator_sym, measure_value, use = "complete.obs", method = "pearson"),
-      p_value   = cor.test(!!evaluator_sym, measure_value, method = "pearson")$p.value,
-      .groups = "drop"
-    )
-  
-  # Create annotation table
-  cor_table_annot <- cor_table %>%
-    mutate(
-      r_fmt = formatC(cor_value, format = "f", digits = 2),
-      p_fmt = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),  # Scientific notation for very small p-values
-        formatC(p_value, format = "f", digits = 3)   # Regular fixed format otherwise
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  
-  # Build the plot
-  plot <- ggplot(data, aes(x = measure_value, y = !!evaluator_sym)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    facet_wrap(
-      ~ measure_type,
-      scales   = "free_x",
-      labeller = as_labeller(facet_labels)
-    ) +
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
-    geom_text(
-      data    = cor_table_annot,
-      aes(label = label_text),
-      x       = Inf,
-      y       = Inf,
-      hjust   = 1.1,
-      vjust   = 1.2,
-      size    = 3.2,
-      inherit.aes = FALSE
-    ) +
-    labs(
-      x = "Network feature",
-      y = ifelse(is.null(evaluator_label), evaluator, evaluator_label),
-      title = ifelse(is.null(title_text), paste(evaluator, "vs. network measures"), title_text)
-    ) +
-    theme_minimal() +
-    tme +
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks = element_line(color = "black"),
-      strip.text = element_text(size = 12)
-    )
-  
-  return(plot)
-}
-
-plot_f1_nnse_vs_size_free_both <- function(data) {
-  # build correlation table
-  cor_table <- data %>%
-    group_by(evaluator, measure_type) %>%
-    summarise(
-      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
-      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
-      .groups   = "drop"
-    ) %>%
-    mutate(
-      r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),
-        formatC(p_value, format = "f", digits = 3)
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    
-    facet_grid(
-      rows   = vars(evaluator),
-      cols   = vars(measure_type),
-      scales = "free",     # ← free both x and y per facet
-      labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(size_P  = "Size of matrix P",
-                         size_C  = "Size of matrix C")
-      ),
-      switch = "y"
-    ) +
-    
-    geom_text(
-      data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
-      size        = 3.2,
-      inherit.aes = FALSE
-    ) +
-    
-    scale_x_continuous(
-      name   = "Network size",
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    scale_y_continuous(
-      name   = NULL,                # remove y title
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
-    
-    theme_minimal() +
-    theme(
-      strip.placement    = "outside",
-      strip.text.x       = element_text(size = 14),
-      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
-      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank()
-    )
 }
 
 plot_f1_nnse_vs_density_free_both <- function(data) {

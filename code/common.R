@@ -1,6 +1,6 @@
 
 # parameters -------------
-emln_id <- 60
+emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
 
 # functions -------------
 # transforming raw predictions for binary evaluation
@@ -40,6 +40,7 @@ build_interaction_matrix <- function(data, layers_to_filter) {
   
   return(interaction_matrix)
 }
+
 
 # predict links using softImpute
 implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_indices, P_original) {
@@ -135,4 +136,87 @@ implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_in
   
   return(list_results)
 }
+
+
+# for MRM test
+sym_average <- function(m) {
+  mm <- m
+  for(i in 1:nrow(mm)) for(j in 1:ncol(mm)) {
+    if(i < j && !is.na(m[i,j]) && !is.na(m[j,i])) {
+      avg       <- mean(c(m[i,j], m[j,i]))
+      mm[i,j]   <- avg
+      mm[j,i]   <- avg
+    }
+  }
+  mm
+}
+
+
+plot_f1_nnse_vs_size_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        measure_type = c(size_P  = "Size of matrix P",
+                         size_C  = "Size of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network size",
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    
+    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
+    
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 14),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank()
+    )
+}
+
 
