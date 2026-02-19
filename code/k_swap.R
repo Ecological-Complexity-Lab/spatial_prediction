@@ -1,4 +1,4 @@
-# ---- check k and lambda influence on f1 ----
+# ---- check k and lambda influence on f0.5 ----
 # this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
 # here we focus on island scale, but there is a section for comparison between scales.
 # stages are according to the pipeline figure (Fig. 1).
@@ -25,7 +25,7 @@ all_ks <- alll %>% filter(input_lambda %in% las) %>%
 df <- all_ks %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
-# select the threshold for classifying links as 1s or 0s based on balance between f1 and balanced accuracy
+# select the threshold for classifying links as 1s or 0s based on max F0.5
 # 1) filter & prep
 df_prepped <- df %>%
   filter(removed == 1) %>%
@@ -49,17 +49,17 @@ df_thresh <- df_prepped %>%
     specificity      = TN / (TN + FP),
     precision        = TP / (TP + FP),
     recall           = TP / (TP + FN),
-    f1_score         = 2 * (precision * recall) / (precision + recall)
+    f05_score   = (1.25) * (precision * recall) / ((0.25 * precision) + recall)
   ) %>%
   ungroup() 
 
-# plot histograms of f1_score as a function of K and threshold
-df_f1 <- df_thresh %>%
-  select(k, itr,  input_lambda, threshold, f1_score)
+# plot histograms of f05_score as a function of K and threshold
+df_f05 <- df_thresh %>%
+  select(k, itr,  input_lambda, threshold, f05_score)
 
 # plot boxplot per K
-df_f1 %>% filter(threshold == 0.5) %>% 
-ggplot(aes(x=as.factor(k), y=f1_score, color=as.factor(k))) +
+df_f05 %>% filter(threshold == 0.5) %>% 
+ggplot(aes(x=as.factor(k), y=f05_score, color=as.factor(k))) +
   geom_boxplot() +
   facet_wrap(~input_lambda)
 

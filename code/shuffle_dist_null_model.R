@@ -5,8 +5,8 @@
 # load the distance matrix
 dist_mat_kmm <- as.matrix(read.csv("results/distance_matrix_km.csv", row.names = 1))
 colnames(dist_mat_kmm) <- rownames(dist_mat_kmm)
-f1_mat <-  as.matrix(read.csv("results/f1_distance_matrix.csv", row.names = 1))
-colnames(f1_mat) <- rownames(f1_mat)
+f05_mat <-  as.matrix(read.csv("results/f05_distance_matrix.csv", row.names = 1))
+colnames(f05_mat) <- rownames(f05_mat)
 
 # populate lower triangle with list of random values
 shuff_dist_mat <- function(dist_mat) {
@@ -26,7 +26,7 @@ shuff_dist_mat <- function(dist_mat) {
 }
 
 # test if they follow a normal distribution
-shapiro.test(as.dist(f1_mat)) # p-value = 0.07614
+shapiro.test(as.dist(f05_mat)) # p-value = 0.07614
 shapiro.test(as.dist(dist_mat_km)) # p-value = 0.2949
 
 p_val_dist <- c()
@@ -37,33 +37,33 @@ for (s in 1:500) {
   shuff_dist <- shuff_dist_mat(dist_mat_km)
   
   # calculate correlation with shuffled distance matrix
-  corr_res <- cor.test(as.dist(f1_mat), as.dist(shuff_dist))
+  corr_res <- cor.test(as.dist(f05_mat), as.dist(shuff_dist))
   
   # store the F0.5 value in a vector
   p_val_dist <- c(p_val_dist, corr_res$p.value)
   r2_val_dist <- c(r2_val_dist, corr_res$estimate^2)
-  plot_points <- rbind(plot_points, data.frame(f1_val = as.dist(f1_mat), 
+  plot_points <- rbind(plot_points, data.frame(f05_val = as.dist(f05_mat), 
                                                dist_val = as.dist(shuff_dist),
                                                shuf_num = s))
 }
 
 plot_points$origin <- "shuffled"
-plot_points <- rbind(plot_points, data.frame(f1_val = as.dist(f1_mat), 
+plot_points <- rbind(plot_points, data.frame(f05_val = as.dist(f05_mat), 
                                              dist_val = as.dist(dist_mat_km),
                                              shuf_num = 0,
                                              origin = "observed"))
 
-# plot sactter plot of F1 vs distance for shuffled and observed data
-ggplot(plot_points, aes(x = dist_val, y = f1_val, color = origin)) +
+# plot sactter plot of F0.5 vs distance for shuffled and observed data
+ggplot(plot_points, aes(x = dist_val, y = f05_val, color = origin)) +
   geom_point(alpha = 0.8) +
-  labs(title = "Scatter plot of F1 vs Distance",
-       x = "Distance", y = "F1 Score") +
+  labs(title = "Scatter plot of F0.5 vs Distance",
+       x = "Distance", y = "F0.5 Score") +
   theme_minimal() +
   scale_color_manual(values = c("shuffled" = "blue", "observed" = "red"))
 
 
 # calculate observed p-value
-observed_corr <- cor.test(as.dist(f1_mat), as.dist(dist_mat_km))
+observed_corr <- cor.test(as.dist(f05_mat), as.dist(dist_mat_km))
 observed_p_val <- observed_corr$p.value
 #observed_r2_val <- observed_corr$estimate^2
 

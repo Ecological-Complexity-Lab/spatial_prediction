@@ -509,7 +509,6 @@ analyze_predictions <- function(df, name = "Dataset") {
       specificity      = TN / (TN + FP),
       precision        = TP / (TP + FP),
       recall           = TP / (TP + FN),
-      f1_score         = 2 * (precision * recall) / (precision + recall),
       f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
       balanced_accuracy= (recall + specificity) / 2,
       mcc = (TP * TN - FP * FN) /
@@ -525,7 +524,7 @@ analyze_predictions <- function(df, name = "Dataset") {
     group_by(threshold) %>%
     summarise(across(
       c(specificity, precision, recall,
-        f1_score, f05_score, balanced_accuracy, mcc),
+        f05_score, balanced_accuracy, mcc),
       mean, na.rm = TRUE
     )) %>%
     pivot_longer(-threshold,
@@ -540,8 +539,6 @@ analyze_predictions <- function(df, name = "Dataset") {
   
   df_wide <- df_avg %>%
     pivot_wider(names_from = metric, values_from = value) %>%
-    #mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
-    #slice_min(absdiff, n = 1)
     slice_max(f05_score, n = 1)
   
   best_threshold <- df_wide$threshold
@@ -565,7 +562,6 @@ analyze_predictions <- function(df, name = "Dataset") {
       specificity = TN / (TN + FP),
       precision = TP / (TP + FP),
       recall = TP / (TP + FN),
-      f1_score = 2 * (precision * recall) / (precision + recall),
       f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
       balanced_accuracy = (recall + specificity) / 2,
       mcc = (TP * TN - FP * FN) / sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN)),
@@ -620,10 +616,10 @@ comparisons <- list(c("All", "Shared species"))
 # first normality check
 df_plot %>%
   group_by(dataset) %>%
-  shapiro_test(f1_score) # not normally distributed for all, use wilcoxon
+  shapiro_test(f05_score) # not normally distributed for all, use wilcoxon
 
 # variance check
-df_plot %>% levene_test(f1_score ~ dataset)
+df_plot %>% levene_test(f05_score ~ dataset)
 
 # nnse
 # first normality check
@@ -663,7 +659,7 @@ p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
 # dev.off()     # close the file
 # 
 
-p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
+p_f05 <- ggplot(df_plot, aes(x = dataset, y = f05_score, fill = dataset)) +
   geom_boxplot(notch = TRUE, alpha = 0.6) +
   stat_compare_means(
     comparisons = comparisons,
@@ -672,7 +668,7 @@ p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
     tip.length  = 0.01
   ) +
   scale_fill_manual(values = my_palette, guide = FALSE) +
-  labs(y = "F1 score") +
+  labs(y = "F0.5 score") +
   theme_minimal() +
   tme +
   theme(
@@ -687,12 +683,12 @@ p_f1 <- ggplot(df_plot, aes(x = dataset, y = f1_score, fill = dataset)) +
 #   height = 5,
 #   family = "Helvetica"   # or another installed font
 # )
-# print(p_f1)
+# print(p_f05)
 # dev.off()     # close the file
 
 
 # combine with a shared x-axis label
-combined <- (p_nnse | p_f1) +       # side by side
+combined <- (p_nnse | p_f05) +       # side by side
   plot_layout(ncol = 2) &           # ensure two columns
   labs(x = "Network subset")     # shared x‐axis label
 
