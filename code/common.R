@@ -152,7 +152,7 @@ sym_average <- function(m) {
 }
 
 
-plot_f1_nnse_vs_size_free_both <- function(data) {
+plot_f05_nnse_vs_size_free_both <- function(data) {
   # build correlation table
   cor_table <- data %>%
     group_by(evaluator, measure_type) %>%
@@ -180,7 +180,7 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
       cols   = vars(measure_type),
       scales = "free",     # ← free both x and y per facet
       labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
+        evaluator    = c(f05_score = "F0.5 score", nnse = "NNSE"),
         measure_type = c(size_P  = "Size of matrix P",
                          size_C  = "Size of matrix C")
       ),
@@ -206,8 +206,6 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
       expand = expansion(mult = c(0.05, 0.1))
     ) +
     
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
-    
     theme_minimal() +
     theme(
       strip.placement    = "outside",
@@ -219,4 +217,71 @@ plot_f1_nnse_vs_size_free_both <- function(data) {
     )
 }
 
-
+plot_f05_nnse_vs_density_free_both <- function(data) {
+  # build correlation table
+  cor_table <- data %>%
+    group_by(evaluator, measure_type) %>%
+    summarise(
+      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
+      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
+      .groups   = "drop"
+    ) %>%
+    mutate(
+      r_fmt      = formatC(cor_value, format = "f", digits = 2),
+      p_fmt      = ifelse(
+        p_value < 0.001,
+        formatC(p_value, format = "e", digits = 2),
+        formatC(p_value, format = "f", digits = 3)
+      ),
+      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
+    )
+  
+  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
+    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
+    
+    facet_grid(
+      rows   = vars(evaluator),
+      cols   = vars(measure_type),
+      scales = "free",     # ← free both x and y per facet
+      labeller = labeller(
+        evaluator    = c(f05_score = "F0.5 score", nnse = "NNSE"),
+        measure_type = c(density_P  = "Connectance of matrix P",
+                         density_C  = "Connectance of matrix C")
+      ),
+      switch = "y"
+    ) +
+    
+    geom_text(
+      data        = cor_table,
+      aes(label    = label_text),
+      x           = Inf, y    = Inf,
+      hjust       = 1.1, vjust = 1.2,
+      size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    scale_x_continuous(
+      name   = "Network connectance",
+      breaks = scales::breaks_width(0.02),       # 0.02 between ticks
+      labels = scales::label_number(accuracy = 0.01),
+      expand = expansion(mult = c(0.05, 0.05))
+    ) +
+    
+    scale_y_continuous(
+      name   = NULL,                # remove y title
+      expand = expansion(mult = c(0.05, 0.1))
+    ) +
+    theme_minimal() +
+    theme(
+      strip.placement    = "outside",
+      strip.text.x       = element_text(size = 12),
+      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
+      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
+      axis.ticks         = element_line(color = "black"),
+      strip.background   = element_blank(),
+      panel.spacing.x    = unit(0.7, "cm"),
+      axis.text.x  = element_text(size = 10),
+      axis.text.y  = element_text(size = 10)
+    )
+}

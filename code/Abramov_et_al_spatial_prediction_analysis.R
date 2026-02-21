@@ -217,84 +217,13 @@ plot_hist <- function(data, metric,
     scale_fill_manual(values = custom_colors) + tme
 }
 
-plot_f1_nnse_vs_density_free_both <- function(data) {
-  # build correlation table
-  cor_table <- data %>%
-    group_by(evaluator, measure_type) %>%
-    summarise(
-      cor_value = cor(evaluator_value, measure_value, use = "complete.obs"),
-      p_value   = cor.test(evaluator_value, measure_value, method = "pearson")$p.value,
-      .groups   = "drop"
-    ) %>%
-    mutate(
-      r_fmt      = formatC(cor_value, format = "f", digits = 2),
-      p_fmt      = ifelse(
-        p_value < 0.001,
-        formatC(p_value, format = "e", digits = 2),
-        formatC(p_value, format = "f", digits = 3)
-      ),
-      label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
-    )
-  
-  ggplot(data, aes(x = measure_value, y = evaluator_value)) +
-    geom_point(color = "steelblue", alpha = 0.6, size = 2) +
-    geom_smooth(method = "lm", se = FALSE, color = "salmon") +
-    
-    facet_grid(
-      rows   = vars(evaluator),
-      cols   = vars(measure_type),
-      scales = "free",     # ← free both x and y per facet
-      labeller = labeller(
-        evaluator    = c(f1_score = "F1 score", nnse = "NNSE"),
-        measure_type = c(density_P  = "Connectance of matrix P",
-                         density_C  = "Connectance of matrix C")
-      ),
-      switch = "y"
-    ) +
-    
-    geom_text(
-      data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
-      size        = 3.2,
-      inherit.aes = FALSE
-    ) +
-    
-    scale_x_continuous(
-      name   = "Network connectance",
-      breaks = scales::breaks_width(0.02),       # 0.02 between ticks
-      labels = scales::label_number(accuracy = 0.01),
-      expand = expansion(mult = c(0.05, 0.05))
-    ) +
-    
-    scale_y_continuous(
-      name   = NULL,                # remove y title
-      expand = expansion(mult = c(0.05, 0.1))
-    ) +
-    
-    #labs(title = "F1 score and RMSE vs. Size of matrices P and C") +
-    
-    theme_minimal() +
-    theme(
-      strip.placement    = "outside",
-      strip.text.x       = element_text(size = 12),
-      strip.text.y.left  = element_text(size = 14, face = "bold", angle = 90),
-      panel.border       = element_rect(color = "black", fill = NA, linewidth = 1),
-      axis.ticks         = element_line(color = "black"),
-      strip.background   = element_blank(),
-      panel.spacing.x    = unit(0.7, "cm")
-      
-    )
-}
-
 make_facet_scatter_plot <- function(data,
-                                    evaluator = "f1_score", 
+                                    evaluator = "f05_score", 
                                     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                     names_to = "jaccard_type", 
                                     values_to = "jaccard_value",
                                     x_lab = "Jaccard similarity",
-                                    y_lab = "F1 score",
+                                    y_lab = "F0.5 score",
                                     plot_title = NULL,
                                     facet_scales = "free_x") {
   
@@ -416,7 +345,7 @@ make_simple_correlation_plot <- function(data,
 
 # Final master function to make the full double plot
 make_full_correlation_plot <- function(data,
-                                       evaluator = "f1_score",
+                                       evaluator = "f05_score",
                                        pollinator_x = "avg_sorensen_pollinators",
                                        plant_x = "avg_sorensen_plants",
                                        shared_x_lab = "Mean Sorensen similarity",
@@ -567,7 +496,7 @@ make_cor_plot <- function(data, evaluator,
 
 combine_two_plots <- function(p1, p2,
                               x_axis_label = "Geographic distance (km)",
-                              y_axis_label = "F1 score",
+                              y_axis_label = "F0.5 score",
                               p1_title = "Site scale",
                               p2_title = "Island scale",
                               margins = unit(c(0.5, 0.5, 1, 0.3), "cm"),
@@ -825,7 +754,7 @@ length(pollinator_species)
 
 ### ---- c. evaluation ----
 ### ---- Fig. S8: selecting optimal threshold ----
-# select the threshold for classifying links as 1s or 0s based on balance between f1 and balanced accuracy
+# select the threshold for classifying links as 1s or 0s based on max f0.5
 
 # 0) set an array of thresholds
 thresholds <- seq(0, 1, by = 0.1)
@@ -853,7 +782,6 @@ df_thresh <- df_prepped %>%
     specificity = TN / (TN + FP),
     precision   = TP / (TP + FP),
     recall      = TP / (TP + FN),
-    f1_score    = 2 * (precision * recall) / (precision + recall),
     f05_score   = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy= (recall + specificity) / 2,
     mcc = (TP * TN - FP * FN) /
@@ -872,7 +800,6 @@ df_thresh <- df_prepped %>%
     specificity = mean(specificity, na.rm = TRUE),
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
     f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     mcc = mean(mcc, na.rm = TRUE),
@@ -885,8 +812,8 @@ df_thresh <- df_prepped %>%
 df_avg <- df_thresh %>%
   group_by(threshold) %>%
   summarise(across(
-    c(specificity, precision, recall,
-      f1_score, f05_score, balanced_accuracy, mcc),
+    c(specificity, precision, recall, 
+      f05_score, balanced_accuracy, mcc),
     mean, na.rm = TRUE
   )) %>%
   pivot_longer(-threshold,
@@ -897,7 +824,6 @@ df_avg_plot <- df_avg %>% mutate(metric = recode(metric,
                                                  specificity       = "Specificity",
                                                  precision         = "Precision",
                                                  recall            = "Recall",
-                                                 f1_score          = "F1 score",
                                                  f05_score         = "F0.5 score",
                                                  balanced_accuracy = "Balanced accuracy",
                                                  mcc               = "MCC"
@@ -962,16 +888,10 @@ df_eval_summary <- df_eval %>%
   )
 
 
-# 1) pivot to wide so F1 and balanced_accuracy are columns
-# we aim to find the optimal balance between ba and f1
+# 1) pivot to wide so F0.5 and balanced_accuracy are columns
 df_wide <- df_avg %>%
   pivot_wider(names_from = metric, values_from = value) %>%
   arrange(threshold)
-
-# 2) discrete approx: minimize abs difference
-#best_discrete <- df_wide %>%
-#  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
-#  slice_min(absdiff, n = 1)
 
 # 2) find the threshold with the optimal f05 score
 best_discrete <- df_wide %>%
@@ -1027,7 +947,6 @@ result_summary <- df_removed %>%
     specificity = TN / (TN + FP),
     precision = TP / (TP + FP),
     recall = TP / (TP + FN),
-    f1_score = 2 * (precision * recall) / (precision + recall),
     f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
     balanced_accuracy = (recall + specificity) / 2,
     nse  = 1 - sum((predicted_values - original_links)^2, na.rm = TRUE) /
@@ -1044,7 +963,6 @@ result_summary <- df_removed %>%
     specificity = mean(specificity, na.rm = TRUE),
     precision = mean(precision, na.rm = TRUE),
     recall = mean(recall, na.rm = TRUE),
-    f1_score = mean(f1_score, na.rm = TRUE),
     f05_score = mean(f05_score, na.rm = TRUE),
     balanced_accuracy = mean(balanced_accuracy, na.rm = TRUE),
     nse  = mean(nse,  na.rm = TRUE),
@@ -1160,9 +1078,9 @@ custom_colors <- c("Single location" = "steelblue",
 
 # plot the histogram: 
 
-hist_f1a <- plot_hist(result_summary, metric = "f1_score", 
+hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
                       y_axis_label = "Count of instances",
-                      x_axis_label = "F1 score") + 
+                      x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
   theme(
@@ -1171,47 +1089,47 @@ hist_f1a <- plot_hist(result_summary, metric = "f1_score",
     legend.box = "horizontal"                 # optional: lay it out horizontally
   )
 
-hist_f1a # Fig. 2b
+hist_f05a # Fig. 2b
 
 results_diags <- result_summary %>% filter(layer_comparison == "Single location")
 results_offs <- result_summary %>% filter(layer_comparison == "Added location")
 
-range(results_diags$f1_score)
-range(results_offs$f1_score)
+range(results_diags$f05_score)
+range(results_offs$f05_score)
 
 # # Base‐R PDF device
 pdf(
-  file   = "results/paper_figs/hist_f1a_legend_bottom.pdf",
+  file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
   width  = 6,    # inches
   height = 7,
   family = "Helvetica"   # or another installed font
 )
-print(hist_f1a)
+print(hist_f05a)
 dev.off()     # close the file
 
 # stats
 # run t-test via formula interface
-t_test_f1 <- t.test(f1_score ~ layer_comparison, 
+t_test_f05 <- t.test(f05_score ~ layer_comparison, 
                     data       = result_summary,
                     var.equal  = FALSE)  # Welch’s test
 
 # 3. Print the full test
-print(t_test_f1)
+print(t_test_f05)
 
 # do we need welch/wilcoxon?
 # first normality check
 result_summary %>%
   group_by(layer_comparison) %>%
-  shapiro_test(f1_score)
+  shapiro_test(f05_score)
 
 # variance check
-result_summary %>% levene_test(f1_score ~ layer_comparison)
+result_summary %>% levene_test(f05_score ~ layer_comparison)
 # all is good, we can use t-test.
 
 # 4. Extract just the numbers you want
-t_stat <- unname(t_test_f1$statistic)
-df_val <- unname(t_test_f1$parameter)
-p_val  <- t_test_f1$p.value
+t_stat <- unname(t_test_f05$statistic)
+df_val <- unname(t_test_f05$parameter)
+p_val  <- t_test_f05$p.value
 
 data.frame(
   t_value = t_stat,
@@ -1340,7 +1258,7 @@ overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 #### ---- Fig. S13: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
-  select(f1_score, f05_score, nnse, size_P, density_P, size_C, density_C) %>%
+  select(f05_score, nnse, size_P, density_P, size_C, density_C) %>%
   pivot_longer(
     cols = c(size_P, density_P, size_C, density_C),
     names_to = "measure_type",
@@ -1348,41 +1266,41 @@ df_netsize <- result_summary %>%
   )
 
 
-df_f1_nnse_size <- result_summary %>%
-  select(f1_score, f05_score, nnse, size_P, size_C) %>%
+df_f05_nnse_size <- result_summary %>%
+  select(f05_score, nnse, size_P, size_C) %>%
   pivot_longer(cols = c(size_P, size_C), names_to = "measure_type", values_to = "measure_value") %>%
-  pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
+  pivot_longer(cols = c(f05_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
-netsize_f1_nnse <- plot_f1_nnse_vs_size_free_both(df_f1_nnse_size) + tme # Fig. 5
-netsize_f1_nnse
+netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fig. 5
+netsize_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netsize_f1_nnse.pdf",
+  file   = "results/paper_figs/netsize_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
-print(netsize_f1_nnse)
+print(netsize_f05_nnse)
 dev.off()     # close the file
 
 #### ---- Fig. S5: density ----
 
-df_f1_nnse_density <- result_summary %>%
-  select(f1_score, f05_score, nnse, density_P, density_C) %>%
+df_f05_nnse_density <- result_summary %>%
+  select(f05_score, nnse, density_P, density_C) %>%
   pivot_longer(cols = c(density_P, density_C), names_to = "measure_type", values_to = "measure_value") %>%
-  pivot_longer(cols = c(f1_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
+  pivot_longer(cols = c(f05_score, nnse), names_to = "evaluator", values_to = "evaluator_value")
 
-netdensity_f1_nnse <- plot_f1_nnse_vs_density_free_both(df_f1_nnse_density) + tme
-netdensity_f1_nnse + theme(axis.text.x = element_text(size = 12))
-netdensity_f1_nnse
+netdensity_f05_nnse <- plot_f05_nnse_vs_density_free_both(df_f05_nnse_density) + tme
+netdensity_f05_nnse + theme(axis.text.x = element_text(size = 12))
+netdensity_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netdensity_f1_nnse.pdf",
+  file   = "results/paper_figs/netdensity_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
-print(netdensity_f1_nnse)
+print(netdensity_f05_nnse)
 dev.off()     # close the file
 
 ### ---- Jaccard correlation with evaluators ----
@@ -1453,22 +1371,22 @@ result_summary <- result_summary %>%
 canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
 
-jaccard_isl_f1 <- make_facet_scatter_plot(data = canary_results_jaccard, 
-                                          evaluator = "f1_score",
+jaccard_isl_f05 <- make_facet_scatter_plot(data = canary_results_jaccard, 
+                                          evaluator = "f05_score",
                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
                                           x_lab = "Jaccard similarity",
-                                          y_lab = "F1 score",
+                                          y_lab = "F0.5 score",
                                           facet_scales = "free_x")
-jaccard_isl_f1 # Fig. 4
+jaccard_isl_f05 # Fig. 4
 
 # # Base‐R PDF device
 # pdf(
-#   file   = "jaccard_isl_f1.pdf",
+#   file   = "jaccard_isl_f05.pdf",
 #   width  = 7,    # inches
 #   height = 3.5,
 #   family = "Helvetica"   # or another installed font
 # )
-# print(jaccard_isl_f1)
+# print(jaccard_isl_f05)
 # dev.off()     # close the file
 
 jaccard_isl_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
@@ -2083,15 +2001,15 @@ result_summary_island <- result_summary_island %>%
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
 
 # plot
-cor_plot_dif_isl_f1  <- make_cor_plot(result_summary_island_dif, evaluator = "f1_score", extra_theme = tme)
+cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme)
 
 # pdf(
-#   file   = "cor_plot_dif_isl_f1",
+#   file   = "cor_plot_dif_isl_f05.pdf",
 #   width  = 4,
 #   height = 4,
 #   family = "Helvetica"
 # )
-# print(cor_plot_dif_isl_f1)
+# print(cor_plot_dif_isl_f05)
 # dev.off()     # close the file
 
 
@@ -2100,43 +2018,43 @@ cor_plot_dif_isl_nnse  <- make_cor_plot(result_summary_island_dif, evaluator = "
 
 #### ---- MRM test: island scale ----
 
-# build square matrices of f1 and distance
+# build square matrices of f0.5 and distance
 #    (layers must be in the same order for rows & cols)
 
 # a) get a list of all unique layers
 layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_island_dif$test_layer)))
 
 # b) initialize empty matrices
-f1_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
+f05_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
                       dimnames=list(layers, layers))
-dist_mat_km <- f1_mat
+dist_mat_km <- f05_mat
 
-# c) fill in each cell [i,j] with the corresponding f1_score and distance_km
+# c) fill in each cell [i,j] with the corresponding f05_score and distance_km
 for(i in layers) for(j in layers) {
   # subset rows where train=i and test=j
   sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
   if(nrow(sub)==1) {
-    f1_mat[i,j]      <- sub$f1_score
+    f05_mat[i,j]      <- sub$f05_score
     dist_mat_km[i,j] <- sub$distance_km
   }
 }
 
 # d) because MRM uses symmetric distance matrices, average [i,j] & [j,i]
-f1_sym      <- sym_average(f1_mat)
+f05_sym      <- sym_average(f05_mat)
 dist_sym_km <- sym_average(dist_mat_km)
 
 # save matrices for later use
-write.csv(f1_sym, "results/f1_distance_matrix.csv", row.names = TRUE)
+write.csv(f05_sym, "results/f05_distance_matrix.csv", row.names = TRUE)
 write.csv(dist_sym_km, "results/distance_matrix_km.csv", row.names = TRUE)
 
 # e) convert to “dist” objects (lower triangle)
-dist_f1      <- as.dist(f1_sym)
+dist_f05      <- as.dist(f05_sym)
 dist_km      <- as.dist(dist_sym_km)
 
 # 4. run the MRM
-#    — this will regress the F1‐distance matrix on the geographic–distance matrix
+#    — this will regress the F0.5‐distance matrix on the geographic–distance matrix
 set.seed(42)   # for reproducibility of permutations
-mrm_out <- MRM(dist_f1 ~ dist_km, nperm=999)
+mrm_out <- MRM(dist_f05 ~ dist_km, nperm=999)
 
 # 5. results
 print(mrm_out)
@@ -2149,7 +2067,7 @@ c_connectance_mat <- jaccard_mat
 c_mat_size_mat <- jaccard_mat
 
 for(i in layers) for(j in layers) {
-  sub <- result_summary_island_diff[result_summary_island_diff$train_layer==i & result_summary_island_diff$test_layer==j, ]
+  sub <- result_summary_island_dif[result_summary_island_dif$train_layer==i & result_summary_island_dif$test_layer==j, ]
   if(nrow(sub)==1) {
     jaccard_mat[i,j]       <- sub$jaccard_edges
     c_connectance_mat[i,j] <- sub$density_C
@@ -2181,7 +2099,7 @@ predictor_combinations <- unlist(lapply(1:length(predictors), function(n) {
 
 # run MRM for each combination
 mrm_results <- lapply(predictor_combinations, function(preds) {
-  formula <- as.formula(paste("dist_f1 ~ ", paste(preds, collapse = " + ")))
+  formula <- as.formula(paste("dist_f05 ~ ", paste(preds, collapse = " + ")))
   res <- MRM(formula, nperm=999)
   list(predictors = preds, result = res)
 })
@@ -2222,8 +2140,8 @@ print(mrm_summary)
 
 ### ---- Fig. 2c heatmap ----
 
-island_heatmap_f1 <- 
-  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f1_score)) +
+island_heatmap_f05 <- 
+  ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
   # First draw the entire heatmap with white borders for all tiles
   geom_tile(color = "black", linewidth = 0.1) +  
   # Then draw the diagonal tiles on top with black borders
@@ -2231,7 +2149,7 @@ island_heatmap_f1 <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "F1 score") +
+  labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
   theme_minimal() +
   theme(
     text = element_text(size = 9),
@@ -2243,38 +2161,38 @@ island_heatmap_f1 <-
   ) +
   coord_fixed() + tme
 
-print(island_heatmap_f1)
+print(island_heatmap_f05)
 
 pdf(
-  file   = "results/paper_figs/island_heatmap_f1.pdf",
+  file   = "results/paper_figs/island_heatmap_f05.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
-print(island_heatmap_f1)
+print(island_heatmap_f05)
 dev.off()     # close the file
 
 ### ---- additional stats ----
 # sahara predictions
 results_sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara" & train_layer_name != "Western Sahara")
-mean(results_sahara$f1_score)
-sd(results_sahara$f1_score)
+mean(results_sahara$f05_score)
+sd(results_sahara$f05_score)
 
 # is including external data better?
 # run t-test via formula interface
-wilcox_f1 <- wilcox.test(f1_score ~ layer_comparison,
+wilcox_f05 <- wilcox.test(f05_score ~ layer_comparison,
                          data = result_summary_island,
                          exact = FALSE)  # turn off exact test for larger samples
-wilcox_f1
+wilcox_f05
 
 # do we need welch/wilcoxon?
 # first normality check
-shapiro_f1 <- result_summary_island %>%
+shapiro_f05 <- result_summary_island %>%
   group_by(layer_comparison) %>%
-  shapiro_test(f1_score) # for added location, the distribution is not normal
+  shapiro_test(f05_score) # for added location, the distribution is not normal
 
 # variance check
-levene_f1 <- result_summary_island %>% levene_test(f1_score ~ layer_comparison)
+levene_f05 <- result_summary_island %>% levene_test(f05_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
 ## ---- Fig. S12: no. of islands in which species occur ----
@@ -2394,17 +2312,17 @@ dev.off()
 
 # Fig. 2:
 
-# Fig. 2a is p_f1 from subset_analysis.R
+# Fig. 2a is p_f05 from subset_analysis.R
 # Fig. 2b is p_nnse from subset_analysis.R
-# Fig. 2c is island_heatmap_f1
-# Fig. 2d is hist_f1a
+# Fig. 2c is island_heatmap_f05
+# Fig. 2d is hist_f05a
 
 
-# fig2cd <- plot_grid(island_heatmap_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     hist_f1a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+# fig2cd <- plot_grid(island_heatmap_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     hist_f05a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
 #                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
 #                     rel_widths = c(1,0.95))
-# fig2ab <- plot_grid(p_f1 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+# fig2ab <- plot_grid(p_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
 #                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
 #                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
 #                     rel_widths = c(1,0.95))
@@ -2443,10 +2361,10 @@ fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2
 
 # Fig. 4:
 
-# Fig. 4a,b,c are jaccard_isl_f1
-# Fig. 4d is cor_plot_dif_isl_f1
-# fig4 <- plot_grid(jaccard_isl_f1, 
-#                   cor_plot_dif_isl_f1 + labs(y = "F1 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
+# Fig. 4a,b,c are jaccard_isl_f05
+# Fig. 4d is cor_plot_dif_isl_f05
+# fig4 <- plot_grid(jaccard_isl_f05, 
+#                   cor_plot_dif_isl_f05 + labs(y = "F0.5 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
 #                   labels = c('(a)', '(b)'),
 #                   ncol = 1,
 #                   rel_heights = c(1,1))
@@ -2506,7 +2424,7 @@ add_center_header <- function(p, header_text, size = 11, header_height = 0.12) {
 
 make_facet_scatter_plot2 <- function(
     data,
-    evaluator = "f1_score",
+    evaluator = "f05_score",
     pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
     names_to = "jaccard_type",
     values_to = "jaccard_value",
@@ -2529,7 +2447,7 @@ make_facet_scatter_plot2 <- function(
                scales = facet_scales,
                labeller = as_labeller(facet_labels)) +
     scale_x_continuous(labels = number_format(accuracy = 0.02)) +
-    labs(x = "Jaccard similarity", y = "F1 score") +     # <-- (3) nice axis titles
+    labs(x = "Jaccard similarity", y = "F0.5 score") +     # <-- (3) nice axis titles
     tme +                                            # your theme
     theme(
       strip.text   = element_text(size = 12, face = "plain"),
@@ -2544,45 +2462,45 @@ make_facet_scatter_plot2 <- function(
 # (a) Pollinators
 p_a_core <- make_facet_scatter_plot2(
   data = canary_results_jaccard,
-  evaluator = "f1_score",
+  evaluator = "f05_score",
   pivot_cols = "jaccard_pollinators",
   facet_scales = "free_x",
   tme = tme
 )
-label_a <- paste0("Pollinator overlap: ", rp_text("jaccard_pollinators", "f1_score", canary_results_jaccard))
+label_a <- paste0("Pollinator overlap: ", rp_text("jaccard_pollinators", "f05_score", canary_results_jaccard))
 p_a <- add_center_header(p_a_core, label_a, size = 12)
 
 # (b) Plants — keep y ticks; drop only the y-axis title (right column)
 p_b_core <- make_facet_scatter_plot2(
   data = canary_results_jaccard,
-  evaluator = "f1_score",
+  evaluator = "f05_score",
   pivot_cols = "jaccard_plants",
   facet_scales = "free_x",
   tme = tme
 ) + theme(axis.title.y = element_blank())
-label_b <- paste0("Plant overlap: ", rp_text("jaccard_plants", "f1_score", canary_results_jaccard))
+label_b <- paste0("Plant overlap: ", rp_text("jaccard_plants", "f05_score", canary_results_jaccard))
 p_b <- add_center_header(p_b_core, label_b, size = 12)
 
 # (c) Edges
 p_c_core <- make_facet_scatter_plot2(
   data = canary_results_jaccard,
-  evaluator = "f1_score",
+  evaluator = "f05_score",
   pivot_cols = "jaccard_edges",
   facet_scales = "free_x",
   tme = tme
 )
-label_c <- paste0("Edge overlap: ", rp_text("jaccard_edges", "f1_score", canary_results_jaccard))
+label_c <- paste0("Edge overlap: ", rp_text("jaccard_edges", "f05_score", canary_results_jaccard))
 p_c <- add_center_header(p_c_core, label_c, size = 12)
 
 # (d) Correlation — remove in-panel stats; header carries the stats
-p_d_core <- cor_plot_dif_isl_f1 +
+p_d_core <- cor_plot_dif_isl_f05 +
   tme +
   theme(
     axis.title.y = element_blank(),
     axis.text.x  = element_text(size = 12)   # <— shrink x tick labels here
   )
 p_d_core <- drop_text_layers(p_d_core)   # strip annotate("text", ...) if present
-label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f1_score", result_summary_island_dif))
+label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f05_score", result_summary_island_dif))
 p_d <- add_center_header(p_d_core, label_d, size = 12)
 
 # arrange 2×2
