@@ -125,3 +125,34 @@ pdf(
 print(final_plot)
 dev.off()     # close the file
 
+
+# mixed model
+# Are species that are globally more generalized also more generalized locally, 
+# accounting for repeated measures across islands?
+library(lme4)
+
+m1_poll <- lmer(island_degree ~ global_degree + 
+             (1 | node_to),
+           data = poll_degree_combined)
+
+summary(m1_poll)
+
+# variance in local generalization
+
+poll_variation <- poll_degree_combined %>%
+  group_by(node_to) %>%
+  summarise(
+    mean_local_degree = mean(island_degree),
+    var_local_degree  = var(island_degree),
+    sd_local_degree   = sd(island_degree),
+    n_islands         = n(),
+    .groups = "drop"
+  )
+
+hist(poll_variation$var_local_degree,
+     breaks = 20,
+     main = "Variability of local degree across islands (pollinators)",
+     xlab = "Variation") + tme
+
+
+# if we want to see if the amount of added links (locally in test) is correlated with the local degree of the species:
