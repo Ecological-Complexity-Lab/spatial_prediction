@@ -1,6 +1,21 @@
 
+# libraries -------------
+library(emln)
+
+
 # parameters -------------
 emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
+prop_ones_to_remove <- 0.2 # proportion of existing links to withhold
+
+# themes -----------
+tme <-  theme(axis.text = element_text(size = 18, color = "black"),
+              axis.title = element_text(size = 18, face = "bold"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+              axis.ticks = element_line(color = "black"))
+theme_set(theme_bw())
+
 
 # functions -------------
 # transforming raw predictions for binary evaluation
@@ -315,3 +330,20 @@ load_and_mold_data_for_prediction <- function(data_id){
   
   return(aggregated_df)
 }
+
+get_island_names_with_layer_indexes <- function() {
+  net <- emln::load_emln(60) # canary islands
+  net$layers
+  net_name <- net$layers %>% select(layer_id, name)
+  net_name
+  net_name <- net_name %>%
+    mutate(name = gsub("_", " ", name))
+  
+  # create a new grouped tibble for island names
+  new_layer_names <- net_name %>%
+    mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+    group_by(group_id) %>%
+    summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+  
+}
+

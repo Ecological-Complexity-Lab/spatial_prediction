@@ -28,17 +28,8 @@ library(PRROC)
 
 source("code/common.R")
 
-## ---- themes ----
-tme <-  theme(axis.text = element_text(size = 18, color = "black"),
-              axis.title = element_text(size = 18, face = "bold"),
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
-              axis.ticks = element_line(color = "black"))
-theme_set(theme_bw())
 
 ## ---- parameters ----
-prop_ones_to_remove <- 0.2 # proportion of existing links to withhold
 n_sim <- 50 # number of random link withholding and prediction iterations
 set.seed(42) # the answer to everything
 
