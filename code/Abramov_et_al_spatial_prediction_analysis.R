@@ -556,33 +556,8 @@ combine_two_plots <- function(p1, p2,
 
 ## ---- 1. prediction ----
 ### ---- load matrices ----
-d <- load_emln(emln_id)
-A_l <- d$extended
-
-# aggregate to island scale
-# Extract numeric layer numbers
-A_l <- A_l %>%
-  mutate(layer_num = as.numeric(gsub("layer_", "", layer_from))) %>%
-  mutate(aggregated_layer = ifelse(layer_num %% 2 == 1, 
-                                   paste0("layer_", layer_num, "_", layer_num + 1),
-                                   paste0("layer_", layer_num - 1, "_", layer_num)))
-
-# Aggregate data
-aggregated_df <- A_l %>%
-  group_by(aggregated_layer, node_from, node_to, type) %>%
-  summarise(weight = sum(weight), .groups = "drop") %>%
-  mutate(layer_from = aggregated_layer, layer_to = aggregated_layer) %>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# set new layer names using the old ones
-aggregated_df <- aggregated_df %>% 
-  separate_wider_delim(layer_from, delim = "_", names = c("t", "l1", "l2"), cols_remove = FALSE) %>%
-  mutate(island_id = paste0("layer_", as.numeric(l2)/2))  %>%
-  mutate(layer_from = island_id, layer_to = island_id)%>%
-  select(layer_from, node_from, layer_to, node_to, weight, type)
-
-# View updated aggregated_df
-print(aggregated_df)
+# load and mold data
+aggregated_df <- load_and_mold_data_for_prediction(emln_id)
 
 # save aggregated network to a file
 # write.csv(aggregated_df, file = "prediction_pipeline_for_publication/results/network_island_scale.csv", row.names = FALSE)
