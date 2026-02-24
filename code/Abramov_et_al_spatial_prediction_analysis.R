@@ -1981,8 +1981,10 @@ cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f
 
 # NNSE and distance
 cor_plot_dif_isl_nnse  <- make_cor_plot(result_summary_island_dif, evaluator = "nnse", extra_theme = tme)
+saveRDS(result_summary_island_dif, "results/result_summary_island_dif.rds")
 
 #### ---- MRM test: island scale ----
+result_summary_island_dif <- readRDS("results/result_summary_island_dif.rds")
 
 # build square matrices of f0.5 and distance
 #    (layers must be in the same order for rows & cols)
@@ -2012,6 +2014,7 @@ dist_sym_km <- sym_average(dist_mat_km)
 # save matrices for later use
 write.csv(f05_sym, "results/f05_distance_matrix.csv", row.names = TRUE)
 write.csv(dist_sym_km, "results/distance_matrix_km.csv", row.names = TRUE)
+
 
 # e) convert to “dist” objects (lower triangle)
 dist_f05      <- as.dist(f05_sym)
@@ -2102,6 +2105,28 @@ print(mrm_summary)
 
 # so according to this, the best comvination with lowest AICc is:
 # dist_km + jaccard
+
+
+# try to extract feature importance
+# Compare R² difference when dropping predictors - Relative contribution to explained variance
+# for each feature in "predictors" calculate the R² difference when dropping it from the full model
+pred_full <- paste(predictors, collapse = " + ")
+full_r2 <- mrm_summary$r_squared[mrm_summary$predictors == pred_full]
+
+feature_importance <- sapply(predictors, function(pred) {
+  # find the model that includes all predictors except the current one
+  other_preds <- setdiff(predictors, pred)
+  str <- paste(other_preds, collapse = " + ")
+  r2_no_pred <- mrm_summary$r_squared[mrm_summary$predictors == str]
+  importance <- full_r2 - r2_no_pred
+  return(importance)
+})
+
+feature_importance_df <- data.frame(
+  predictor = predictors,
+  importance = feature_importance
+) %>%
+  arrange(desc(importance)) # most important is Jaccard
 
 
 ### ---- Fig. 2c heatmap ----
