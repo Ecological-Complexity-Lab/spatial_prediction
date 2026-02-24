@@ -414,8 +414,12 @@ plot_link_prediction_map <- function(df, best_discrete_threshold, map_title) {
   return(map_missing_links_degree_based)
 }
 
-map_links_degree_pos <- plot_link_prediction_map(df_pos, best_discrete_threshold)
-map_links_degree_neg <- plot_link_prediction_map(df_neg, best_discrete_threshold)
+map_links_degree_pos <- 
+  plot_link_prediction_map(df_pos, best_discrete_threshold, 
+                           map_title = "Degree-based withholding: positive degree effect")
+map_links_degree_neg <- 
+  plot_link_prediction_map(df_neg, best_discrete_threshold,
+                           map_title = "Degree-based withholding: negative degree effect")
 
 print(map_links_degree_pos)
 print(map_links_degree_neg)
