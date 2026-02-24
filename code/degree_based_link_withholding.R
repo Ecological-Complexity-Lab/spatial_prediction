@@ -116,9 +116,9 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
-        k_values <- c(2, 5, 10)
+        k_values <- c(2)
         lam0 <- lambda0(C)
-        lambda_values <- c(1, 5, 50, 100, lam0)
+        lambda_values <- c(lam0)
         
         # Initialize variables to store the best results
         results <- data.frame(k = integer(),
