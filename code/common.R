@@ -6,6 +6,7 @@ library(emln)
 # parameters -------------
 emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
 prop_ones_to_remove <- 0.2 # proportion of existing links to withhold
+default_threshold <- 0.6 # threshold optimal for F0.5 score, calc in main script
 
 # themes -----------
 tme <-  theme(axis.text = element_text(size = 18, color = "black"),

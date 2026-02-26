@@ -2103,7 +2103,7 @@ mrm_summary$aicc <- sapply(mrm_results, function(x) {
 mrm_summary <- mrm_summary[order(mrm_summary$aicc), ]
 print(mrm_summary)
 
-# so according to this, the best comvination with lowest AICc is:
+# so according to this, the best combination with lowest AICc is:
 # dist_km + jaccard
 
 

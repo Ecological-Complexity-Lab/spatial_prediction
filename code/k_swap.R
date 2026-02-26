@@ -6,13 +6,13 @@
 # includes:
 library(tidyverse)
 
-# transforming raw predictions for binary evaluation
-sigmoid <- function(x) {
-  1 / (1 + exp(-x))
-}
+source("code/common.R")
+
 
 # 0) set an array of thresholds
-thresholds <- seq(0, 1, by = 0.1)
+thresholds <- seq(0, 10, by = 1)
+thresholds <- thresholds/10 # create the doubles myself because seq function creates funky values for 0.6 and 0.7
+
 # set lambda to filter
 las <- c(1, 5, 50, 100)
 
@@ -58,7 +58,7 @@ df_f05 <- df_thresh %>%
   select(k, itr,  input_lambda, threshold, f05_score)
 
 # plot boxplot per K
-df_f05 %>% filter(threshold == 0.5) %>% 
+df_f05 %>% filter(threshold == default_threshold) %>% 
 ggplot(aes(x=as.factor(k), y=f05_score, color=as.factor(k))) +
   geom_boxplot() +
   facet_wrap(~input_lambda)
