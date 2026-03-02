@@ -80,7 +80,7 @@ facet_p <- plot_df %>%
 # --- 3) build a named labeller for facet titles
 lab_map <- setNames(facet_p$facet_lab, facet_p$input_lambda)
 
-ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
+k_sensitivity_swap <- ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
   geom_boxplot(color = "grey25", linewidth = 0.6, outlier_alpha = 0.35) +
   facet_wrap(
     ~ input_lambda,
@@ -99,20 +99,43 @@ ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
     strip.text = element_text(color = "grey10", face = "bold")  # not gray
   ) + tme
 
+pdf(
+  file   = "results/paper_figs/k_sensitivity_swap.pdf",
+  width  = 8,    # inches
+  height = 8,
+  family = "Helvetica"   # or another installed font
+)
+print(k_sensitivity_swap)
+dev.off()     # close the file
+
 # overall k difference
 pval <- kruskal.test(f05_score ~ k, data = plot_df)$p.value
 
-ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
-  geom_boxplot(color = "grey25", linewidth = 0.7, outlier_alpha = 0.35) +
+p_text <- paste0("Kruskal–Wallis test: p = ",
+                 formatC(pval, format = "e", digits = 2))
+
+k_overall_sensitivity <- ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
+  geom_boxplot(color = "grey25", linewidth = 0.7, outlier_alpha = 0.35, notch = TRUE) +
   scale_fill_brewer(palette = "Pastel1", name = "k") +
   labs(
     x = "Number of dimensions (k)",
     y = expression(F[0.5]~"score"),
-    title = paste0("Kruskal–Wallis test: p  ",
-                   scales::pvalue(pval, accuracy = 0.001))
+    title = p_text
   ) +
   theme_minimal(base_size = 13) +
   theme(
     panel.grid.minor = element_blank(),
-    plot.title = element_text(face = "bold")
-  ) + tme
+    plot.title = element_text(face = "plain", size = 12),   # ← not bold
+    axis.title.x = element_text(face = "plain", size = 14),
+    axis.title.y = element_text(face = "plain", size = 14)
+  ) +
+  tme
+
+pdf(
+  file   = "results/paper_figs/k_overall_sensitivity_v2.pdf",
+  width  = 5,    # inches
+  height = 4,
+  family = "Helvetica"   # or another installed font
+)
+print(k_overall_sensitivity)
+dev.off()     # close the file
