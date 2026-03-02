@@ -2520,3 +2520,12 @@ pdf(
 )
 print(isl_jaccard_distance)
 dev.off()     # close the file
+
+# ---- save results summary ----
+results_summary_islands <- summary(result_summary)
+
+save_results_summary_from_summarytable(
+  results_summary_islands,
+  best_discrete_threshold = best_discrete_threshold,
+  out_csv = "results/predictions_island_scale_summary.csv"
+)

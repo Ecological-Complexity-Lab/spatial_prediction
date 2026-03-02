@@ -348,3 +348,48 @@ get_island_names_with_layer_indexes <- function() {
   
 }
 
+# save results summary
+save_results_summary_from_summarytable <- function(summary_table_obj,
+                                                   best_discrete_threshold,
+                                                   out_csv) {
+  # Convert the table (chr matrix) to a character matrix
+  mat <- as.matrix(summary_table_obj)
+  
+  # Column names are your variables (may have leading spaces)
+  vars <- trimws(colnames(mat))
+  if (is.null(vars) || length(vars) == 0) {
+    stop("No column names found on the summary table object.")
+  }
+  
+  # Helper: extract the first numeric value from strings like "Min.   :60"
+  extract_num <- function(x) {
+    x <- as.character(x)
+    m <- regexpr("-?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?", x)
+    ifelse(m == -1, NA_real_, as.numeric(regmatches(x, m)))
+  }
+  
+  # Your table rows are typically: Min, 1st Qu, Median, Mean, 3rd Qu, Max
+  row_labels <- c("Min", "Q1", "Median", "Mean", "Q3", "Max")
+  
+  # Parse values column-by-column
+  vals <- lapply(seq_along(vars), function(j) extract_num(mat[, j]))
+  vals <- do.call(rbind, vals)  # variables x 6
+  colnames(vals) <- row_labels
+  
+  df_out <- data.frame(
+    Variable = vars,
+    vals,
+    best_discrete_threshold = best_discrete_threshold,
+    row.names = NULL,
+    check.names = FALSE
+  )
+  
+  # Ensure output directory exists
+  dir.create(dirname(out_csv), recursive = TRUE, showWarnings = FALSE)
+  
+  # Save
+  write.csv(df_out, out_csv, row.names = FALSE)
+  message("Saved: ", out_csv)
+  
+  invisible(df_out)
+}
