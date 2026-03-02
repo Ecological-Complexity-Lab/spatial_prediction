@@ -5,6 +5,7 @@
 
 # includes:
 library(tidyverse)
+library(scales)
 
 source("code/common.R")
 
@@ -57,13 +58,61 @@ df_thresh <- df_prepped %>%
 df_f05 <- df_thresh %>%
   select(k, itr,  input_lambda, threshold, f05_score)
 
-# plot boxplot per K
-df_f05 %>% filter(threshold == default_threshold) %>% 
-ggplot(aes(x=as.factor(k), y=f05_score, color=as.factor(k))) +
-  geom_boxplot() +
-  facet_wrap(~input_lambda)
+# --- 1) choose your threshold & prep factors
+plot_df <- df_f05 %>%
+  filter(threshold == default_threshold) %>%
+  mutate(
+    k = factor(k),
+    input_lambda = factor(input_lambda)  # keeps facet order stable
+  )
 
+# --- 2) per-facet omnibus test across k (Kruskal–Wallis)
+facet_p <- plot_df %>%
+  group_by(input_lambda) %>%
+  summarise(
+    p = summary(aov(f05_score ~ k))[[1]][["Pr(>F)"]][1],
+    .groups = "drop"
+  ) %>%
+  mutate(
+    p_lab = paste0("p = ", scales::pvalue(p, accuracy = 0.001)),
+    facet_lab = paste0("\u03BB = ", input_lambda, "\n", p_lab)
+  )
+# --- 3) build a named labeller for facet titles
+lab_map <- setNames(facet_p$facet_lab, facet_p$input_lambda)
 
+ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
+  geom_boxplot(color = "grey25", linewidth = 0.6, outlier_alpha = 0.35) +
+  facet_wrap(
+    ~ input_lambda,
+    labeller = labeller(input_lambda = lab_map)
+  ) +
+  scale_fill_brewer(palette = "Pastel2", name = "k") +  # pastel fills + legend title
+  labs(
+    x = "Number of dimensions (k)",
+    y = expression(F[0.5]~"score")
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.title = element_text(),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white", color = "grey35", linewidth = 0.6),
+    strip.text = element_text(color = "grey10", face = "bold")  # not gray
+  ) + tme
 
+# overall k difference
+pval <- kruskal.test(f05_score ~ k, data = plot_df)$p.value
 
-
+ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
+  geom_boxplot(color = "grey25", linewidth = 0.7, outlier_alpha = 0.35) +
+  scale_fill_brewer(palette = "Pastel1", name = "k") +
+  labs(
+    x = "Number of dimensions (k)",
+    y = expression(F[0.5]~"score"),
+    title = paste0("Kruskal–Wallis test: p  ",
+                   scales::pvalue(pval, accuracy = 0.001))
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold")
+  ) + tme
