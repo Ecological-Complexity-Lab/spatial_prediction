@@ -116,7 +116,7 @@ p_text <- paste0("Kruskal–Wallis test: p = ",
 
 k_overall_sensitivity <- ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
   geom_boxplot(color = "grey25", linewidth = 0.7, outlier_alpha = 0.35, notch = TRUE) +
-  scale_fill_brewer(palette = "Pastel1", name = "k") +
+  scale_fill_brewer(palette = "Pastel1") +
   labs(
     x = "Number of dimensions (k)",
     y = expression(F[0.5]~"score"),
@@ -124,8 +124,9 @@ k_overall_sensitivity <- ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
   ) +
   theme_minimal(base_size = 13) +
   theme(
+    legend.position = "none",          # ← removes legend
     panel.grid.minor = element_blank(),
-    plot.title = element_text(face = "plain", size = 12),   # ← not bold
+    plot.title = element_text(face = "plain", size = 12),
     axis.title.x = element_text(face = "plain", size = 14),
     axis.title.y = element_text(face = "plain", size = 14)
   ) +
