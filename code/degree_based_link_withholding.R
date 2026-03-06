@@ -9,7 +9,7 @@
 
 # load packages
 source("code/common.R")
-
+library(cowplot)
 
 # params ----
 best_discrete_threshold <- 0.6 # was established in the main script.
@@ -264,7 +264,7 @@ plot_island_heatmap_with_degree_holdout <- function(result_summary,
     labs(title = plot_title , x = "Added location", y = "Predicted location", fill = "F0.5 score") +
     theme_minimal() +
     theme(
-      text = element_text(size = 9),
+      text = element_text(size = 15),
       plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
       panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
       panel.grid.major = element_blank(),  # Remove major grid lines
@@ -277,21 +277,30 @@ plot_island_heatmap_with_degree_holdout <- function(result_summary,
 
 heatmap_pos <- 
   plot_island_heatmap_with_degree_holdout(result_summary_pos, 
-                                          plot_title = "Degree-based withholding: positive degree effect")
+                                          plot_title = "Positive degree effect")
 heatmap_neg <-
   plot_island_heatmap_with_degree_holdout(result_summary_neg, 
-                                          plot_title = "Degree-based withholding: negative degree effect")
+                                          plot_title = "Negative degree effect")
 print(heatmap_pos)
 print(heatmap_neg)
 
+fig_degree_holdout <- plot_grid(
+  heatmap_pos,
+  heatmap_neg,
+  labels = c("(a)", "(b)"),
+  ncol = 2,
+  label_size = 17,
+  label_x = 0.02,   # horizontal position (default ≈ 0)
+  label_y = 0.78    # move labels closer to the plot
+)
+
 pdf(
-  file   = "results/paper_figs/island_heatmap_degree_holdout.pdf",
-  width  = 6,    # inches
-  height = 6,
+  file   = "results/paper_figs/island_heatmap_degree_holdout_combined.pdf",
+  width  = 11,    # inches
+  height = 11,
   family = "Helvetica"   # or another installed font
 )
-print(heatmap_pos)
-print(heatmap_neg)
+print(fig_degree_holdout)
 dev.off()     # close the file
 
 
