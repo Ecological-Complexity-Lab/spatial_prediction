@@ -1,7 +1,8 @@
 
 # libraries -------------
 library(emln)
-
+library(ggplot2)
+library(softImpute)
 
 # parameters -------------
 emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
