@@ -1030,6 +1030,49 @@ pdf(file   = "results/paper_figs/pr_roc.pdf",
 pr_roc
 dev.off()
 
+#### ---- false positive rate ----
+roc_obj <- roc(df_removed$original_binary, df_removed$predicted_prob_sigm,
+               quiet = TRUE, na.rm = TRUE,
+               levels = c(0,1), direction = "<")
+plot(roc_obj)
+auc_value <- auc(roc_obj)
+
+threshold <- best_discrete_threshold
+coords_df <- coords(
+  roc_obj,
+  x = threshold,
+  input = "threshold",
+  ret = c("specificity", "sensitivity")
+)
+
+FPR_value <- 1 - coords_df["specificity"]
+TPR_value <- coords_df["sensitivity"]
+
+roc_df <- data.frame(
+  FPR = 1 - roc_obj$specificities,
+  TPR = roc_obj$sensitivities
+)
+
+roc_curve <- ggplot(roc_df, aes(FPR, TPR)) +
+  geom_line(linewidth = 1.2, color = "lightsteelblue") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "salmon") +
+  labs(
+    title = "ROC curve",
+    subtitle = paste0("AUC = ", round(auc_value, 3)),
+    x = "False positive rate (1 − specificity)",
+    y = "True positive rate (sensitivity)"
+  ) +
+  coord_equal() +
+  theme_classic(base_size = 14) + tme
+
+pdf(file   = "results/paper_figs/roc_curve.pdf",
+    width  = 7,    # inches
+    height = 7,
+    family = "Helvetica"   # or another installed font
+)
+roc_curve
+dev.off()
+
 ### ---- Fig. 2d: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 
@@ -2297,6 +2340,231 @@ final_plot_occ
 # # Save to PDF
 pdf("results/paper_figs/degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
 grid::grid.draw(final_plot_occ)
+dev.off()
+
+
+## ---- local vs. global degrees and degree binning ----
+# ---- correlate predicted and observed local degree ----
+# if we want to see if the amount of added links (locally in the layer combination) is correlated with the local degree of the species:
+df <- df %>%
+  mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values))
+
+# plants
+# average predicted probability across iterations
+pred_avg <- df %>%
+  group_by(train_layer, test_layer, node_from, node_to, removed) %>%
+  summarise(
+    mean_pred = mean(predicted_prob_sigm, na.rm = TRUE),
+    original_links = first(original_links),  # constant across itr
+    .groups = "drop"
+  )
+
+# predicted degree per species per layer combo
+pred_degree <- pred_avg %>%
+  filter(removed == 1,
+         mean_pred > best_discrete_threshold) %>%
+  group_by(train_layer, test_layer, node_from) %>%
+  summarise(
+    predicted_degree = n_distinct(node_to),
+    .groups = "drop"
+  )
+
+# observed local degree
+obs_degree <- pred_avg %>%
+  filter(original_links > 0) %>%
+  group_by(train_layer, test_layer, node_from) %>%
+  summarise(
+    observed_degree = n_distinct(node_to),
+    .groups = "drop"
+  )
+
+# combine
+degree_comparison <- obs_degree %>%
+  left_join(pred_degree,
+            by = c("train_layer", "test_layer", "node_from")) %>%
+  mutate(
+    predicted_degree = replace_na(predicted_degree, 0)
+  )
+
+# correlate
+correlation_plants_d <- cor.test(degree_comparison$observed_degree, degree_comparison$predicted_degree, use = "complete.obs", method = "pearson")
+correlation_plants_d
+
+# Extract correlation coefficient and p-value
+r_value_d <- round(correlation_plants_d$estimate, 2)
+p_value_d <- formatC(correlation_plants_d$p.value, digits = 2)  # or round as you prefer
+label_text_plants_d <- paste0("r = ", r_value_d, ", p = ", p_value_d)
+
+# plot 
+plant_degree_obs_pred <- ggplot(degree_comparison, aes(x = observed_degree, y = predicted_degree)) +
+  geom_point(alpha = 0.5, size = 2, color = "seagreen3") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Observed degree",
+    y = "Predicted degree",
+    title = paste("Plants:", label_text_plants_d)   # <--- add label in title
+  ) +
+  theme_minimal() + tme
+
+plant_degree_obs_pred
+
+# pollinators
+
+# predicted degree per pollinator per layer combo (pollinators = node_to)
+pred_degree_poll <- pred_avg %>%
+  filter(removed == 1,
+         mean_pred > best_discrete_threshold) %>%
+  group_by(train_layer, test_layer, node_to) %>%
+  summarise(
+    predicted_degree = n_distinct(node_from),
+    .groups = "drop"
+  )
+
+# observed local degree per pollinator (FULL network; pollinators = node_to)
+obs_degree_poll <- pred_avg %>%
+  filter(original_links > 0) %>%
+  group_by(train_layer, test_layer, node_to) %>%
+  summarise(
+    observed_degree = n_distinct(node_from),
+    .groups = "drop"
+  )
+
+# combine
+degree_comparison_poll <- obs_degree_poll %>%
+  left_join(pred_degree_poll,
+            by = c("train_layer", "test_layer", "node_to")) %>%
+  mutate(
+    predicted_degree = replace_na(predicted_degree, 0)
+  )
+
+# correlate
+correlation_poll_d <- cor.test(
+  degree_comparison_poll$observed_degree,
+  degree_comparison_poll$predicted_degree,
+  use = "complete.obs",
+  method = "pearson"
+)
+correlation_poll_d
+
+# Extract correlation coefficient and p-value
+r_value_d <- round(correlation_poll_d$estimate, 2)
+p_value_d <- formatC(correlation_poll_d$p.value, digits = 2)
+label_text_poll_d <- paste0("r = ", r_value_d, ", p = ", p_value_d)
+
+# plot
+poll_degree_obs_pred <- ggplot(degree_comparison_poll, aes(x = observed_degree, y = predicted_degree)) +
+  geom_point(alpha = 0.5, size = 2, color = "thistle") +
+  geom_smooth(method = "lm", se = FALSE, color = "navy") +
+  labs(
+    x = "Observed degree",
+    y = "Predicted degree",
+    title = paste("Pollinators:", label_text_poll_d)
+  ) +
+  theme_minimal() + tme
+
+poll_degree_obs_pred
+
+# Remove individual axis labels
+plant_degree_clean_d <- plant_degree_obs_pred +
+  labs(x = NULL, y = NULL)
+
+poll_degree_clean_d <- poll_degree_obs_pred +
+  labs(x = NULL, y = NULL)
+
+# Combine the two panels
+main_panel <- plot_grid(
+  plant_degree_clean_d,
+  poll_degree_clean_d,
+  ncol = 2,
+  align = "hv"
+)
+
+# Add bottom (shared x-axis) label
+with_x_label <- plot_grid(
+  main_panel,
+  ggdraw() + draw_label("Observed degree",
+                        fontface = "bold",
+                        size = 16),
+  ncol = 1,
+  rel_heights = c(1, 0.08)
+)
+
+# Add left (shared y-axis) label
+final_plot_d <- plot_grid(
+  ggdraw() + draw_label("Predicted degree (withheld links)",
+                        angle = 90,
+                        fontface = "bold",
+                        size = 16),
+  with_x_label,
+  ncol = 2,
+  rel_widths = c(0.08, 1)
+)
+
+final_plot_d
+
+# # Save to PDF
+pdf("results/paper_figs/local_degree_predicted_links.pdf", width = 10, height = 7)  # adjust size as needed
+grid::grid.draw(final_plot_d)
+dev.off()
+
+# ---- performance by degree binning ----
+# add degrees to prediction data frame
+df2 <- df %>%
+  left_join(obs_degree,
+            by = c("train_layer", "test_layer", "node_from"))
+
+# create degree binning
+df2 <- df2 %>%
+  mutate(degree_bin = ntile(observed_degree, 3))
+
+# and label them
+df2$degree_bin <- factor(df2$degree_bin,
+                         levels = 1:3,
+                         labels = c("specialists", "intermediate", "generalists"))
+
+# evaluate
+df3 <- df2 %>%
+  mutate(predicted_binary = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0))
+
+# for each iteration:
+perf_iter <- df3 %>%
+  filter(removed == 1) %>% 
+  group_by(itr, degree_bin) %>%
+  summarise(
+    TP = sum(original_links > 0 & predicted_binary == 1),
+    FN = sum(original_links > 0 & predicted_binary == 0),
+    TN = sum(original_links == 0 & predicted_binary == 0),
+    FP = sum(original_links == 0 & predicted_binary == 1),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    F05 = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
+    .groups = "drop"
+  )
+
+# average across iterations:
+perf_summary <- perf_iter %>%
+  group_by(degree_bin) %>%
+  summarise(
+    mean_F05 = mean(F05, na.rm = TRUE),
+    sd_F05 = sd(F05, na.rm = TRUE)
+  )
+
+p <- kruskal.test(F05 ~ degree_bin, data = perf_iter)
+
+degree_binning <- ggplot(perf_iter, aes(x = degree_bin, y = F05, fill = degree_bin)) +
+  geom_boxplot(notch = TRUE) +
+  scale_fill_brewer(palette = "Pastel2") + 
+  labs(x = "Species degree class",
+       y = expression(F[0.5]),
+       title = paste0("Kruskal–Wallis p = ",
+                      signif(p$p.value, 3)),
+       y = expression(F[0.5])) +
+  theme_minimal() +
+  theme(legend.position = "none") + tme
+
+pdf("results/paper_figs/degree_binning.pdf", width = 6, height = 6)  # adjust size as needed
+grid::grid.draw(degree_binning)
 dev.off()
 
 ## Combine key plots into figures -----------
