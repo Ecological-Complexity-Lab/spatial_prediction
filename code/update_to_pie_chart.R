@@ -19,7 +19,12 @@ labels <- paste0(df_counts$sigm_cat,
                  df_counts$n,
                  " (", df_counts$pct, ")")
 
-
+pdf(
+  file   = "results/paper_figs/pie_chart.pdf",
+  width  = 6,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
 # Draw pie without labels
 pie(values,
     labels = NA,
@@ -49,13 +54,6 @@ text(label_radius * cos(mid_angles),
      cex = 1.8,
      xpd = TRUE)
 
-pdf(
-  file   = "results/paper_figs/pie_chart.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(pie_chart)
 dev.off()     # close the file
 
 
