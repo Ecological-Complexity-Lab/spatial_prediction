@@ -10,9 +10,12 @@
 # load packages
 source("code/common.R")
 library(cowplot)
+library(pROC)
+library(PRROC)
 
 # params ----
-best_discrete_threshold <- 0.6 # was established in the main script.
+best_discrete_threshold <- 0.6 # adjust according to what you get for your network in the main script!
+set.seed(42) # the answer to everything
 
 # functions ----
 predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_degree_effect) {
@@ -77,7 +80,7 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
       P_original <- P # save it for later
       
       # run the link withholding procedure with degree-based sampling
-      for (i in 1:10) {
+      for (i in 1:50) {
         # remove 1s
         remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove, prob = sampling_prob_1s), ]
         P[remove_indices] <- NA  # Set removed links to NA
@@ -444,5 +447,343 @@ print(map_links_degree_neg)
 dev.off()     # close the file
 
 
+# ---- class-imbalance dependent withholding ----
+predict_with_class_imbalance_link_holdout <- function(aggregated_df) {
+  n_layers <- length(unique(aggregated_df$layer_from))
+  
+  # run predictions
+  combined_results_class_imbalance <- NULL
+  for (layers_to_train in 1:n_layers) {
+    for (layer_to_predict in 1:n_layers) {
+      print(paste("** from:", layers_to_train, " to:", layer_to_predict, "**"))
+      
+      # Build the aggregated matrix A for training
+      A <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layers_to_train)
+      
+      # Build the layer to predict matrix P
+      P <- build_interaction_matrix(data = aggregated_df, layers_to_filter = layer_to_predict)
+      
+      ### ---- a. withhold links in P ----
+      # map out the 0s and 1s in P
+      ones_in_P <- which(P > 0, arr.ind = TRUE)
+      zeros_in_P <- which(P == 0, arr.ind = TRUE)
+      
+      # set proportions to remove
+      prop_ones_to_remove  <- 0.2
+      prop_zeros_to_remove <- 0.2
+      
+      # sample links and non-links
+      num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
+      num_0_to_remove <- floor(sum(P == 0, na.rm = TRUE) * prop_zeros_to_remove)  # Number of non-links to remove
+      prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = TRUE)
+      
+      # debug print
+      print(paste("1 remove:", num_1_to_remove))
+      print(paste("all 1   :", nrow(ones_in_P)))
+      print(paste("0s to remove:", num_0_to_remove))
+      print(paste("all zeros   :", nrow(zeros_in_P)))
+      print(paste("prop of zeros removed   : ", prop_0_removed))
+      
+      # Randomly select zeros to withhold - bootstrapping
+      bootstrapping_results <- NULL
+      P_original <- P # save it for later
+      
+      # run the link withholding procedure with degree-based sampling
+      for (i in 1:50) {
+        # remove 1s
+        remove_indices <- ones_in_P[sample(1:nrow(ones_in_P), num_1_to_remove), ]
+        P[remove_indices] <- NA  # Set removed links to NA
+        
+        # sample 0s
+        zeros_to_remove_indices <- zeros_in_P[sample(1:nrow(zeros_in_P), num_0_to_remove), ]
+        P[zeros_to_remove_indices] <- NA
+        
+        ### ---- creating a combined matrix C ----
+        # Combine A and P into a single matrix C with NAs representing missing data
+        all_row_ids <- unique(c(rownames(A), rownames(P)))
+        all_col_ids <- unique(c(colnames(A), colnames(P)))
+        C <- matrix(0, nrow = length(all_row_ids), ncol = length(all_col_ids),
+                    dimnames = list(all_row_ids, all_col_ids))
+        
+        # Place A into C
+        C[rownames(A), colnames(A)] <- A
+        
+        # Place P into C
+        if (layers_to_train != layer_to_predict){
+          # Ensure that existing entries are not overwritten; sum overlapping entries
+          C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                                NA, 
+                                                C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])
+        } else {
+          # if this predicts using the same layer, don't sum it to itself
+          C[rownames(P), colnames(P)] <- ifelse(is.na(C[rownames(P), colnames(P)]), 
+                                                NA, 
+                                                (C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])/2)
+        }
+        
+        
+        # Apply biScale to center matrices
+        C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
+        
+        sum(is.na(C))
+        
+        ### ---- b. + d. prediction with SVD and apply for all network combinations ----
+        k_values <- c(2)
+        lam0 <- lambda0(C)
+        lambda_values <- c(lam0)
+        
+        # Initialize variables to store the best results
+        results <- data.frame(k = integer(),
+                              lambda = numeric(),
+                              original_links = numeric(),
+                              predicted_values = numeric(),
+                              input_lambda = numeric())
+        not_removed_all <- NULL
+        
+        # Loop over all combinations of k and lambda
+        for (k in k_values) {
+          for (lambda in lambda_values) {
+            # imputation
+            r <- implement_impute(C, k, lambda, P, 
+                                  remove_indices, zeros_to_remove_indices, P_original)
+            r$results$input_lambda <- lambda
+            r$not_removed$input_lambda <- lambda
+            results <- rbind(results, r$results)
+            not_removed_all <- rbind(not_removed_all, r$not_removed)
+          }
+        }
+        
+        ### ---- save results for current k/lambda combination ----
+        # After finishing the k/lambda loops, append the 'results' to 'combined_results'
+        # ---- (D) Append to combined_results
+        complete_edges_all <- rbind(results, not_removed_all)
+        complete_edges_all$itr <- i
+        bootstrapping_results <- rbind(bootstrapping_results, complete_edges_all)
+        
+        # reset P
+        P <- P_original
+      }
+      
+      combined_results_class_imbalance <- rbind(
+        combined_results_class_imbalance,
+        cbind(
+          data.frame(
+            emln_id = emln_id,
+            train_layer = layers_to_train,
+            test_layer = layer_to_predict,
+            prop_ones_removed = prop_ones_to_remove,
+            amount_of_removed_1 = num_1_to_remove,
+            amount_of_removed_0 = num_0_to_remove,
+            prop_0_removed = prop_0_removed
+          ),
+          bootstrapping_results
+        )
+      )
+    }
+  }
+  
+  return(combined_results_class_imbalance)
+}
 
+
+combined_results_class_imbalance <-
+  predict_with_class_imbalance_link_holdout(aggregated_df)
+print("finished predicting with class imbalance")
+
+df_im <- combined_results_class_imbalance %>%
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values)) %>% 
+  mutate(original_binary = if_else(original_links > 0, 1, 0)) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values))  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+  
+
+result_summary_imbalance <- prepare_results_to_plot(df_im)
+
+## ---- plot roc and pr curves for class imbalance ----
+# positive class prevalence
+prev_pos <- mean(df_im$original_binary == 1, na.rm = TRUE)
+
+# ROC object
+roc_obj <- roc(
+  response = df_im$original_binary,
+  predictor = df_im$predicted_prob_sigm,
+  quiet = TRUE,
+  na.rm = TRUE,
+  levels = c(0, 1),
+  direction = "<"
+)
+
+auc_roc_value <- as.numeric(auc(roc_obj))
+
+# point for chosen threshold
+threshold <- best_discrete_threshold
+
+coords_df <- coords(
+  roc_obj,
+  x = threshold,
+  input = "threshold",
+  ret = c("specificity", "sensitivity")
+)
+
+
+# full ROC dataframe
+roc_df <- data.frame(
+  FPR = 1 - roc_obj$specificities,
+  TPR = roc_obj$sensitivities
+)
+
+roc_point <- data.frame(
+  FPR = 1 - coords_df[["specificity"]],
+  TPR = coords_df[["sensitivity"]]
+)
+
+roc_plot <- ggplot(roc_df, aes(FPR, TPR)) +
+  geom_line(linewidth = 1.2, color = "lightsteelblue") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "salmon") +
+  geom_point(data = roc_point, aes(FPR, TPR), size = 3, color = "black") +
+  labs(
+    title = "ROC curve",
+    subtitle = paste0("AUC = ", round(auc_roc_value, 3)),
+    x = "False positive rate (1 - specificity)",
+    y = "True positive rate (sensitivity)"
+  ) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1), expand = FALSE) +
+  theme_classic(base_size = 14) +
+  tme
+
+# pr
+df_im <- df_im %>% filter(removed == 1)
+
+pos_scores <- df_im$predicted_prob_sigm[df_im$original_binary == 1]
+neg_scores <- df_im$predicted_prob_sigm[df_im$original_binary == 0]
+
+pr_obj <- pr.curve(
+  scores.class0 = pos_scores,
+  scores.class1 = neg_scores,
+  curve = TRUE
+)
+
+auc_pr_value <- pr_obj$auc.integral
+
+pr_df <- data.frame(
+  Recall = pr_obj$curve[, 1],
+  Precision = pr_obj$curve[, 2]
+)
+
+pr_plot <- ggplot(pr_df, aes(Recall, Precision)) +
+  geom_line(linewidth = 1.2, color = "lightsteelblue") +
+  geom_hline(yintercept = prev_pos, linetype = "dashed", color = "salmon") +
+  labs(
+    title = "Precision-Recall curve",
+    subtitle = paste0(
+      "PR-AUC = ", round(auc_pr_value, 3),
+      " | baseline = ", round(prev_pos, 3)
+    ),
+    x = "Recall",
+    y = "Precision"
+  ) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1), expand = FALSE) +
+  theme_classic(base_size = 14) +
+  tme
+
+fig_imbalance_pr_roc <- plot_grid(
+  roc_plot,
+  pr_plot,
+  labels = c("(a)", "(b)"),
+  ncol = 2,
+  label_size = 17,
+  label_x = 0.02,   # horizontal position (default ≈ 0)
+  label_y = 1.1    # move labels closer to the plot
+)
+
+pdf(
+  file   = "results/paper_figs/fig_imbalance_pr_roc.pdf",
+  width  = 11,    # inches
+  height = 11,
+  family = "Helvetica"   # or another installed font
+)
+print(fig_imbalance_pr_roc)
+dev.off()     # close the file
+
+
+# roc heatmap
+
+df_eval_im <- df_im %>%
+  filter(removed == 1) %>%
+  group_by(emln_id, train_layer, test_layer, itr) %>%
+  summarise(
+    # ROC-AUC (coerce to numeric!)
+    auc_roc = tryCatch({
+      roc_obj <- roc(response = original_binary,
+                     predictor = predicted_prob,
+                     quiet = TRUE, na.rm = TRUE,
+                     levels = c(0,1), direction = "<")
+      as.numeric(auc(roc_obj))   # <-- important
+    }, error = function(e) NA_real_),
+    
+    # PR-AUC (guard against all-one-class cases)
+    auc_pr = tryCatch({
+      pos <- predicted_prob[original_binary == 1]
+      neg <- predicted_prob[original_binary == 0]
+      if (length(pos) == 0 || length(neg) == 0) return(NA_real_)
+      pr_obj <- pr.curve(scores.class0 = pos, scores.class1 = neg, curve = FALSE)
+      pr_obj$auc.integral
+    }, error = function(e) NA_real_)
+  ) %>%
+  ungroup()
+
+df_eval_summary_im <- df_eval_im %>%
+  group_by(emln_id, train_layer, test_layer) %>%
+  summarise(
+    auc_roc_mean = mean(auc_roc, na.rm = TRUE),
+    auc_roc_sd   = sd(auc_roc,   na.rm = TRUE),
+    auc_pr_mean  = mean(auc_pr,  na.rm = TRUE),
+    auc_pr_sd    = sd(auc_pr,    na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# add layer names
+net <- emln::load_emln(60) # canary islands
+net$layers
+net_name <- net$layers %>% select(layer_id, name)
+net_name
+net_name <- net_name %>%
+  mutate(name = gsub("_", " ", name))
+
+# create a new grouped tibble for island names
+new_layer_names <- net_name %>%
+  mutate(group_id = (layer_id + 1) %/% 2) %>%  # Group pairs into 1, 2, 3...
+  group_by(group_id) %>%
+  summarise(name = gsub(" site.*", "", first(name)), .groups = "drop")  # Keep only location name
+
+# Add names to main table
+df_eval_summary_im <- df_eval_summary_im %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+
+# roc
+imbalance_heatmap_roc <- 
+  ggplot(df_eval_summary_im, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
+  # First draw the entire heatmap with white borders for all tiles
+  geom_tile(color = "black", linewidth = 0.1) +  
+  # Then draw the diagonal tiles on top with black borders
+  geom_tile(data = df_eval_summary_im[df_eval_summary_im$train_layer == df_eval_summary_im$test_layer, ],
+            color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
+                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+  labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
+  theme_minimal() +
+  theme(
+    text = element_text(size = 18),
+    plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
+    panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+  ) +
+  coord_fixed() + tme
+
+print(imbalance_heatmap_roc)
 
