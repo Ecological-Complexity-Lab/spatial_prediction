@@ -852,14 +852,14 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
   scale_color_brewer(palette = "Pastel2") +
   tme
 
-pdf(
-  file   = "results/hp_analysis/paper_figs/optimal_threshold.pdf",
-  width  = 5,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(optimal_threshold)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/hp_analysis/paper_figs/optimal_threshold.pdf",
+#   width  = 5,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(optimal_threshold)
+# dev.off()     # close the file
 
 df_eval <- df %>%
   filter(removed == 1) %>%
@@ -933,15 +933,15 @@ predicted_original <- df_removed %>%
   coord_equal()+
   theme_minimal(base_size = 14) + tme
 
-pdf(
-  file   = "results/hp_analysis/paper_figs/predicted_original.pdf",
-  width  = 6,    # inches
-  height = 9,
-  family = "Helvetica"   # or another installed font
-)
-print(predicted_original)
-dev.off()     # close the file
-
+# pdf(
+#   file   = "results/hp_analysis/paper_figs/predicted_original.pdf",
+#   width  = 6,    # inches
+#   height = 9,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(predicted_original)
+# dev.off()     # close the file
+# 
 
 df_removed <- df %>%
   filter(removed == 1) %>% 
@@ -1062,13 +1062,13 @@ pr_roc <- plot_grid(
 )
 
 # supplementary figure pr_roc
-pdf(file   = "results/hp_analysis/paper_figs/pr_roc.pdf",
-    width  = 13,    # inches
-    height = 10,
-    family = "Helvetica"   # or another installed font
-)
-pr_roc
-dev.off()
+# pdf(file   = "results/hp_analysis/paper_figs/pr_roc.pdf",
+#     width  = 13,    # inches
+#     height = 10,
+#     family = "Helvetica"   # or another installed font
+# )
+# pr_roc
+# dev.off()
 
 ### ---- Fig. 2d: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
@@ -1104,14 +1104,14 @@ range(results_diags$f05_score)
 range(results_offs$f05_score)
 
 # # Base‐R PDF device
-pdf(
-  file   = "results/hp_analysis/paper_figs/hist_f05a_legend_bottom.pdf",
-  width  = 6,    # inches
-  height = 7,
-  family = "Helvetica"   # or another installed font
-)
-print(hist_f05a)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/hp_analysis/paper_figs/hist_f05a_legend_bottom.pdf",
+#   width  = 6,    # inches
+#   height = 7,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(hist_f05a)
+# dev.off()     # close the file
 
 # stats
 # run t-test via formula interface
@@ -1280,14 +1280,14 @@ df_f05_nnse_size <- result_summary %>%
 netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fig. 5
 netsize_f05_nnse
 
-pdf(
-  file   = "results/hp_analysis/paper_figs/netsize_f05_nnse.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(netsize_f05_nnse)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/hp_analysis/paper_figs/netsize_f05_nnse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netsize_f05_nnse)
+# dev.off()     # close the file
 
 #### ---- Fig. S5: density ----
 
@@ -1300,14 +1300,14 @@ netdensity_f05_nnse <- plot_f05_nnse_vs_density_free_both(df_f05_nnse_density) +
 netdensity_f05_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f05_nnse
 
-pdf(
-  file   = "results/hp_analysis/paper_figs/netdensity_f05_nnse.pdf",
-  width  = 6,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(netdensity_f05_nnse)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/hp_analysis/paper_figs/netdensity_f05_nnse.pdf",
+#   width  = 6,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(netdensity_f05_nnse)
+# dev.off()     # close the file
 
 ### ---- Jaccard correlation with evaluators ----
 #### ---- calculate Jaccard ----
@@ -1598,9 +1598,9 @@ final_plot <- plot_grid(
 final_plot # fig. 3c
 
 # # Save to PDF
-pdf("results/hp_analysis/paper_figs/degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
-grid::grid.draw(final_plot)
-dev.off()
+# pdf("results/hp_analysis/paper_figs/degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
+# grid::grid.draw(final_plot)
+# dev.off()
 
 ### ---- Fig. 3a: mapping never-observed links ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
@@ -1671,7 +1671,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   ) +
   scale_fill_gradient(low = "tan1", high = "tomato2", 
                       name = "Predicted links:\naverage predicted\nprobability",
-                      breaks = seq(0, 1, 0.1)) +
+                      breaks = seq(0.8, 1, 0.05)) +
   
   # Final adjustments
   theme_minimal() +
@@ -1690,7 +1690,7 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
 print(map_missing_links)
 
 pdf(
-  file   = "results/hp_analysis/paper_figs/map_missing_links.pdf",
+  file   = "results/hp_analysis/paper_figs/map_missing_links_host_parasite.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1813,7 +1813,7 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
 map_missing_links_diags_offs
 
 pdf(
-  file   = "results/hp_analysis/paper_figs/map_missing_links_diags_offs.pdf",
+  file   = "results/hp_analysis/paper_figs/map_missing_links_diags_offs_host_parasite.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1950,7 +1950,7 @@ pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
 
 pie_chart
 pdf(
-  file   = "results/hp_analysis/paper_figs/pie_chart.pdf",
+  file   = "results/hp_analysis/paper_figs/pie_chart_host_parasite.pdf",
   width  = 7,    # inches
   height = 7,
   family = "Helvetica"   # or another installed font
@@ -2322,7 +2322,7 @@ final_plot_occ <- plot_grid(
 final_plot_occ
 
 # # Save to PDF
-pdf("results/hp_analysis/paper_figs/degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
+pdf("results/hp_analysis/paper_figs/degree_occurrence_host_parasite.pdf", width = 8, height = 5)  # adjust size as needed
 grid::grid.draw(final_plot_occ)
 dev.off()
 
