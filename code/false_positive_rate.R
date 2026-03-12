@@ -1,7 +1,3 @@
-roc_obj <- roc(response = original_binary,
-               predictor = predicted_prob,
-               quiet = TRUE, na.rm = TRUE,
-               levels = c(0,1), direction = "<")
 
 roc_obj <- roc(df_removed$original_binary, df_removed$predicted_prob_sigm,
                quiet = TRUE, na.rm = TRUE,
