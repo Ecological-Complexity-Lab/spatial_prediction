@@ -1012,7 +1012,7 @@ year_heatmap_auc <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
                        midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training year", y = "Test year", fill = "ROC-AUC") +
+  labs(x = "Added year", y = "Predicted year", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
     text = element_text(size = 18),
@@ -1036,7 +1036,7 @@ year_heatmap_pr <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
                        midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Training year", y = "Test year", fill = "PR-AUC") +
+  labs(x = "Added year", y = "Predicted year", fill = "PR-AUC") +
   theme_minimal() +
   theme(
     text = element_text(size = 18),
@@ -1062,13 +1062,13 @@ pr_roc <- plot_grid(
 )
 
 # supplementary figure pr_roc
-# pdf(file   = "results/hp_analysis/paper_figs/pr_roc.pdf",
-#     width  = 13,    # inches
-#     height = 10,
-#     family = "Helvetica"   # or another installed font
-# )
-# pr_roc
-# dev.off()
+pdf(file   = "results/hp_analysis/paper_figs/pr_roc_host_parasite.pdf",
+    width  = 13,    # inches
+    height = 10,
+    family = "Helvetica"   # or another installed font
+)
+pr_roc
+dev.off()
 
 ### ---- Fig. 2d: distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
@@ -1126,11 +1126,10 @@ print(t_test_f05)
 # first normality check
 result_summary %>%
   group_by(layer_comparison) %>%
-  shapiro_test(f05_score)
+  shapiro_test(f05_score) # distribution is not normal for offs
 
 # variance check
 result_summary %>% levene_test(f05_score ~ layer_comparison)
-# all is good, we can use t-test.
 
 # 4. Extract just the numbers you want
 t_stat <- unname(t_test_f05$statistic)
@@ -1141,7 +1140,9 @@ data.frame(
   t_value = t_stat,
   df      = df_val,
   p_value = p_val
-)
+) # we probably need to use Wilcoxon test
+
+wilcox.test(f05_score ~ layer_comparison, data = result_summary)
 
 ### ---- e. ecological inference ----
 ### ---- network size and density correlation with evaluators ----
