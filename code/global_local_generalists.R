@@ -1,4 +1,4 @@
-# correlation between global and local generalism
+# ---- correlation between global and local generalism ----
 
 df_itr1_observed <- df %>% filter(itr == 1 & original_links > 0)
 
@@ -366,4 +366,63 @@ final_plot_d
 # # Save to PDF
 pdf("results/paper_figs/local_degree_predicted_links.pdf", width = 10, height = 7)  # adjust size as needed
 grid::grid.draw(final_plot_d)
+dev.off()
+
+# ---- performance by degree binning ----
+# add degrees to prediction data frame
+df2 <- df %>%
+  left_join(obs_degree,
+            by = c("train_layer", "test_layer", "node_from"))
+
+# create degree binning
+df2 <- df2 %>%
+  mutate(degree_bin = ntile(observed_degree, 3))
+
+# and label them
+df2$degree_bin <- factor(df2$degree_bin,
+                         levels = 1:3,
+                         labels = c("specialists", "intermediate", "generalists"))
+
+# evaluate
+df3 <- df2 %>%
+  mutate(predicted_binary = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0))
+
+# for each iteration:
+perf_iter <- df3 %>%
+  filter(removed == 1) %>% 
+  group_by(itr, degree_bin) %>%
+  summarise(
+    TP = sum(original_links > 0 & predicted_binary == 1),
+    FN = sum(original_links > 0 & predicted_binary == 0),
+    TN = sum(original_links == 0 & predicted_binary == 0),
+    FP = sum(original_links == 0 & predicted_binary == 1),
+    precision = TP / (TP + FP),
+    recall = TP / (TP + FN),
+    F05 = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
+    .groups = "drop"
+  )
+
+# average across iterations:
+perf_summary <- perf_iter %>%
+  group_by(degree_bin) %>%
+  summarise(
+    mean_F05 = mean(F05, na.rm = TRUE),
+    sd_F05 = sd(F05, na.rm = TRUE)
+  )
+
+p <- kruskal.test(F05 ~ degree_bin, data = perf_iter)
+
+degree_binning <- ggplot(perf_iter, aes(x = degree_bin, y = F05, fill = degree_bin)) +
+  geom_boxplot(notch = TRUE) +
+  scale_fill_brewer(palette = "Pastel2") + 
+  labs(x = "Species degree class",
+       y = expression(F[0.5]),
+       title = paste0("Kruskal–Wallis p = ",
+                      signif(p$p.value, 3)),
+       y = expression(F[0.5])) +
+  theme_minimal() +
+  theme(legend.position = "none") + tme
+
+pdf("results/paper_figs/degree_binning.pdf", width = 6, height = 6)  # adjust size as needed
+grid::grid.draw(degree_binning)
 dev.off()
