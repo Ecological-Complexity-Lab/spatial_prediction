@@ -7,7 +7,18 @@
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
+
+# this is for installing the EMLN package (Frydman et al. 2023): designed for handling and analysing of ecological multilayer networks;
+# in this pipeline it is used to import published multilayer network data
+package.list=c("tidyverse", "magrittr","igraph","Matrix","DT","hablar","devtools")
+loaded <-  package.list %in% .packages()
+package.list <-  package.list[!loaded]
+installed <-  package.list %in% .packages(TRUE)
+if (!all(installed)) install.packages(package.list[!installed],repos="http://cran.rstudio.com/")
+
+devtools::install_github('Ecological-Complexity-Lab/emln', force=T)
 library(emln)
+
 library(reshape2)
 library(ggpubr)
 library(gridExtra)
