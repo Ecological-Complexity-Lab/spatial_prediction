@@ -954,7 +954,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- Fig. S9: plot non-thresholded evaluation ----
+### ---- Fig. S9: non-thresholded evaluation ----
 # first add layer names
 net <- emln::load_emln(60) # canary islands
 net$layers
@@ -977,7 +977,11 @@ df_eval_summary <- df_eval_summary %>%
   rename(test_layer_name = name)
 
 # now heatmaps
+
 # roc
+lims_roc <- range(df_eval_summary$auc_roc_mean, na.rm = TRUE)
+mid_val_roc <- mean(lims_roc)
+
 island_heatmap_auc <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -986,7 +990,7 @@ island_heatmap_auc <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
-                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val_roc, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
@@ -1002,6 +1006,9 @@ island_heatmap_auc <-
 print(island_heatmap_auc)
 
 # pr
+lims_pr <- range(df_eval_summary$auc_pr_mean, na.rm = TRUE)
+mid_val_pr <- mean(lims_pr)
+
 island_heatmap_pr <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_pr_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1010,7 +1017,7 @@ island_heatmap_pr <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
-                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val_pr, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "PR-AUC") +
   theme_minimal() +
   theme(
@@ -2287,6 +2294,9 @@ feature_importance_df <- data.frame(
 
 
 ### ---- Fig. 2c heatmap ----
+# Compute limits and midpoint dynamically
+lims <- range(result_summary_island$f05_score, na.rm = TRUE)
+mid_val <- mean(lims)
 
 island_heatmap_f05 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
@@ -2296,7 +2306,7 @@ island_heatmap_f05 <-
   geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
   theme_minimal() +
   theme(

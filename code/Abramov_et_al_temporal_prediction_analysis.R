@@ -1003,6 +1003,9 @@ df_eval_summary <- df_eval_summary %>%
 
 # now heatmaps
 # roc
+lims_roc <- range(df_eval_summary$auc_roc_mean, na.rm = TRUE)
+mid_val_roc <- mean(lims_roc)
+
 year_heatmap_auc <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1011,7 +1014,7 @@ year_heatmap_auc <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
-                       midpoint = 0.76, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val_roc, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added year", y = "Predicted year", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
@@ -1027,6 +1030,9 @@ year_heatmap_auc <-
 print(year_heatmap_auc)
 
 # pr
+lims_pr <- range(df_eval_summary$auc_pr_mean, na.rm = TRUE)
+mid_val_pr <- mean(lims_pr)
+
 year_heatmap_pr <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_pr_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1035,7 +1041,7 @@ year_heatmap_pr <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
-                       midpoint = 0.75, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val_pr, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added year", y = "Predicted year", fill = "PR-AUC") +
   theme_minimal() +
   theme(
