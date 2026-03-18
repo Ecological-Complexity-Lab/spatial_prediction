@@ -1555,7 +1555,9 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
     y = "Number of predicted, \nnon-observed interactions",
     title = paste("Plants:", label_text_plants)   # <--- add label in title
   ) +
-  theme_minimal() + tme
+  theme_minimal() + tme +
+  theme(axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14))
 
 # add repel‐text layer
 plant_degree <- plant_degree +
@@ -1590,7 +1592,9 @@ poll_degree <- ggplot(df_to_correlate_poll, aes(x = x, y = y)) +
     y = "Number of predicted, \nnon-observed interactions",
     title = paste("Pollinators:", label_text_polls)   # <--- add label in title
   ) +
-  theme_minimal() + tme
+  theme_minimal() + tme +
+  theme(axis.text.x = element_text(size = 14),
+        axis.text.y = element_text(size = 14))
 
 # # Create the figure
 # final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 3c
@@ -1679,51 +1683,50 @@ all((df_summary$avg_prop == 0) == (df_summary$avg_prop_isl == 0)) # check
 df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 
-map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
-  # First layer: background heatmap for proportion observed (blue gradient)
-  geom_tile(aes(fill = avg_prop_isl)) +
-  scale_fill_gradient(low = "white", high = "steelblue", 
-                      name = "Observed links:\nproportion\nof islands\nobserved",
-                      breaks = seq(0, 1, 0.2)) +
-  
-  # Reset fill scale so the next layer can have its own gradient
-  new_scale_fill() +
-  
-  # Second layer: overlay only cells that were never observed but have high predicted value
-  geom_tile(
-    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-    aes(fill = avg_sigm_predicted),
-    alpha = 0.6
-  ) +
-  scale_fill_gradient(low = "tan1", high = "tomato2", 
-                      name = "Predicted links:\naverage predicted\nprobability",
-                      breaks = seq(0, 1, 0.1)) +
-  
-  # Final adjustments
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x = element_blank(), 
-    axis.text.y = element_text(size = 10),
-    legend.text = element_text(size = 12),
-    legend.position = "bottom",         # Place legends at the bottom
-    legend.box = "horizontal" 
-  ) + tme +
-  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-    bquote(italic(.(paste(y, collapse = " "))))
-  }))
+# map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+#   # First layer: background heatmap for proportion observed (blue gradient)
+#   geom_tile(aes(fill = avg_prop_isl)) +
+#   scale_fill_gradient(low = "white", high = "steelblue", 
+#                       name = "Observed links:\nproportion\nof islands\nobserved",
+#                       breaks = seq(0, 1, 0.2)) +
+#   
+#   # Reset fill scale so the next layer can have its own gradient
+#   new_scale_fill() +
+#   
+#   # Second layer: overlay only cells that were never observed but have high predicted value
+#   geom_tile(
+#     data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
+#     aes(fill = avg_sigm_predicted),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_gradient(low = "tan1", high = "tomato2", 
+#                       name = "Predicted links:\naverage predicted\nprobability",
+#                       breaks = seq(0, 1, 0.1)) +
+#   
+#   # Final adjustments
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x = element_blank(), 
+#     axis.text.y = element_text(size = 10),
+#     legend.text = element_text(size = 12),
+#     legend.position = "bottom",         # Place legends at the bottom
+#     legend.box = "horizontal" 
+#   ) + tme +
+#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#     bquote(italic(.(paste(y, collapse = " "))))
+#   }))
+# 
+# print(map_missing_links)
 
-print(map_missing_links)
-
-pdf(
-  file   = "results/paper_figs/map_missing_links.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_missing_links)
-dev.off()     # close the file
-
+# pdf(
+#   file   = "results/paper_figs/map_missing_links.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links)
+# dev.off()     # close the file
 
 ### ---- Fig. S11: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
@@ -1794,41 +1797,192 @@ df_plot <- diff_df %>%
     )
   )
 
-map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
-  
-  # allow a second fill scale
-  new_scale_fill() +
-  geom_tile(
-    data  = filter(df_plot, !is.na(sigm_cat)),
-    aes(fill = sigm_cat),
-    alpha = 0.6
-  ) +
-  scale_fill_manual(
-    values = c(
-      "offs↑ only" = "salmon",
-      "diag↑ only" = "plum3",
-      "both↑"       = "lightsteelblue"
+# map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
+#   
+#   # allow a second fill scale
+#   new_scale_fill() +
+#   geom_tile(
+#     data  = filter(df_plot, !is.na(sigm_cat)),
+#     aes(fill = sigm_cat),
+#     alpha = 0.6
+#   ) +
+#   scale_fill_manual(
+#     values = c(
+#       "offs↑ only" = "salmon",
+#       "diag↑ only" = "plum3",
+#       "both↑"       = "lightsteelblue"
+#     ),
+#     na.value = NA,
+#     name   = "Difference in \nprediction approach",
+#     labels = c(
+#       "offs↑ only" = "Predicted only by \nadding external location",
+#       "diag↑ only" = "Predicted only by \nsingle location",
+#       "both↑"       = "Predicted by both approaches"
+#     )
+#   ) +
+#   
+#   # tidy up
+#   theme_minimal() +
+#   labs(x = "Pollinator", y = "Plant") +
+#   theme(
+#     axis.text.x  = element_blank(),
+#     axis.text.y  = element_text(size = 8),
+#     legend.position = "bottom",
+#     legend.box      = "vertical"
+#   ) +
+#   
+#   # your italic‐species labels and extra theme element
+#   scale_y_discrete(
+#     labels = function(x) lapply(strsplit(x, "_"), function(y) {
+#       bquote(italic(.(paste(y, collapse = " "))))
+#     })
+#   ) +
+#   tme
+# 
+# map_missing_links_diags_offs
+# 
+# pdf(
+#   file   = "results/paper_figs/map_missing_links_diags_offs.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_missing_links_diags_offs)
+# dev.off()     # close the file
+
+# create a data frame for the plot (unifies previous Fig. 3a and Fig. S11)
+df_combined <- df_summary %>%
+  select(node_from, node_to, avg_prop_isl) %>%
+  full_join(
+    df_plot %>%
+      select(
+        node_from, node_to,
+        avg_sigm_predicted_offs,
+        avg_sigm_predicted_diag,
+        sigm_cat
+      ),
+    by = c("node_from", "node_to")
+  ) %>%
+  mutate(
+    observed_link = avg_prop_isl > 0,
+    
+    pred_prob = case_when(
+      sigm_cat == "offs↑ only" ~ avg_sigm_predicted_offs,
+      sigm_cat == "diag↑ only" ~ avg_sigm_predicted_diag,
+      sigm_cat == "both↑" ~ rowMeans(cbind(avg_sigm_predicted_offs, avg_sigm_predicted_diag), na.rm = TRUE), # if a link was predicted by both approaches, show the average probability
+      TRUE ~ NA_real_
     ),
-    na.value = NA,
-    name   = "Difference in \nprediction approach",
-    labels = c(
-      "offs↑ only" = "Predicted only by \nadding external location",
-      "diag↑ only" = "Predicted only by \nsingle location",
-      "both↑"       = "Predicted by both approaches"
+    
+    sigm_cat_plot = case_when(
+      avg_prop_isl == 0 & sigm_cat == "diag↑ only" ~ "Single location",
+      avg_prop_isl == 0 & sigm_cat == "offs↑ only" ~ "External location",
+      avg_prop_isl == 0 & sigm_cat == "both↑" ~ "Both approaches",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  mutate(
+    sigm_cat_plot = factor(
+      sigm_cat_plot,
+      levels = c("Single location", "External location", "Both approaches")
+    ),
+    pred_prob_alpha = ifelse(
+      !is.na(pred_prob),
+      rescale(pmax(pred_prob, best_discrete_threshold),
+              to = c(0.35, 1),
+              from = c(best_discrete_threshold, 1)),
+      NA_real_
+    )
+  )
+
+# plot 
+
+map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from)) +
+  
+  # observed links
+  geom_tile(
+    data = df_combined %>% filter(observed_link),
+    aes(fill = avg_prop_isl)
+  ) +
+  scale_fill_gradient(
+    low = "white",
+    high = "mediumaquamarine",
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.2),
+    name = "Observed links:\nproportion of islands observed",
+    guide = guide_colorbar(
+      order = 1,
+      direction = "horizontal",
+      title.position = "top",
+      title.hjust = 0.5,
+      barwidth = unit(4, "cm"),
+      barheight = unit(0.45, "cm")
     )
   ) +
   
-  # tidy up
-  theme_minimal() +
-  labs(x = "Pollinator", y = "Plant") +
-  theme(
-    axis.text.x  = element_blank(),
-    axis.text.y  = element_text(size = 8),
-    legend.position = "bottom",
-    legend.box      = "vertical"
+  # black borders around observed links
+  geom_tile(
+    data = df_combined %>% filter(observed_link),
+    fill = NA,
+    color = "black",
+    linewidth = 0.4
   ) +
   
-  # your italic‐species labels and extra theme element
+  # reset fill scale
+  new_scale_fill() +
+  
+  # predicted missing links:
+  # fill = category hue, alpha = predicted probability
+  geom_tile(
+    data = df_combined %>%
+      filter(!is.na(sigm_cat_plot), !is.na(pred_prob), pred_prob >= best_discrete_threshold),
+    aes(fill = sigm_cat_plot, alpha = pred_prob),
+    color = NA
+  ) +
+  
+  scale_fill_manual(
+    values = c(
+      "Single location" = "plum3",
+      "External location" = "salmon",
+      "Both approaches" = "lightsteelblue"
+    ),
+    name = "Prediction approach",
+    guide = guide_legend(
+      order = 2,
+      title.position = "top",
+      title.hjust = 0.5,
+      nrow = 1,
+      byrow = TRUE,
+      override.aes = list(alpha = 1)
+    )
+  ) +
+  
+  scale_alpha_continuous(
+    limits = c(best_discrete_threshold, 1),
+    range = c(0.35, 1),
+    breaks = seq(best_discrete_threshold, 1, 0.2),
+    oob = squish,
+    name = "Predicted probability",
+    guide = guide_legend(
+      order = 3,
+      title.position = "top",
+      title.hjust = 0.5,
+      nrow = 1
+    )
+  ) +
+  
+  labs(x = "Pollinator", y = "Plant") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 8),
+    
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.box.just = "center",
+    legend.title = element_text(size = 11),
+    legend.text = element_text(size = 10),
+    legend.spacing.x = unit(0.5, "cm")
+  ) +
   scale_y_discrete(
     labels = function(x) lapply(strsplit(x, "_"), function(y) {
       bquote(italic(.(paste(y, collapse = " "))))
@@ -1836,15 +1990,15 @@ map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from))
   ) +
   tme
 
-map_missing_links_diags_offs
+map_missing_links_merged
 
 pdf(
-  file   = "results/paper_figs/map_missing_links_diags_offs.pdf",
+  file   = "results/paper_figs/map_missing_links_merged.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
-print(map_missing_links_diags_offs)
+print(map_missing_links_merged)
 dev.off()     # close the file
 
 
@@ -1875,6 +2029,7 @@ df_plot_verified <- diff_df %>%
       TRUE ~ NA_character_
     )
   )
+
 # # if we want to plot them
 # map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
 # 
@@ -1984,7 +2139,7 @@ pdf(
 print(pie_chart)
 dev.off()     # close the file
 
-### ---- Fig. 3: mapping missing links and updated pie chart ----
+### ---- Fig. 3 (complete): mapping missing links and updated pie chart ----
 library(magick)
 library(pdftools)
 
@@ -2070,7 +2225,7 @@ bottom_row <- plot_grid(
 )
 
 
-fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
+fig3 <- plot_grid(map_missing_links_merged + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
                   bottom_row, labels = c('(a)', ''), 
                   ncol = 1, rel_heights = c(1.1, 0.7), label_size = 15)
 
