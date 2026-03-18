@@ -985,7 +985,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of years 
 
-### ---- Fig. S9: plot non-thresholded evaluation ----
+### ---- Fig. S9: non-thresholded evaluation ----
 # Add year names to main table using the layer_to_year mapping created earlier
 # Create a data frame with layer numbers and corresponding years
 layer_year_df <- data.frame(
@@ -1011,7 +1011,7 @@ year_heatmap_auc <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
-                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+                       midpoint = 0.76, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added year", y = "Predicted year", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
@@ -1035,7 +1035,7 @@ year_heatmap_pr <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
-                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+                       midpoint = 0.75, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added year", y = "Predicted year", fill = "PR-AUC") +
   theme_minimal() +
   theme(
