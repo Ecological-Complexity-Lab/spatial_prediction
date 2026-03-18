@@ -253,30 +253,54 @@ result_summary_pos <- prepare_results_to_plot(df_pos)
 result_summary_neg <- prepare_results_to_plot(df_neg)
 
 ## ---- Fig. S???: based on fig.2c - heatmap ----
-plot_island_heatmap_with_degree_holdout <- function(result_summary, 
-                                                    plot_title = NULL) {
-  island_heatmap_degree <- 
-    ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
-    # First draw the entire heatmap with white borders for all tiles
-    geom_tile(color = "black", linewidth = 0.1) +  
-    # Then draw the diagonal tiles on top with black borders
-    geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
-              color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-    scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
-                         midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
-    labs(title = plot_title , x = "Added location", y = "Predicted location", fill = "F0.5 score") +
-    theme_minimal() +
-    theme(
-      text = element_text(size = 15),
-      plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
-      panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
-      panel.grid.major = element_blank(),  # Remove major grid lines
-      panel.grid.minor = element_blank(),  # Remove minor grid lines
-      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
-    ) +
-    coord_fixed() + tme
-  return(island_heatmap_degree)
-}
+plot_island_heatmap_with_degree_holdout <- function(result_summary, plot_title = NULL) {
+    
+    # Compute limits and midpoint dynamically
+    lims <- range(result_summary$f05_score, na.rm = TRUE)
+    mid_val <- mean(lims)
+    
+    island_heatmap_degree <- ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
+      
+      # Base heatmap
+      geom_tile(color = "black", linewidth = 0.1) +
+      
+      # Highlight diagonal
+      geom_tile(
+        data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
+        color = "black", linewidth = 1.2
+      ) +
+      
+      # Dynamic color scale
+      scale_fill_gradient2(
+        low = "lightsteelblue2",
+        mid = "white",
+        high = "salmon2",
+        midpoint = mid_val,
+        limits = lims,
+        na.value = "gray"
+      ) +
+      
+      labs(
+        title = plot_title,
+        x = "Added location",
+        y = "Predicted location",
+        fill = "F0.5 score"
+      ) +
+      
+      theme_minimal() +
+      theme(
+        text = element_text(size = 15),
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+      ) +
+      
+      coord_fixed() + tme
+    
+    return(island_heatmap_degree)
+  }
 
 heatmap_pos <- 
   plot_island_heatmap_with_degree_holdout(result_summary_pos, 
