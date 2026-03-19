@@ -76,8 +76,12 @@ implement_impute <- function(C, k, lambda) {
   # Reconstruct the matrix
   C_reconstructed <- softImpute::complete(C, fit)
   
+  # back-transform C to original scale (was centered using biScale)
+  C_reconstructed_orig <- C_reconstructed +
+    outer(row_centers[rownames(C)], col_centers[colnames(C)], "+")
+  
   # Extract the reconstructed P matrix from C_reconstructed
-  P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
+  P_reconstructed <- C_reconstructed_orig[rownames(P), colnames(P)]
   
   # Combine indices of removed ones and zeros
   if (is.null(dim(remove_indices))) { # handles when remove_indices has only one row
@@ -686,7 +690,9 @@ if (file.exists(results_file)) {
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-        
+        # save centers before overwriting (for back-transforming later)
+        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----

@@ -71,8 +71,12 @@ implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_in
   # Reconstruct the matrix
   C_reconstructed <- softImpute::complete(C, fit)
   
+  # back-transform C to original scale (was centered using biScale)
+  C_reconstructed_orig <- C_reconstructed +
+    outer(row_centers[rownames(C)], col_centers[colnames(C)], "+")
+  
   # Extract the reconstructed P matrix from C_reconstructed
-  P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
+  P_reconstructed <- C_reconstructed_orig[rownames(P), colnames(P)]
   # Combine indices of removed ones and zeros
   if (is.null(dim(remove_indices))) { # handles when remove_indices has only one row
     if (is.null(dim(zeros_to_remove_indices))) { # handles when remove_indices has only one row

@@ -115,7 +115,9 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-        
+        # save centers before overwriting (for back-transforming later)
+        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
@@ -548,7 +550,9 @@ predict_with_class_imbalance_link_holdout <- function(aggregated_df) {
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-        
+        # save centers before overwriting (for back-transforming later)
+        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----

@@ -1,7 +1,6 @@
 # add a null model with distance shuffling
 # run shuffling according to what is written in the ipad
 
-
 # load the distance matrix
 dist_mat_kmm <- as.matrix(read.csv("results/distance_matrix_km.csv", row.names = 1))
 colnames(dist_mat_kmm) <- rownames(dist_mat_kmm)
@@ -27,14 +26,14 @@ shuff_dist_mat <- function(dist_mat) {
 
 # test if they follow a normal distribution
 shapiro.test(as.dist(f05_mat)) # p-value = 0.07614
-shapiro.test(as.dist(dist_mat_km)) # p-value = 0.2949
+shapiro.test(as.dist(dist_mat_kmm)) # p-value = 0.2949
 
 p_val_dist <- c()
 r2_val_dist <- c()
 plot_points <- NA
 # shuffle the distance matrix 500-1000 times
 for (s in 1:500) {
-  shuff_dist <- shuff_dist_mat(dist_mat_km)
+  shuff_dist <- shuff_dist_mat(dist_mat_kmm)
   
   # calculate correlation with shuffled distance matrix
   corr_res <- cor.test(as.dist(f05_mat), as.dist(shuff_dist))
@@ -63,7 +62,7 @@ ggplot(plot_points, aes(x = dist_val, y = f05_val, color = origin)) +
 
 
 # calculate observed p-value
-observed_corr <- cor.test(as.dist(f05_mat), as.dist(dist_mat_km))
+observed_corr <- cor.test(as.dist(f05_mat), as.dist(dist_mat_kmm))
 observed_p_val <- observed_corr$p.value
 #observed_r2_val <- observed_corr$estimate^2
 

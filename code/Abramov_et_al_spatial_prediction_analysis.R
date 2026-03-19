@@ -40,6 +40,8 @@ library(rstatix)
 library(ggrepel)
 library(pROC)
 library(PRROC)
+library(magick)
+library(pdftools)
 
 source("code/common.R")
 
@@ -91,8 +93,12 @@ implement_impute <- function(C, k, lambda) {
   # Reconstruct the matrix
   C_reconstructed <- softImpute::complete(C, fit)
   
+  # back-transform C to original scale (was centered using biScale)
+  C_reconstructed_orig <- C_reconstructed +
+    outer(row_centers[rownames(C)], col_centers[colnames(C)], "+")
+  
   # Extract the reconstructed P matrix from C_reconstructed
-  P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
+  P_reconstructed <- C_reconstructed_orig[rownames(P), colnames(P)]
   
   # Combine indices of removed ones and zeros
   if (is.null(dim(remove_indices))) { # handles when remove_indices has only one row
@@ -654,7 +660,9 @@ if (file.exists(results_file)) {
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-        
+        # save centers before overwriting (for back-transforming later)
+        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
@@ -1728,7 +1736,7 @@ df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 # print(map_missing_links)
 # dev.off()     # close the file
 
-### ---- Fig. S11: difference in links predicted with/without external data ----
+### ---- difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -1974,14 +1982,15 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
   theme_minimal() +
   theme(
     axis.text.x = element_blank(),
-    axis.text.y = element_text(size = 8),
+    axis.title.x = element_text(margin = margin(t = 14)),
+    axis.text.y = element_text(size = 10),
     
     legend.position = "bottom",
     legend.box = "horizontal",
     legend.box.just = "center",
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 10),
-    legend.spacing.x = unit(0.5, "cm")
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    legend.spacing.x = unit(0.3, "cm")
   ) +
   scale_y_discrete(
     labels = function(x) lapply(strsplit(x, "_"), function(y) {
@@ -2107,41 +2116,39 @@ new_labels <- c(
   "both↑"      = "Predicted by both approaches"
 )
 ### ---- Fig. 3b: pie chart ----
-# 3. Make the pie
-pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
-  geom_col(width = 1, color = "white") +      # white border between slices
-  coord_polar(theta = "y") +                  # convert bar → pie
-  scale_fill_manual(values = my_cols,
-                    labels = new_labels) +
-  theme_void() +                              # remove axes/background
-  theme(
-    legend.title = element_blank(),
-    legend.text = element_text(size = 16),
-    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-    legend.position  = "bottom",
-    legend.direction = "vertical"
-  ) +
-  #labs(title = "Interactions by Significance Category") +
-  geom_text(
-    aes(x = 1.2,label = n),
-    position = position_stack(vjust = 0.5),
-    color = "white",
-    size = 6
-  )
-
-pie_chart
-pdf(
-  file   = "results/paper_figs/pie_chart.pdf",
-  width  = 7,    # inches
-  height = 7,
-  family = "Helvetica"   # or another installed font
-)
-print(pie_chart)
-dev.off()     # close the file
+# # 3. Make the pie
+# pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
+#   geom_col(width = 1, color = "white") +      # white border between slices
+#   coord_polar(theta = "y") +                  # convert bar → pie
+#   scale_fill_manual(values = my_cols,
+#                     labels = new_labels) +
+#   theme_void() +                              # remove axes/background
+#   theme(
+#     legend.title = element_blank(),
+#     legend.text = element_text(size = 16),
+#     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+#     legend.position  = "bottom",
+#     legend.direction = "vertical"
+#   ) +
+#   #labs(title = "Interactions by Significance Category") +
+#   geom_text(
+#     aes(x = 1.2,label = n),
+#     position = position_stack(vjust = 0.5),
+#     color = "white",
+#     size = 6
+#   )
+# 
+# pie_chart
+# pdf(
+#   file   = "results/paper_figs/pie_chart.pdf",
+#   width  = 7,    # inches
+#   height = 7,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(pie_chart)
+# dev.off()     # close the file
 
 ### ---- Fig. 3 (complete): mapping missing links and updated pie chart ----
-library(magick)
-library(pdftools)
 
 # add percentages
 df_counts <- df_counts |>
