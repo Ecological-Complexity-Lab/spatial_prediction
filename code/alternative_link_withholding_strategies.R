@@ -14,7 +14,7 @@ library(pROC)
 library(PRROC)
 
 # params ----
-best_discrete_threshold <- 0.6 # adjust according to what you get for your network in the main script!
+best_discrete_threshold <- 0.7 # adjust according to what you get for your network in the main script!
 set.seed(42) # the answer to everything
 
 # functions ----
