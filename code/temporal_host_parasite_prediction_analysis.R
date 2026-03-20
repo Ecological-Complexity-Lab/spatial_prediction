@@ -284,7 +284,7 @@ make_facet_scatter_plot <- function(data,
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 9)                          )
+      axis.text.x     = element_text(size = 14)                          )
   
   return(plot)
 }
@@ -1100,7 +1100,7 @@ hist_f05a <- plot_hist(result_summary, metric = "f05_score",
                       y_axis_label = "Count of instances",
                       x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.02)) +
   theme(
     axis.text.x = element_text(hjust = 0.5),  # center tick labels
     legend.position = "bottom",               # move legend below

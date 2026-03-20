@@ -278,7 +278,7 @@ make_facet_scatter_plot <- function(data,
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 9)                          )
+      axis.text.x     = element_text(size = 14)                          )
   
   return(plot)
 }
@@ -804,7 +804,7 @@ hist_f05a
 
 # # Base‐R PDF device
 pdf(
-  file   = "results/hist_f05_site.pdf",
+  file   = "results/paper_figs/hist_f05_site.pdf",
   width  = 5,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
@@ -1001,7 +1001,7 @@ netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fi
 netsize_f05_nnse
 
 pdf(
-  file   = "results/site_netsize_f05_nnse.pdf",
+  file   = "results/paper_figs/site_netsize_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1020,7 +1020,7 @@ netdensity_f05_nnse <- plot_f05_nnse_vs_density_free_both(df_f05_nnse_density) +
 netdensity_f05_nnse
 
 pdf(
-  file   = "results/site_netdensity_f05_nnse.pdf",
+  file   = "results/paper_figs/site_netdensity_f05_nnse.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1052,7 +1052,7 @@ site_heatmap_f05 <-
 print(site_heatmap_f05)
 
 pdf(
-  file   = "results/site_heatmap_f05.pdf",
+  file   = "results/paper_figs/site_heatmap_f05.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1134,7 +1134,7 @@ jaccard_site_f05
 
 # # Base‐R PDF device
 pdf(
-  file   = "results/jaccard_site_f05.pdf",
+  file   = "results/paper_figs/jaccard_site_f05.pdf",
   width  = 7,    # inches
   height = 3.5,
   family = "Helvetica"   # or another installed font
@@ -1202,7 +1202,7 @@ filtered_results <- result_summary_site_dif[result_summary_site_dif$train_island
 ### ---- Fig. S5: plot distance decay ----
 cor_plot_site_dif_f05 <- make_cor_plot(filtered_results, evaluator = "f05_score", extra_theme = tme) + labs(y = "F0.5 score")
 pdf(
-  file   = "results/cor_plot_site_dif_f05.pdf",
+  file   = "results/paper_figs/cor_plot_site_dif_f05.pdf",
   width  = 4,
   height = 4,
   family = "Helvetica"
@@ -1323,7 +1323,7 @@ df_long %>%
   group_by(metric, scale) %>%
   shapiro_test(value)   # Shapiro-Wilk normality test
 
-# mostly, data is not normally distributed, so better use wilcoxon 
+# for island scale, data is not normally distributed (F0.5 scores), so better use wilcoxon 
 # plot
 # pretty facet titles with units:
 metric_labels <- c(
@@ -1380,7 +1380,7 @@ nnse_f05_scales
 
 # #Base‐R PDF device
 pdf(
-  file   = "results/nnse_f05_scales.pdf",
+  file   = "results/paper_figs/nnse_f05_scales.pdf",
   width  = 7,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
