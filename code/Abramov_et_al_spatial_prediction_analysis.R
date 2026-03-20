@@ -216,7 +216,7 @@ plot_hist <- function(data, metric,
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -297,7 +297,7 @@ make_facet_scatter_plot <- function(data,
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 9)                          )
+      axis.text.x     = element_text(size = 14)                          )
   
   return(plot)
 }
@@ -1121,7 +1121,7 @@ hist_f05a <- plot_hist(result_summary, metric = "f05_score",
                       y_axis_label = "Count of instances",
                       x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.02)) +
   theme(
     axis.text.x = element_text(hjust = 0.5),  # center tick labels
     legend.position = "bottom",               # move legend below
@@ -1967,7 +1967,7 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
   scale_alpha_continuous(
     limits = c(best_discrete_threshold, 1),
     range = c(0.35, 1),
-    breaks = seq(best_discrete_threshold, 1, 0.2),
+    breaks = seq(best_discrete_threshold, 1, 0.1),
     oob = squish,
     name = "Predicted probability",
     guide = guide_legend(
@@ -2293,7 +2293,10 @@ result_summary_island <- result_summary_island %>%
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
 
 # plot
-cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme)
+cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme) +
+  theme(
+    axis.text.x = element_text(size = 14)  # Adjust x-axis text size
+  )
 
 # pdf(
 #   file   = "cor_plot_dif_isl_f05.pdf",
@@ -2493,6 +2496,8 @@ print(island_heatmap_f05)
 dev.off()     # close the file
 
 ### ---- additional stats ----
+overall_sd_f05 <- sd(result_summary$f05_score, na.rm = TRUE)
+
 # sahara predictions
 results_sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara" & train_layer_name != "Western Sahara")
 mean(results_sahara$f05_score)
@@ -2998,7 +3003,7 @@ make_facet_scatter_plot2 <- function(
       strip.text   = element_text(size = 12, face = "plain"),
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks   = element_line(color = "black"),
-      axis.text.x  = element_text(size = 12)
+      axis.text.x  = element_text(size = 14)
     )
 }
 
@@ -3042,7 +3047,7 @@ p_d_core <- cor_plot_dif_isl_f05 +
   tme +
   theme(
     axis.title.y = element_blank(),
-    axis.text.x  = element_text(size = 12)   # <— shrink x tick labels here
+    axis.text.x  = element_text(size = 14)   # <— shrink x tick labels here
   )
 p_d_core <- drop_text_layers(p_d_core)   # strip annotate("text", ...) if present
 label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f05_score", result_summary_island_dif))
