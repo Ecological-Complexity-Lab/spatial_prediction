@@ -10,6 +10,8 @@ library(softImpute)
 library(rstatix)
 library(patchwork)
 
+source("code/common.R")
+
 ## ---- parameters ----
 emln_id <- 60 # Canary Islands pollination system from Trøjelsgaard et al. 2015
 prop_ones_to_remove <- 0.2 # proportion of existing links to withhold
@@ -671,14 +673,14 @@ p_f05 <- ggplot(df_plot, aes(x = dataset, y = f05_score, fill = dataset)) +
 
 
 # combine with a shared x-axis label
-combined <- (p_nnse | p_f05) +       # side by side
+combined <- (p_f05 | p_nnse) +       # side by side
   plot_layout(ncol = 2) &           # ensure two columns
   labs(x = "Network subset")     # shared x‐axis label
 
 print(combined)
 
 pdf(
-  file   = "results/subset_analysis.pdf",
+  file   = "results/paper_figs/subset_analysis.pdf",
   width  = 7,    # inches
   height = 5,
   family = "Helvetica"   # or another installed font
@@ -686,3 +688,21 @@ pdf(
 print(combined)
 dev.off()     # close the file
 
+
+pdf(
+  file   = "results/paper_figs/island_subset_f05.pdf",
+  width  = 5,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(p_f05)
+dev.off()     # close the file
+
+pdf(
+  file   = "results/paper_figs/island_subset_nnse.pdf",
+  width  = 5,    # inches
+  height = 5,
+  family = "Helvetica"   # or another installed font
+)
+print(p_nnse)
+dev.off()     # close the file

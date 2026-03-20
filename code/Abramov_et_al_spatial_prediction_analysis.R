@@ -1140,7 +1140,7 @@ range(results_offs$f05_score)
 pdf(
   file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
   width  = 6,    # inches
-  height = 7,
+  height = 6,
   family = "Helvetica"   # or another installed font
 )
 print(hist_f05a)
@@ -2475,12 +2475,14 @@ island_heatmap_f05 <-
   labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
   theme_minimal() +
   theme(
-    text = element_text(size = 9),
+    text = element_text(size = 14),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
     panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
     panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),  # Rotate x-axis labels by 45 degrees
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16)
   ) +
   coord_fixed() + tme
 
@@ -2867,26 +2869,56 @@ dev.off()
 # Fig. 2c is island_heatmap_f05
 # Fig. 2d is hist_f05a
 
+# Step 1: Read the PDF files (assuming your PDFs are stored at specific file paths)
+p_f05_img <- magick::image_read_pdf("results/paper_figs/island_subset_f05.pdf", density = 300)  # Read the p_f05 PDF
+p_nnse_img <- magick::image_read_pdf("results/paper_figs/island_subset_nnse.pdf", density = 300)  # Read the p_nnse PDF
+hist_f05a_img <- magick::image_read_pdf("results/paper_figs/hist_f05a_legend_bottom.pdf", density = 300)  # Read the hist_f05a PDF
+island_heatmap_f05_img <- magick::image_read_pdf("results/paper_figs/island_heatmap_f05.pdf", density = 300)  # Read the island_heatmap_f05 PDF
 
-# fig2cd <- plot_grid(island_heatmap_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     hist_f05a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-#                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
-#                     rel_widths = c(1,0.95))
-# fig2ab <- plot_grid(p_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-#                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
-#                     rel_widths = c(1,0.95))
-# 
-# fig2_complete <- fig2ab/fig2
+# crop
+image_info(island_heatmap_f05_img)
+island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img, geometry = "1800x1800+0+200") # "WIDTHxHEIGHT+LEFT+TOP"
+new_width  <- 1800 - 0 # how much to crop from right
+new_height <- 1800 - 200 # how much to crop from bottom
 
-# Fig. 2
-# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
-#     width  = 15,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig2
-# dev.off()
+island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img_cropped, 
+                                             geometry = paste0(new_width, "x", new_height, "+0+0"))
+
+
+# Step 2: Convert the PDFs to graphical objects (grobs)
+p_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(p_f05_img)
+p_nnse_grob <- cowplot::ggdraw() + cowplot::draw_image(p_nnse_img)
+hist_f05a_grob <- cowplot::ggdraw() + cowplot::draw_image(hist_f05a_img)
+island_heatmap_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(island_heatmap_f05_img_cropped)
+
+
+# Step 3: Add labels manually using ggdraw and draw_label
+p_f05_grob_labeled <- p_f05_grob + cowplot::draw_label("(a)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+p_nnse_grob_labeled <- p_nnse_grob + cowplot::draw_label("(b)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(c)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(d)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+
+
+# Step 4: Create the 2x2 grid with labeled plots
+fig2x2_labeled <- plot_grid(
+  p_f05_grob_labeled, p_nnse_grob_labeled,  # Top row with labels
+  island_heatmap_f05_grob_labeled, hist_f05a_grob_labeled,  # Bottom row with labels
+  ncol = 2, nrow = 2,  # 2x2 grid layout
+  rel_widths = c(1, 1),  # Equal widths for the columns
+  rel_heights = c(1, 1)  # Equal heights for the rows
+)
+
+
+# Display the labeled 2x2 plot
+print(fig2x2_labeled)
+
+pdf(file   = "results/paper_figs/subset_heatmap_hist_v2.pdf",
+    width  = 10,    # inches
+    height = 8,
+    family = "Helvetica"   # or another installed font
+)
+fig2x2_labeled
+dev.off()
 
 
 # Fig. 3
@@ -3081,10 +3113,10 @@ print(isl_jaccard_distance)
 dev.off()     # close the file
 
 # ---- save results summary ----
-results_summary_islands <- summary(result_summary)
-
-save_results_summary_from_summarytable(
-  results_summary_islands,
-  best_discrete_threshold = best_discrete_threshold,
-  out_csv = "results/predictions_island_scale_summary.csv"
-)
+# results_summary_islands <- summary(result_summary)
+# 
+# save_results_summary_from_summarytable(
+#   results_summary_islands,
+#   best_discrete_threshold = best_discrete_threshold,
+#   out_csv = "results/predictions_island_scale_summary.csv"
+# )
