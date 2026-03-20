@@ -604,7 +604,7 @@ df_plot %>%
   shapiro_test(f05_score) # not normally distributed for all, use wilcoxon
 
 # variance check
-df_plot %>% levene_test(f05_score ~ dataset)
+df_plot %>% levene_test(f05_score ~ dataset) # variance non-homogeneous
 
 # nnse
 # first normality check
@@ -613,7 +613,7 @@ df_plot %>%
   shapiro_test(nnse) # nnse is normally distributed, use t-test
 
 # variance check
-df_plot %>% levene_test(nnse ~ dataset)
+df_plot %>% levene_test(nnse ~ dataset) # variances non-homogeneous, use Welch's test
 
 # make individual plots 
 p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
@@ -621,6 +621,7 @@ p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
   stat_compare_means(
     comparisons = comparisons,
     method      = "t.test",
+    method.args = list(var.equal = FALSE),   # Welch's t-test
     label       = "p.format",
     tip.length  = 0.01
   ) +
