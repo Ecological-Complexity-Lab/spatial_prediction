@@ -116,8 +116,9 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
         # save centers before overwriting (for back-transforming later)
-        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
-        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
+        backtrans_vals <- c()
+        backtrans_vals$row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        backtrans_vals$col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
@@ -137,8 +138,8 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
         for (k in k_values) {
           for (lambda in lambda_values) {
             # imputation
-            r <- implement_impute(C, k, lambda, P, 
-                            remove_indices, zeros_to_remove_indices, P_original)
+            r <- implement_impute(C, k, lambda, P, remove_indices, 
+                                  zeros_to_remove_indices, P_original, back_trans_values = backtrans_vals)
             r$results$input_lambda <- lambda
             r$not_removed$input_lambda <- lambda
             results <- rbind(results, r$results)
@@ -551,8 +552,9 @@ predict_with_class_imbalance_link_holdout <- function(aggregated_df) {
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
         # save centers before overwriting (for back-transforming later)
-        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
-        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
+        backtrans_vals <- c()
+        backtrans_vals$row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
+        backtrans_vals$col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
@@ -572,8 +574,8 @@ predict_with_class_imbalance_link_holdout <- function(aggregated_df) {
         for (k in k_values) {
           for (lambda in lambda_values) {
             # imputation
-            r <- implement_impute(C, k, lambda, P, 
-                                  remove_indices, zeros_to_remove_indices, P_original)
+            r <- implement_impute(C, k, lambda, P, remove_indices, 
+                                  zeros_to_remove_indices, P_original, back_trans_values = backtrans_vals)
             r$results$input_lambda <- lambda
             r$not_removed$input_lambda <- lambda
             results <- rbind(results, r$results)

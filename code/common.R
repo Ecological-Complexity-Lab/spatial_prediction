@@ -60,9 +60,13 @@ build_interaction_matrix <- function(data, layers_to_filter) {
 
 
 # predict links using softImpute
-implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_indices, P_original) {
-  # Apply softImpute
+implement_impute <- function(C, k, lambda, P, remove_indices, zeros_to_remove_indices, P_original, back_trans_values = NULL) {
+  if (!is.null(back_trans_values)) { 
+    row_centers <- back_trans_values$row_centers
+    col_centers <- back_trans_values$col_centers
+  } # if it is NULL, then the values are already in global variables. not recommended, though.
   
+  # Apply softImpute
   fit <- softImpute(C, rank.max = k, lambda = lambda, type = "svd", maxit = 600)
   
   # Debias the fit to remove regularization effects
