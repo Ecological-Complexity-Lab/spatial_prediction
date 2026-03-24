@@ -908,7 +908,7 @@ predicted_original <- df_removed %>%
   ) +
   geom_abline (slope=1, linetype = "dashed", color="salmon")+
   coord_equal()+
-  theme_minimal(base_size = 14) + tme
+  theme_minimal(base_size = 11) + tme
 
 pdf(
   file   = "results/paper_figs/predicted_original.pdf",
@@ -919,6 +919,18 @@ pdf(
 print(predicted_original)
 dev.off()     # close the file
 
+png(
+  filename = "results/paper_figs/predicted_original.png",
+  width    = 6,     # inches
+  height   = 9,
+  units    = "in",
+  res      = 300,   # resolution (dpi)
+  type     = "cairo"  # better text rendering (recommended)
+)
+
+print(predicted_original)
+
+dev.off()
 
 df_removed <- df %>%
   filter(removed == 1) %>% 
@@ -1159,7 +1171,7 @@ print(t_test_f05)
 # first normality check
 result_summary %>%
   group_by(layer_comparison) %>%
-  shapiro_test(f05_score)
+  shapiro_test(f05_score) # distributions are normal
 
 # variance check
 result_summary %>% levene_test(f05_score ~ layer_comparison)
@@ -1902,6 +1914,15 @@ df_combined <- df_summary %>%
     )
   )
 
+n_unobserved_predicted <- df_combined %>%
+  filter(
+    avg_prop_isl == 0,
+    !is.na(pred_prob),
+    pred_prob > best_discrete_threshold
+  ) %>%
+  nrow()
+
+
 # plot 
 
 map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from)) +
@@ -2457,6 +2478,18 @@ feature_importance_df <- data.frame(
 ) %>%
   arrange(desc(importance)) # most important predictor is Jaccard
 
+# Add the feature importance column to mrm_summary
+mrm_summary$importance <- sapply(mrm_summary$predictors, function(preds) {
+  # Split predictors (e.g., "dist_km + jaccard") into individual predictors
+  predictor_list <- strsplit(preds, " \\+ ")[[1]]
+  
+  # Sum the importance of all the predictors in the model
+  sum_importance <- sum(feature_importance_df$importance[feature_importance_df$predictor %in% predictor_list])
+  
+  return(sum_importance)
+})
+
+print(mrm_summary)
 
 ### ---- Fig. 2c heatmap ----
 # Compute limits and midpoint dynamically
@@ -2843,18 +2876,26 @@ perf_summary <- perf_iter %>%
     sd_F05 = sd(F05, na.rm = TRUE)
   )
 
-p <- kruskal.test(F05 ~ degree_bin, data = perf_iter)
+# check for normality
+perf_iter %>%
+  group_by(degree_bin) %>%
+  shapiro_test(F05) # normal, we can use anova
+
+p_aov <- aov(F05 ~ degree_bin, data = perf_iter)
 
 degree_binning <- ggplot(perf_iter, aes(x = degree_bin, y = F05, fill = degree_bin)) +
   geom_boxplot(notch = TRUE) +
   scale_fill_brewer(palette = "Pastel2") + 
-  labs(x = "Species degree class",
-       y = expression(F[0.5]),
-       title = paste0("Kruskal–Wallis p = ",
-                      signif(p$p.value, 3)),
-       y = expression(F[0.5])) +
+  labs(
+    x = "Species degree class",
+    y = expression(F[0.5]),
+    title = paste0("ANOVA p = ", signif(p_val, 3))
+  ) +
   theme_minimal() +
-  theme(legend.position = "none") + tme
+  theme(
+    legend.position = "none",
+    text = element_text(size = 12)
+  ) + tme
 
 pdf("results/paper_figs/degree_binning.pdf", width = 6, height = 6)  # adjust size as needed
 grid::grid.draw(degree_binning)
@@ -2879,7 +2920,7 @@ island_heatmap_f05_img <- magick::image_read_pdf("results/paper_figs/island_heat
 image_info(island_heatmap_f05_img)
 island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img, geometry = "1800x1800+0+200") # "WIDTHxHEIGHT+LEFT+TOP"
 new_width  <- 1800 - 0 # how much to crop from right
-new_height <- 1800 - 200 # how much to crop from bottom
+new_height <- 1800 - 400 # how much to crop from bottom
 
 island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img_cropped, 
                                              geometry = paste0(new_width, "x", new_height, "+0+0"))
@@ -2895,8 +2936,8 @@ island_heatmap_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(island_heatma
 # Step 3: Add labels manually using ggdraw and draw_label
 p_f05_grob_labeled <- p_f05_grob + cowplot::draw_label("(a)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
 p_nnse_grob_labeled <- p_nnse_grob + cowplot::draw_label("(b)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(c)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(d)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(c)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(d)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
 
 
 # Step 4: Create the 2x2 grid with labeled plots
