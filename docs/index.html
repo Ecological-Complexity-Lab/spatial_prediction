@@ -473,6 +473,16 @@
       <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
         <input type="number" id="thresh-input" min="0.5" max="1" step="0.01" value="0.70">
       </div>
+      <div class="filter-sep"></div>
+      <div class="filter-title">Panels:</div>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-map" checked>
+        Show map
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-right" checked>
+        Show right panel
+      </label>
     </div>
     <div id="right-side">
       <div id="info-panel">
@@ -1039,6 +1049,13 @@ function setupFilters() {
     document.getElementById(id).addEventListener("change", e => {
       document.getElementById("matrix-table").classList.toggle(cls, !e.target.checked);
     });
+  });
+
+  document.getElementById("cb-map").addEventListener("change", e => {
+    document.getElementById("map-area").style.display = e.target.checked ? "" : "none";
+  });
+  document.getElementById("cb-right").addEventListener("change", e => {
+    document.getElementById("right-side").style.display = e.target.checked ? "" : "none";
   });
 
   const slider   = document.getElementById("thresh-slider");
