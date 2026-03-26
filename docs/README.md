@@ -12,6 +12,7 @@ The static figure in the paper (Fig. 3a) is a dense 39 × 249 matrix that is dif
 - Explore the island-level distribution of any species and its local interaction degree.
 - Understand the relationship between a species' generalism (overall degree) and how many novel interactions are predicted for it.
 - Filter the matrix to focus on a specific prediction approach or observed links only.
+- Adjust the probability threshold interactively to explore how the set of predicted links changes with stringency.
 
 ---
 
@@ -62,6 +63,7 @@ The map at the bottom shows the **seven sampling locations** across the Canary I
 
 ### Filter panel
 - The **Show / hide checkboxes** (between the matrix and the information panel) toggle each interaction type on and off independently.
+- The **Threshold slider** (below the checkboxes) adjusts the minimum predicted probability required to display a link, from 0.5 to 1.0 (default 0.7). You can also type a value directly into the number field. The matrix colours and the correlation scatter plots update in real time to reflect the new threshold.
 
 ---
 
