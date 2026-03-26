@@ -316,6 +316,12 @@
     line-height: 1.3;
   }
   .filter-item input[type="checkbox"] { cursor: pointer; margin: 0; }
+  .filter-sep { height: 1px; background: #ddd; margin: 4px 0; }
+  #thresh-slider { width: 100%; cursor: pointer; accent-color: #3366cc; margin: 2px 0; }
+  #thresh-input {
+    width: 62px; border: 1px solid #ccc; border-radius: 3px;
+    padding: 2px 4px; font-size: 11px; text-align: center;
+  }
   .filter-swatch {
     width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
     border: 1px solid rgba(0,0,0,0.15);
@@ -454,6 +460,12 @@
         <span class="filter-swatch" style="background:#B0C4DE"></span>
         Both approaches
       </label>
+      <div class="filter-sep"></div>
+      <div class="filter-title">Threshold:</div>
+      <input type="range" id="thresh-slider" min="0.5" max="1" step="0.01" value="0.7">
+      <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+        <input type="number" id="thresh-input" min="0.5" max="1" step="0.01" value="0.70">
+      </div>
     </div>
     <div id="right-side">
       <div id="info-panel">
@@ -533,6 +545,7 @@ let pollMap  = {};   // id -> pollinator object
 let cellMap  = {};   // "plant|poll" -> interaction object
 let selectedPlant = null;
 let selectedPoll  = null;
+let currentThreshold = 0.7;
 
 // ── load data ──────────────────────────────────────────────────────────────
 fetch("figure3a_data.json")
@@ -598,7 +611,8 @@ function buildMatrix() {
              : "both";
         }
       }
-      row += `<td class="cell" data-plant-id="${plid}" data-poll-id="${pid}"${ct ? ` data-ct="${ct}"` : ""}${style ? ` style="${style}"` : ""}></td>`;
+      const probAttr = (ct && ct !== "obs" && ix?.pred_prob != null) ? ` data-prob="${ix.pred_prob}"` : "";
+      row += `<td class="cell" data-plant-id="${plid}" data-poll-id="${pid}"${ct ? ` data-ct="${ct}"` : ""}${probAttr}${style ? ` style="${style}"` : ""}></td>`;
     });
     row += "</tr>";
     bodyRows += row;
@@ -772,7 +786,7 @@ function showInteractionPanel(plantId, pollId) {
   const po  = pollMap[pollId];
   updateMapHighlight("cell", pl?.local_degrees, po?.local_degrees);
 
-  const threshold = 0.7;
+  const threshold = currentThreshold;
 
   // ── observation section ──
   let obsHtml = "";
@@ -938,7 +952,7 @@ function handleIslandClick(islandId) {
     .attr("r", 7).attr("fill", "#3366cc").attr("stroke", "#fff").attr("stroke-width", 1.5);
 
   // Collect matching cells
-  const threshold = 0.7;
+  const threshold = currentThreshold;
   DATA.interactions.forEach(ix => {
     let match = false;
     if (ix.observed_link) {
@@ -1019,6 +1033,45 @@ function setupFilters() {
       document.getElementById("matrix-table").classList.toggle(cls, !e.target.checked);
     });
   });
+
+  const slider   = document.getElementById("thresh-slider");
+  const numInput = document.getElementById("thresh-input");
+
+  slider.addEventListener("input", () => {
+    const v = parseFloat(slider.value);
+    numInput.value = v.toFixed(2);
+    applyThreshold(v);
+  });
+
+  numInput.addEventListener("change", () => {
+    let v = parseFloat(numInput.value);
+    if (isNaN(v)) v = 0.7;
+    v = Math.min(1, Math.max(0.5, v));
+    numInput.value = v.toFixed(2);
+    slider.value = v;
+    applyThreshold(v);
+  });
+}
+
+// ── apply threshold dynamically ────────────────────────────────────────────
+
+function applyThreshold(t) {
+  currentThreshold = t;
+
+  document.querySelectorAll('td.cell[data-ct="single"], td.cell[data-ct="external"], td.cell[data-ct="both"]').forEach(cell => {
+    const prob = parseFloat(cell.dataset.prob);
+    if (isNaN(prob) || prob < t) {
+      cell.style.background = "";
+    } else {
+      const catName = cell.dataset.ct === "single"   ? "Single location"
+                    : cell.dataset.ct === "external" ? "External location"
+                    : "Both approaches";
+      const alpha = t >= 1 ? 1 : 0.35 + (prob - t) / (1 - t) * 0.65;
+      cell.style.background = predColor(catName, Math.min(1, Math.max(0, alpha)));
+    }
+  });
+
+  buildCorrPlots();
 }
 
 // ── correlation plots ──────────────────────────────────────────────────────
@@ -1027,7 +1080,7 @@ let plantCorrData = [];
 let pollCorrData  = [];
 
 function buildCorrPlots() {
-  const threshold = 0.7;
+  const threshold = currentThreshold;
   const plantPredCount = {}, pollPredCount = {};
   DATA.interactions.forEach(ix => {
     if (!ix.observed_link && ix.sigm_cat_plot && ix.pred_prob !== null && ix.pred_prob >= threshold) {
