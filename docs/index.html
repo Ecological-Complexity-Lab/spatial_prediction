@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fig. 3a – Predicted Plant–Pollinator Interactions (Canary Islands)</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -36,10 +38,29 @@
     min-height: 0;
   }
 
+  /* ── left column (matrix + map stacked) ── */
+  #left-col {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* ── map area ── */
+  #map-area {
+    flex-shrink: 0;
+    height: 340px;
+    border-top: 1px solid #ddd;
+    background: #cde8f5;
+    overflow: visible;
+  }
+
   /* ── matrix area ── */
   #matrix-area {
     flex: 1 1 auto;
     overflow: auto;
+    min-height: 0;
     position: relative;
     background: #fff;
     border-right: 1px solid #ddd;
@@ -348,7 +369,10 @@
 
 <div id="app">
   <div id="top-row">
-    <div id="matrix-area"></div>
+    <div id="left-col">
+      <div id="matrix-area"></div>
+      <div id="map-area"></div>
+    </div>
     <div id="filter-panel">
       <div class="filter-title">Show:</div>
       <label class="filter-item">
@@ -475,6 +499,7 @@ fetch("figure3a_data.json")
     buildMatrix();
     setupFilters();
     buildCorrPlots();
+    initMap();
     document.getElementById("loading").style.display = "none";
   })
   .catch(err => {
@@ -603,6 +628,7 @@ function clearSelections() {
     el.classList.remove("col-selected");
   });
   highlightCorrPoint(null, null);
+  updateMapHighlight("clear");
 }
 
 // ── info panel builders ───────────────────────────────────────────────────
@@ -610,6 +636,7 @@ function showPlantPanel(plantId) {
   const p = plantMap[plantId];
   const panel = document.getElementById("info-panel");
   if (!p) { panel.innerHTML = "<h2>Plant</h2><p class='hint'>No data.</p>"; return; }
+  updateMapHighlight("plant", p.local_degrees, null);
 
   const allIslands = DATA.islands;
   const presIslands = p.local_degrees ? Object.keys(p.local_degrees) : [];
@@ -645,6 +672,7 @@ function showPollinatorPanel(pollId) {
   const p = pollMap[pollId];
   const panel = document.getElementById("info-panel");
   if (!p) { panel.innerHTML = "<h2>Pollinator</h2><p class='hint'>No data.</p>"; return; }
+  updateMapHighlight("poll", null, p.local_degrees);
 
   const allIslands = DATA.islands;
 
@@ -681,6 +709,7 @@ function showInteractionPanel(plantId, pollId) {
   const ix  = cellMap[key];
   const pl  = plantMap[plantId];
   const po  = pollMap[pollId];
+  updateMapHighlight("cell", pl?.local_degrees, po?.local_degrees);
 
   const threshold = 0.7;
 
@@ -766,6 +795,124 @@ function showInteractionPanel(plantId, pollId) {
     <div class="sep"></div>
     ${obsHtml}
     ${predHtml}`;
+}
+
+// ── map ────────────────────────────────────────────────────────────────────
+
+const ISLAND_LOCS = [
+  { id: "El Hierro",      label: "El Hierro",     lng: -17.9, lat: 27.8  },
+  { id: "La Gomera",      label: "La Gomera",     lng: -17.2, lat: 28.0  },
+  { id: "Tenerife 1",     label: "Tenerife N",    lng: -16.9, lat: 28.42 },
+  { id: "Tenerife 2",     label: "Tenerife S",    lng: -16.4, lat: 28.18 },
+  { id: "Gran Canaria",   label: "Gran Canaria",  lng: -15.4, lat: 27.9  },
+  { id: "Fuerteventura",  label: "Fuerteventura", lng: -13.9, lat: 28.6  },
+  { id: "Western Sahara", label: "W. Sahara",     lng: -14.4, lat: 26.2  },
+];
+
+let mapSvg = null, mapProjection = null;
+const islandGroups = {};
+
+function initMap() {
+  const areaEl = document.getElementById("map-area");
+  const W = areaEl.clientWidth, H = areaEl.clientHeight;
+
+  // Projection fitted to all sampling sites with padding
+  mapProjection = d3.geoMercator().fitExtent(
+    [[50, 22], [W - 50, H - 45]],
+    { type: "Feature", geometry: { type: "MultiPoint",
+        coordinates: ISLAND_LOCS.map(d => [d.lng, d.lat]) } }
+  );
+  const pathGen = d3.geoPath().projection(mapProjection);
+
+  mapSvg = d3.select("#map-area").append("svg")
+    .attr("width", W).attr("height", H);
+
+  // Ocean background
+  mapSvg.append("rect").attr("width", W).attr("height", H).attr("fill", "#cde8f5");
+
+  // Land from Natural Earth via world-atlas (50 m resolution)
+  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json")
+    .then(world => {
+      mapSvg.append("path")
+        .datum(topojson.feature(world, world.objects.land))
+        .attr("d", pathGen)
+        .attr("fill", "#e8e2d0")
+        .attr("stroke", "#bbb")
+        .attr("stroke-width", 0.5);
+    })
+    .catch(() => {})
+    .finally(buildIslandMarkers);
+}
+
+function buildIslandMarkers() {
+  ISLAND_LOCS.forEach(loc => {
+    const [x, y] = mapProjection([loc.lng, loc.lat]);
+    const g = mapSvg.append("g")
+      .attr("class", "isle-grp")
+      .attr("transform", `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+
+    g.append("circle").attr("class", "isle-base")
+      .attr("r", 5).attr("fill", "#aaa")
+      .attr("stroke", "#fff").attr("stroke-width", 1);
+
+    g.append("text").attr("class", "isle-lbl")
+      .attr("y", 18).attr("text-anchor", "middle")
+      .attr("font-size", "9px").attr("fill", "#333")
+      .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
+      .text(loc.label);
+
+    islandGroups[loc.id] = g;
+  });
+}
+
+function updateMapHighlight(type, plantDeg, pollDeg) {
+  if (!mapSvg) return;
+  ISLAND_LOCS.forEach(({ id }) => {
+    const g = islandGroups[id];
+    if (!g) return;
+    g.selectAll(".dyn").remove();
+
+    if (type === "clear") {
+      g.select(".isle-base").attr("r", 5).attr("fill", "#aaa");
+      return;
+    }
+    g.select(".isle-base").attr("r", 0);  // hide resting dot
+
+    if (type === "plant" || type === "poll") {
+      const deg   = (type === "plant" ? plantDeg : pollDeg)?.[id];
+      const color = type === "plant" ? "#66CDAA" : "#FA8072";
+      if (deg !== undefined) {
+        islandDot(g, 0, 14, color, deg);
+      } else {
+        g.append("circle").attr("class", "dyn")
+          .attr("r", 4).attr("fill", "#ddd")
+          .attr("stroke", "#bbb").attr("stroke-width", 1);
+      }
+    } else {  // "cell" — show plant (top) and pollinator (bottom)
+      const pd = plantDeg?.[id], qd = pollDeg?.[id];
+      const both = pd !== undefined && qd !== undefined;
+      const off  = both ? 10 : 0, r = both ? 10 : 14;
+      if (pd !== undefined) islandDot(g, both ? -off : 0, r, "#66CDAA", pd);
+      if (qd !== undefined) islandDot(g, both ? +off : 0, r, "#FA8072", qd);
+      if (pd === undefined && qd === undefined) {
+        g.append("circle").attr("class", "dyn")
+          .attr("r", 4).attr("fill", "#ddd")
+          .attr("stroke", "#bbb").attr("stroke-width", 1);
+      }
+    }
+  });
+}
+
+function islandDot(g, cy, r, fill, deg) {
+  g.append("circle").attr("class", "dyn")
+    .attr("cy", cy).attr("r", r)
+    .attr("fill", fill).attr("stroke", "#fff").attr("stroke-width", 1.5);
+  g.append("text").attr("class", "dyn")
+    .attr("y", cy).attr("dy", "0.35em").attr("text-anchor", "middle")
+    .attr("font-size", r >= 13 ? "9px" : "8px")
+    .attr("font-weight", "700").attr("fill", "#fff")
+    .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
+    .text(deg);
 }
 
 // ── filter checkboxes ─────────────────────────────────────────────────────
