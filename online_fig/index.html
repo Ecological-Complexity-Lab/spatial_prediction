@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fig. 3a – Predicted Plant–Pollinator Interactions (Canary Islands)</title>
+<title>Fig. 3 – Predicted Plant–Pollinator Interactions (Canary Islands)</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <style>
@@ -17,12 +17,40 @@
   }
 
   header {
-    padding: 14px 20px 8px;
+    padding: 10px 20px 8px;
     border-bottom: 1px solid #ddd;
     background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
-  header h1 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  header p  { font-size: 12px; color: #555; }
+  header .header-text h1 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  header .header-text p  { font-size: 12px; color: #555; }
+  header .header-links {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  header .header-links a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #555;
+    text-decoration: none;
+  }
+  header .header-links a:hover { color: #000; }
+  header .header-links img {
+    height: 32px;
+    width: auto;
+  }
+  header .header-links .gh-icon {
+    width: 22px; height: 22px;
+    fill: #333;
+  }
+  header .header-links a:hover .gh-icon { fill: #000; }
 
   /* ── main layout ── */
   #app {
@@ -45,6 +73,17 @@
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+  }
+
+  /* ── island-highlight cells ── */
+  td.cell.island-hi {
+    box-shadow: inset 0 0 0 1.5px #3366cc;
+    position: relative;
+    z-index: 5;
+  }
+  /* island dot when selected */
+  .isle-grp.isle-selected .isle-base {
+    r: 7; fill: #3366cc; stroke: #fff; stroke-width: 1.5;
   }
 
   /* ── map area ── */
@@ -363,15 +402,35 @@
 <div class="tooltip-box" id="tooltip"></div>
 
 <header>
-  <h1>Fig. 3a – Predicted plant–pollinator interactions (Canary Islands)</h1>
-  <p>Click a <strong>plant label</strong> (left) or <strong>pollinator column header</strong> (top) for species info &nbsp;|&nbsp; Click a <strong>matrix cell</strong> for interaction info</p>
+  <div class="header-text">
+    <h1>Fig. 3 – Predicted plant–pollinator interactions (Canary Islands)</h1>
+    <p><strong>Click a plant label</strong> (left) or <strong>pollinator column header</strong> (top) for species info &nbsp;|&nbsp; <strong>Click a matrix cell</strong> for interaction details &nbsp;|&nbsp; <strong>Click a scatter-plot point</strong> to highlight a species &nbsp;|&nbsp; <strong>Click an island</strong> to highlight all its observed &amp; predicted links</p>
+  </div>
+  <div class="header-links">
+    <a href="https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction" target="_blank" title="GitHub repository">
+      <svg class="gh-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+          -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+          .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+          -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27
+          .68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+          .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+          0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      GitHub
+    </a>
+    <a href="https://ecomplab.com" target="_blank" title="Ecological Complexity Lab">
+      <img src="ecomplab_logo.png" alt="EcompLab">
+    </a>
+  </div>
 </header>
 
 <div id="app">
   <div id="top-row">
     <div id="left-col">
       <div id="matrix-area"></div>
-      <div id="map-area"></div>
+<div id="map-area"></div>
     </div>
     <div id="filter-panel">
       <div class="filter-title">Show:</div>
@@ -629,6 +688,8 @@ function clearSelections() {
   });
   highlightCorrPoint(null, null);
   updateMapHighlight("clear");
+  document.querySelectorAll("td.cell.island-hi").forEach(el => el.classList.remove("island-hi"));
+  document.querySelectorAll(".isle-grp.isle-selected").forEach(el => el.classList.remove("isle-selected"));
 }
 
 // ── info panel builders ───────────────────────────────────────────────────
@@ -861,7 +922,36 @@ function buildIslandMarkers() {
       .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
       .text(loc.label);
 
+    g.style("cursor", "pointer")
+      .on("click", () => handleIslandClick(loc.id));
+
     islandGroups[loc.id] = g;
+  });
+}
+
+function handleIslandClick(islandId) {
+  clearSelections();
+
+  // Mark the island dot as selected
+  islandGroups[islandId]?.classed("isle-selected", true)
+    .select(".isle-base")
+    .attr("r", 7).attr("fill", "#3366cc").attr("stroke", "#fff").attr("stroke-width", 1.5);
+
+  // Collect matching cells
+  const threshold = 0.7;
+  DATA.interactions.forEach(ix => {
+    let match = false;
+    if (ix.observed_link) {
+      match = toArray(ix.islands_observed).includes(islandId);
+    } else if (ix.sigm_cat_plot && ix.pred_prob !== null && ix.pred_prob >= threshold) {
+      match = plantMap[ix.plant]?.local_degrees?.[islandId] !== undefined &&
+              pollMap[ix.pollinator]?.local_degrees?.[islandId] !== undefined;
+    }
+    if (!match) return;
+    const cell = document.querySelector(
+      `td.cell[data-plant-id="${ix.plant}"][data-poll-id="${ix.pollinator}"]`
+    );
+    if (cell) cell.classList.add("island-hi");
   });
 }
 
