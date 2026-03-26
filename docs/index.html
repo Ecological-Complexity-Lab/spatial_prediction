@@ -14,6 +14,10 @@
     font-size: 13px;
     background: #f8f8f8;
     color: #222;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
   }
 
   header {
@@ -56,7 +60,9 @@
   #app {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 62px);   /* full height minus header */
+    flex: 1 1 0;
+    overflow: hidden;
+    min-height: 0;
   }
 
   #top-row {
@@ -300,6 +306,7 @@
     flex-direction: column;
     gap: 10px;
     font-size: 11px;
+    overflow-y: auto;
   }
   #filter-panel .filter-title {
     font-weight: 600;
