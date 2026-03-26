@@ -55,6 +55,11 @@
     fill: #333;
   }
   header .header-links a:hover .gh-icon { fill: #000; }
+  .screen-notice {
+    font-size: 10px; color: #c00; font-weight: 600;
+    border: 1px solid #c00; border-radius: 3px;
+    padding: 2px 6px; white-space: nowrap;
+  }
 
   /* ── main layout ── */
   #app {
@@ -257,10 +262,32 @@
     overflow: hidden;
   }
 
+  /* ── collapsible right sections ── */
+  .right-section {
+    display: flex; flex-direction: column;
+    border-top: 1px solid #e0e0e0; min-height: 0; flex-shrink: 0;
+  }
+  .right-section:first-child { border-top: none; }
+  .right-section.grows { flex: 1 1 auto; }
+  .right-section-hdr {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 14px; cursor: pointer; flex-shrink: 0;
+    background: #f0f0f0; font-size: 11px; font-weight: 600; color: #444;
+    user-select: none;
+  }
+  .right-section-hdr:hover { background: #e6e6e6; }
+  .toggle-arrow {
+    font-size: 9px; display: inline-block; color: #777;
+    transition: transform 0.15s;
+  }
+  .right-section.collapsed .toggle-arrow { transform: rotate(-90deg); }
+  .right-section.collapsed .right-section-body { display: none; }
+  .right-section-body { overflow: hidden; }
+  .right-section.grows .right-section-body { flex: 1 1 auto; overflow-y: auto; }
+  .right-section-body.corr-body { padding: 6px 0 10px; }
+
   /* ── info panel ── */
   #info-panel {
-    flex: 1 1 auto;
-    overflow-y: auto;
     background: #fff;
     padding: 14px;
     font-size: 12px;
@@ -340,22 +367,6 @@
   #matrix-table.hide-external  td.cell[data-ct="external"] { background: transparent !important; }
   #matrix-table.hide-both      td.cell[data-ct="both"]     { background: transparent !important; }
 
-  /* ── correlation panels ── */
-  .corr-panel {
-    flex-shrink: 0;
-    border-top: 1px solid #e0e0e0;
-    padding: 10px 14px 18px;
-    background: #fff;
-  }
-  .corr-panel h3 {
-    font-size: 10px;
-    font-weight: 600;
-    color: #555;
-    margin-bottom: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .corr-svg { display: block; width: 100%; }
 
   /* ── legend ── */
@@ -420,6 +431,7 @@
     <p><strong>Click a plant label</strong> (left) or <strong>pollinator column header</strong> (top) for species info &nbsp;|&nbsp; <strong>Click a matrix cell</strong> for interaction details &nbsp;|&nbsp; <strong>Click a scatter-plot point</strong> to highlight a species &nbsp;|&nbsp; <strong>Click an island</strong> to highlight all its observed &amp; predicted links</p>
   </div>
   <div class="header-links">
+    <span class="screen-notice">Best viewed on a large screen</span>
     <a href="https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction" target="_blank" title="GitHub repository">
       <svg class="gh-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
@@ -485,17 +497,30 @@
       </label>
     </div>
     <div id="right-side">
-      <div id="info-panel">
-        <h2>Information</h2>
-        <p class="hint">Click any plant label (left), pollinator column header (top of matrix), or matrix cell to explore.</p>
+      <div class="right-section grows" id="info-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Information
+        </div>
+        <div class="right-section-body" id="info-panel">
+          <h2>Information</h2>
+          <p class="hint">Click any plant label (left), pollinator column header (top of matrix), or matrix cell to explore.</p>
+        </div>
       </div>
-      <div class="corr-panel">
-        <h3>Pollinators: overall degree vs. predicted non-observed links</h3>
-        <svg id="corr-poll-svg" class="corr-svg"></svg>
+      <div class="right-section" id="corr-poll-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Pollinators: degree vs. predicted links
+        </div>
+        <div class="right-section-body corr-body">
+          <svg id="corr-poll-svg" class="corr-svg"></svg>
+        </div>
       </div>
-      <div class="corr-panel">
-        <h3>Plants: overall degree vs. predicted non-observed links</h3>
-        <svg id="corr-plant-svg" class="corr-svg"></svg>
+      <div class="right-section" id="corr-plant-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Plants: degree vs. predicted links
+        </div>
+        <div class="right-section-body corr-body">
+          <svg id="corr-plant-svg" class="corr-svg"></svg>
+        </div>
       </div>
     </div>
   </div>
@@ -1034,6 +1059,12 @@ function islandDot(g, cy, r, fill, deg) {
     .attr("font-weight", "700").attr("fill", "#fff")
     .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
     .text(deg);
+}
+
+// ── collapsible right panel sections ──────────────────────────────────────
+
+function toggleSection(hdrEl) {
+  hdrEl.closest(".right-section").classList.toggle("collapsed");
 }
 
 // ── filter checkboxes ─────────────────────────────────────────────────────
