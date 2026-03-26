@@ -61,6 +61,16 @@
     padding: 0;
   }
 
+  /* ── matrix frame (borders on edges of data cell area) ── */
+  /* top edge: bottom border of every header cell */
+  th.corner, th.poll-hdr { border-bottom: 1.5px solid #000 !important; }
+  /* left edge: right border of plant label column */
+  td.plant-lbl { border-right: 1.5px solid #000 !important; }
+  /* bottom edge: bottom border of last data row */
+  #matrix-table tbody tr:last-child td.cell { border-bottom: 1.5px solid #000; }
+  /* right edge: right border of last data column */
+  #matrix-table tbody td.cell:last-child { border-right: 1.5px solid #000; }
+
   /* corner cell */
   th.corner {
     position: sticky;
@@ -82,14 +92,13 @@
     width: 7px;
     min-width: 7px;
     cursor: pointer;
-    border-bottom: 2px solid #ccc;
     overflow: hidden;
     vertical-align: bottom;
     padding: 0;
     transition: border-color 0.15s;
   }
   th.poll-hdr:hover  { border-bottom-color: #888; background: #f5f5f5; }
-  th.poll-hdr.selected { border-bottom-color: #333; background: #ececec; }
+  th.poll-hdr.selected { border-bottom-color: #3366cc; background: #ddeeff; }
 
   th.poll-hdr .poll-name {
     display: block;
@@ -107,7 +116,7 @@
     text-overflow: ellipsis;
   }
   th.poll-hdr:hover .poll-name  { color: #111; }
-  th.poll-hdr.selected .poll-name { color: #000; font-weight: 700; }
+  th.poll-hdr.selected .poll-name { color: #003080; font-weight: 700; }
 
   /* plant label cells (sticky left) */
   td.plant-lbl {
@@ -131,7 +140,33 @@
     line-height: 17px;
   }
   td.plant-lbl:hover { background: #f0f0f0; color: #000; }
-  td.plant-lbl.selected { background: #e8e8e8; font-weight: 600; }
+  td.plant-lbl.selected { background: #ddeeff; font-weight: 600; color: #003080; }
+
+  /* row highlight: cells in a selected-plant row */
+  tr.row-selected td.cell {
+    box-shadow: inset 0 1px 0 #5599dd, inset 0 -1px 0 #5599dd;
+  }
+  tr.row-selected td.plant-lbl {
+    background: #ddeeff;
+    font-weight: 600;
+    color: #003080;
+  }
+
+  /* column highlight: cells in a selected-poll column */
+  td.cell.col-selected {
+    box-shadow: inset 1px 0 0 #5599dd, inset -1px 0 0 #5599dd;
+  }
+  th.poll-hdr.col-selected {
+    border-bottom-color: #3366cc;
+    background: #ddeeff;
+  }
+  th.poll-hdr.col-selected .poll-name { color: #003080; font-weight: 700; }
+
+  /* row + column both selected (interaction click) */
+  tr.row-selected td.cell.col-selected {
+    box-shadow: inset 0 1px 0 #3366cc, inset 0 -1px 0 #3366cc,
+                inset 1px 0 0 #3366cc, inset -1px 0 0 #3366cc;
+  }
 
   /* matrix data cells */
   td.cell {
@@ -144,15 +179,24 @@
   }
   td.cell:hover { outline: 1px solid #333; outline-offset: -1px; z-index: 5; position: relative; }
 
+  /* ── right sidebar ── */
+  #right-side {
+    width: 420px;
+    min-width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #ddd;
+    background: #fff;
+    overflow: hidden;
+  }
+
   /* ── info panel ── */
   #info-panel {
-    width: 310px;
-    min-width: 260px;
-    flex-shrink: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
     background: #fff;
     padding: 14px;
-    border-left: 1px solid #ddd;
     font-size: 12px;
   }
   #info-panel h2 { font-size: 13px; margin-bottom: 10px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 6px; }
@@ -183,6 +227,63 @@
   #info-panel .sep { height: 1px; background: #eee; margin: 10px 0; }
   #info-panel .back-link { color: #3399cc; cursor: pointer; font-size: 11px; margin-bottom: 6px; display: inline-block; }
   #info-panel .back-link:hover { text-decoration: underline; }
+
+  /* ── filter panel ── */
+  #filter-panel {
+    width: 148px;
+    min-width: 148px;
+    flex-shrink: 0;
+    border-left: 1px solid #ddd;
+    background: #fafafa;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 11px;
+  }
+  #filter-panel .filter-title {
+    font-weight: 600;
+    color: #444;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #333;
+    line-height: 1.3;
+  }
+  .filter-item input[type="checkbox"] { cursor: pointer; margin: 0; }
+  .filter-swatch {
+    width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  /* hide-* classes on the table suppress the matching cell type */
+  #matrix-table.hide-observed  td.cell[data-ct="obs"]      { background: transparent !important; outline: none !important; box-shadow: none !important; }
+  #matrix-table.hide-single    td.cell[data-ct="single"]   { background: transparent !important; }
+  #matrix-table.hide-external  td.cell[data-ct="external"] { background: transparent !important; }
+  #matrix-table.hide-both      td.cell[data-ct="both"]     { background: transparent !important; }
+
+  /* ── correlation panels ── */
+  .corr-panel {
+    flex-shrink: 0;
+    border-top: 1px solid #e0e0e0;
+    padding: 10px 14px 18px;
+    background: #fff;
+  }
+  .corr-panel h3 {
+    font-size: 10px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .corr-svg { display: block; width: 100%; }
 
   /* ── legend ── */
   #legend {
@@ -248,9 +349,42 @@
 <div id="app">
   <div id="top-row">
     <div id="matrix-area"></div>
-    <div id="info-panel">
-      <h2>Information</h2>
-      <p class="hint">Click any plant label (left), pollinator column header (top of matrix), or matrix cell to explore.</p>
+    <div id="filter-panel">
+      <div class="filter-title">Show:</div>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-observed" checked>
+        <span class="filter-swatch" style="background:#66CDAA"></span>
+        Observed
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-single" checked>
+        <span class="filter-swatch" style="background:#DDA0DD"></span>
+        Single location
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-external" checked>
+        <span class="filter-swatch" style="background:#FA8072"></span>
+        External location
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-both" checked>
+        <span class="filter-swatch" style="background:#B0C4DE"></span>
+        Both approaches
+      </label>
+    </div>
+    <div id="right-side">
+      <div id="info-panel">
+        <h2>Information</h2>
+        <p class="hint">Click any plant label (left), pollinator column header (top of matrix), or matrix cell to explore.</p>
+      </div>
+      <div class="corr-panel">
+        <h3>Pollinators: overall degree vs. predicted non-observed links</h3>
+        <svg id="corr-poll-svg" class="corr-svg"></svg>
+      </div>
+      <div class="corr-panel">
+        <h3>Plants: overall degree vs. predicted non-observed links</h3>
+        <svg id="corr-plant-svg" class="corr-svg"></svg>
+      </div>
     </div>
   </div>
   <div id="legend">
@@ -339,6 +473,8 @@ fetch("figure3a_data.json")
       cellMap[ix.plant + "|" + ix.pollinator] = ix;
     });
     buildMatrix();
+    setupFilters();
+    buildCorrPlots();
     document.getElementById("loading").style.display = "none";
   })
   .catch(err => {
@@ -365,16 +501,20 @@ function buildMatrix() {
     poll_order.forEach((pid) => {
       const key = plid + "|" + pid;
       const ix = cellMap[key];
-      let style = "";
+      let style = "", ct = "";
       if (ix) {
         if (ix.observed_link) {
           const bg = obsColor(ix.avg_prop_isl);
           style = `background:${bg};outline:0.5px solid rgba(0,0,0,0.3);outline-offset:-0.5px`;
+          ct = "obs";
         } else if (ix.sigm_cat_plot && ix.pred_prob !== null) {
           style = `background:${predColor(ix.sigm_cat_plot, ix.pred_prob_alpha)}`;
+          ct = ix.sigm_cat_plot === "Single location" ? "single"
+             : ix.sigm_cat_plot === "External location" ? "external"
+             : "both";
         }
       }
-      row += `<td class="cell" data-plant-id="${plid}" data-poll-id="${pid}"${style ? ` style="${style}"` : ""}></td>`;
+      row += `<td class="cell" data-plant-id="${plid}" data-poll-id="${pid}"${ct ? ` data-ct="${ct}"` : ""}${style ? ` style="${style}"` : ""}></td>`;
     });
     row += "</tr>";
     bodyRows += row;
@@ -413,8 +553,10 @@ function handleTableClick(e) {
   const th = e.target.closest("th.poll-hdr");
   if (th) {
     clearSelections();
-    th.classList.add("selected");
     selectedPoll = th.dataset.pollId;
+    applyColumnHighlight(selectedPoll);
+    th.classList.add("selected");
+    highlightCorrPoint("poll", selectedPoll);
     showPollinatorPanel(selectedPoll);
     return;
   }
@@ -423,8 +565,9 @@ function handleTableClick(e) {
   const lbl = e.target.closest("td.plant-lbl");
   if (lbl) {
     clearSelections();
-    lbl.classList.add("selected");
     selectedPlant = lbl.dataset.plantId;
+    applyRowHighlight(selectedPlant);
+    highlightCorrPoint("plant", selectedPlant);
     showPlantPanel(selectedPlant);
     return;
   }
@@ -433,14 +576,33 @@ function handleTableClick(e) {
   const cell = e.target.closest("td.cell");
   if (cell) {
     clearSelections();
+    applyRowHighlight(cell.dataset.plantId);
+    applyColumnHighlight(cell.dataset.pollId);
+    highlightCorrPoint("plant", cell.dataset.plantId);
+    highlightCorrPoint("poll",  cell.dataset.pollId);
     showInteractionPanel(cell.dataset.plantId, cell.dataset.pollId);
     return;
   }
 }
 
+function applyRowHighlight(plantId) {
+  const lbl = document.querySelector(`td.plant-lbl[data-plant-id="${plantId}"]`);
+  if (lbl) lbl.closest("tr").classList.add("row-selected");
+}
+
+function applyColumnHighlight(pollId) {
+  document.querySelectorAll(`td.cell[data-poll-id="${pollId}"]`).forEach(td => td.classList.add("col-selected"));
+  document.querySelector(`th.poll-hdr[data-poll-id="${pollId}"]`)?.classList.add("col-selected");
+}
+
 function clearSelections() {
-  document.querySelectorAll("td.plant-lbl.selected").forEach(el => el.classList.remove("selected"));
-  document.querySelectorAll("th.poll-hdr.selected").forEach(el => el.classList.remove("selected"));
+  document.querySelectorAll("tr.row-selected").forEach(el => el.classList.remove("row-selected"));
+  document.querySelectorAll("td.cell.col-selected").forEach(el => el.classList.remove("col-selected"));
+  document.querySelectorAll("th.poll-hdr.selected, th.poll-hdr.col-selected").forEach(el => {
+    el.classList.remove("selected");
+    el.classList.remove("col-selected");
+  });
+  highlightCorrPoint(null, null);
 }
 
 // ── info panel builders ───────────────────────────────────────────────────
@@ -604,6 +766,243 @@ function showInteractionPanel(plantId, pollId) {
     <div class="sep"></div>
     ${obsHtml}
     ${predHtml}`;
+}
+
+// ── filter checkboxes ─────────────────────────────────────────────────────
+
+function setupFilters() {
+  const checks = [
+    ["cb-observed",  "hide-observed"],
+    ["cb-single",    "hide-single"],
+    ["cb-external",  "hide-external"],
+    ["cb-both",      "hide-both"],
+  ];
+  checks.forEach(([id, cls]) => {
+    document.getElementById(id).addEventListener("change", e => {
+      document.getElementById("matrix-table").classList.toggle(cls, !e.target.checked);
+    });
+  });
+}
+
+// ── correlation plots ──────────────────────────────────────────────────────
+
+let plantCorrData = [];
+let pollCorrData  = [];
+
+function buildCorrPlots() {
+  const threshold = 0.7;
+  const plantPredCount = {}, pollPredCount = {};
+  DATA.interactions.forEach(ix => {
+    if (!ix.observed_link && ix.sigm_cat_plot && ix.pred_prob !== null && ix.pred_prob >= threshold) {
+      plantPredCount[ix.plant]      = (plantPredCount[ix.plant]      || 0) + 1;
+      pollPredCount[ix.pollinator]  = (pollPredCount[ix.pollinator]  || 0) + 1;
+    }
+  });
+  plantCorrData = DATA.plants.map(p => ({ id: p.id, name: p.name, x: p.global_degree, y: plantPredCount[p.id] || 0 }));
+  pollCorrData  = DATA.pollinators.map(p => ({ id: p.id, name: p.name, x: p.global_degree, y: pollPredCount[p.id]  || 0 }));
+  drawCorrPlot("corr-poll-svg",  pollCorrData,  "#FA8072", "poll");
+  drawCorrPlot("corr-plant-svg", plantCorrData, "#66CDAA", "plant");
+}
+
+// ── statistics helpers ─────────────────────────────────────────────────────
+
+function pearsonStats(pts) {
+  const n = pts.length;
+  if (n < 3) return { r: 0, p: 1, a: 0, b: 0 };
+  const mx = pts.reduce((s, p) => s + p.x, 0) / n;
+  const my = pts.reduce((s, p) => s + p.y, 0) / n;
+  const ssxx = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const ssxy = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+  const ssyy = pts.reduce((s, p) => s + (p.y - my) ** 2, 0);
+  if (ssxx === 0 || ssyy === 0) return { r: 0, p: 1, a: my, b: 0 };
+  const r = ssxy / Math.sqrt(ssxx * ssyy);
+  const b = ssxy / ssxx;
+  const a = my - b * mx;
+  const t = r * Math.sqrt(n - 2) / Math.sqrt(1 - r * r);
+  const p = twoTailP(Math.abs(t), n - 2);
+  return { r, p, a, b };
+}
+
+function twoTailP(t, df) {
+  const x = df / (df + t * t);
+  return regIncBeta(x, df / 2, 0.5);
+}
+
+function regIncBeta(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const lbeta = lnGam(a) + lnGam(b) - lnGam(a + b);
+  const front = Math.exp(a * Math.log(x) + b * Math.log(1 - x) - lbeta) / a;
+  return front * betaCF(x, a, b);
+}
+
+function betaCF(x, a, b) {
+  const MAXIT = 200, EPS = 3e-8, FPMIN = 1e-300;
+  const qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < FPMIN) d = FPMIN;
+  d = 1 / d; let h = d;
+  for (let m = 1; m <= MAXIT; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; const del = d * c; h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return h;
+}
+
+function lnGam(z) {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.001208650973866179, -5.395239384953e-6];
+  let x = z, y = z, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+
+function fmtP(p) {
+  if (p < 0.001) {
+    const e = Math.floor(Math.log10(p));
+    const m = (p / Math.pow(10, e)).toFixed(1);
+    return `${m}e${e}`;
+  }
+  return p.toFixed(3);
+}
+
+function niceTicks(min, max, n) {
+  if (max === 0) return [0];
+  const raw = (max - min) / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(f => f * mag).find(s => s >= raw) || mag;
+  const ticks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) ticks.push(+t.toPrecision(6));
+  return ticks;
+}
+
+// ── draw one SVG scatter plot ──────────────────────────────────────────────
+
+function drawCorrPlot(svgId, data, ptColor, type) {
+  const svgEl = document.getElementById(svgId);
+  const W = svgEl.parentElement.clientWidth || 280;
+  const H = W;   // square
+  const mg = { top: 20, right: 10, bottom: 36, left: 36 };
+  const pw = W - mg.left - mg.right;
+  const ph = H - mg.top  - mg.bottom;
+
+  const maxX = Math.max(...data.map(d => d.x), 1);
+  const maxY = Math.max(...data.map(d => d.y), 1);
+  const sx = x => mg.left + (x / maxX) * pw;
+  const sy = y => mg.top  + ph - (y / maxY) * ph;
+
+  const { r, p, a, b } = pearsonStats(data);
+
+  const ns = "http://www.w3.org/2000/svg";
+  svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svgEl.setAttribute("width",  W);
+  svgEl.setAttribute("height", H);
+  svgEl.innerHTML = "";
+
+  function el(tag, attrs, txt) {
+    const e = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  }
+
+  const FONT = "10px 'Helvetica Neue', Arial, sans-serif";
+  const FONT_SM = "8.5px 'Helvetica Neue', Arial, sans-serif";
+
+  // r / p label
+  svgEl.appendChild(el("text", { x: mg.left, y: 13, "font": FONT, fill: "#333" },
+    `r = ${r.toFixed(2)},  p = ${fmtP(p)}`));
+
+  // axes
+  svgEl.appendChild(el("line", { x1: mg.left, y1: mg.top, x2: mg.left, y2: mg.top + ph, stroke: "#000", "stroke-width": 1 }));
+  svgEl.appendChild(el("line", { x1: mg.left, y1: mg.top + ph, x2: mg.left + pw, y2: mg.top + ph, stroke: "#000", "stroke-width": 1 }));
+
+  // x ticks
+  niceTicks(0, maxX, 4).forEach(t => {
+    const x = sx(t);
+    svgEl.appendChild(el("line", { x1: x, y1: mg.top + ph, x2: x, y2: mg.top + ph + 4, stroke: "#555", "stroke-width": 0.8 }));
+    svgEl.appendChild(el("text", { x, y: mg.top + ph + 13, "font": FONT_SM, fill: "#555", "text-anchor": "middle" }, t));
+  });
+
+  // y ticks
+  niceTicks(0, maxY, 4).forEach(t => {
+    const y = sy(t);
+    svgEl.appendChild(el("line", { x1: mg.left - 4, y1: y, x2: mg.left, y2: y, stroke: "#555", "stroke-width": 0.8 }));
+    svgEl.appendChild(el("text", { x: mg.left - 6, y: y + 3, "font": FONT_SM, fill: "#555", "text-anchor": "end" }, t));
+  });
+
+  // axis labels
+  svgEl.appendChild(el("text", { x: mg.left + pw / 2, y: H - 2, "font": FONT_SM, fill: "#555", "text-anchor": "middle" }, "Overall degree"));
+  const yLbl = el("text", { x: 9, y: mg.top + ph / 2, "font": FONT_SM, fill: "#555", "text-anchor": "middle",
+    transform: `rotate(-90, 9, ${mg.top + ph / 2})` }, "Predicted links");
+  svgEl.appendChild(yLbl);
+
+  // regression line
+  const rx0 = 0, rx1 = maxX;
+  const ry0 = Math.max(0, a), ry1 = a + b * rx1;
+  svgEl.appendChild(el("line", {
+    x1: sx(rx0), y1: sy(ry0), x2: sx(rx1), y2: sy(ry1),
+    stroke: "#2255aa", "stroke-width": 1.5
+  }));
+
+  // data points (draw last so they're on top of line)
+  data.forEach(d => {
+    const c = el("circle", {
+      class: "corr-pt", "data-type": type, "data-id": d.id,
+      cx: sx(d.x), cy: sy(d.y), r: 3,
+      fill: ptColor, "fill-opacity": 0.75, stroke: "#fff", "stroke-width": 0.8,
+      style: "cursor:pointer"
+    });
+    c.addEventListener("click", () => {
+      if (type === "plant") {
+        clearSelections();
+        applyRowHighlight(d.id);
+        highlightCorrPoint("plant", d.id);
+        showPlantPanel(d.id);
+      } else {
+        clearSelections();
+        applyColumnHighlight(d.id);
+        document.querySelector(`th.poll-hdr[data-poll-id="${d.id}"]`)?.classList.add("selected");
+        highlightCorrPoint("poll", d.id);
+        showPollinatorPanel(d.id);
+      }
+    });
+    svgEl.appendChild(c);
+  });
+}
+
+// ── highlight a corr point ────────────────────────────────────────────────
+
+function highlightCorrPoint(type, id) {
+  // reset only points of this type (so plant + poll can both be highlighted)
+  const selector = type ? `.corr-pt.corr-hi[data-type="${type}"]` : ".corr-pt.corr-hi";
+  document.querySelectorAll(selector).forEach(pt => {
+    pt.classList.remove("corr-hi");
+    pt.setAttribute("r", 3);
+    pt.setAttribute("stroke", "#fff");
+    pt.setAttribute("stroke-width", 0.8);
+    pt.setAttribute("fill-opacity", 0.75);
+  });
+  if (!type || !id) return;
+  const pt = document.querySelector(`.corr-pt[data-type="${type}"][data-id="${id}"]`);
+  if (pt) {
+    pt.classList.add("corr-hi");
+    pt.setAttribute("r", 5.5);
+    pt.setAttribute("stroke", "#000");
+    pt.setAttribute("stroke-width", 1.5);
+    pt.setAttribute("fill-opacity", 1);
+    pt.parentElement.appendChild(pt); // bring to front
+  }
 }
 
 </script>
