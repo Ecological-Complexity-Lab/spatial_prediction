@@ -2098,7 +2098,56 @@ df_plot_verified %>%
   group_by(sigm_cat) %>%
   summarise(
     n_links = n()
+  ) # 178 observed links were not predicted
+
+df_plot_verified %>%
+  filter(avg_prop_diag != 0) %>%
+  group_by(sigm_cat) %>%
+  summarise(
+    n_links = n()
+  ) %>%
+  filter(!is.na(sigm_cat)) %>%  # Exclude NA category
+  mutate(
+    total_links = sum(n_links),  # Sum of non-NA categories only
+    percentage = n_links / total_links * 100   # Calculate percentage
   )
+
+#### ---- how many of the predicted links have evidence ----
+# so overall we had
+# predicted links that were observed at least once in the system
+# (df_plot_verified)
+df_observed <- df_plot_verified %>%
+  filter(avg_prop_diag != 0) %>%
+  group_by(sigm_cat) %>%
+  summarise(
+    n_observed = n()
+  ) %>%
+  mutate(status = "observed")  # Add a column to mark these as observed
+
+# predicted links that were never observed in the system
+df_non_observed <- df_plot %>%
+  filter(avg_prop_diag == 0) %>%
+  group_by(sigm_cat) %>%
+  summarise(
+    n_non_observed = n()
+  ) %>%
+  mutate(status = "non_observed")  # Add a column to mark these as non-observed
+
+# Combine both dataframes
+df_combined_obs_non <- bind_rows(df_observed, df_non_observed)
+
+# in total, the proportion of predicted links that were observed in the system:
+df_combined_obs_non %>%
+  filter(!is.na(sigm_cat)) %>%
+  summarise(
+    total_observed = sum(n_observed, na.rm = TRUE),
+    total_non_observed = sum(n_non_observed, na.rm = TRUE)
+  ) %>%
+  mutate(
+    total_links = total_observed + total_non_observed,  # Total links (observed + non-observed)
+    proportion_observed = total_observed / total_links * 100  # Proportion of observed links
+  )
+
 
 # pie chart
 # 1. Count how many interactions fall into each category
