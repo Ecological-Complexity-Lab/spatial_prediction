@@ -1146,7 +1146,12 @@ results_diags <- result_summary %>% filter(layer_comparison == "Single location"
 results_offs <- result_summary %>% filter(layer_comparison == "Added location")
 
 range(results_diags$f05_score)
+mean(results_diags$f05_score)
+sd(results_diags$f05_score)
+
 range(results_offs$f05_score)
+mean(results_offs$f05_score)
+sd(results_offs$f05_score)
 
 # # Base‐R PDF device
 pdf(
@@ -1159,13 +1164,6 @@ print(hist_f05a)
 dev.off()     # close the file
 
 # stats
-# run t-test via formula interface
-t_test_f05 <- t.test(f05_score ~ layer_comparison, 
-                    data       = result_summary,
-                    var.equal  = FALSE)  # Welch’s test
-
-# 3. Print the full test
-print(t_test_f05)
 
 # do we need welch/wilcoxon?
 # first normality check
@@ -1175,18 +1173,7 @@ result_summary %>%
 
 # variance check
 result_summary %>% levene_test(f05_score ~ layer_comparison)
-# all is good, we can use t-test.
-
-# 4. Extract just the numbers you want
-t_stat <- unname(t_test_f05$statistic)
-df_val <- unname(t_test_f05$parameter)
-p_val  <- t_test_f05$p.value
-
-data.frame(
-  t_value = t_stat,
-  df      = df_val,
-  p_value = p_val
-)
+# variances are similar. but due to the dependency between observations (not paired) we will not use Wilcoxon's or t-test
 
 ### ---- e. ecological inference ----
 ### ---- network size and density correlation with evaluators ----
