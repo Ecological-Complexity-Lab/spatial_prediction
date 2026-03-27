@@ -1,10 +1,12 @@
-# 2 supplementary figures with F0.5 - separate script
+# 2 figures with F1 - separate script
+# here we obtain a confusion matrix and figures based on the previous, 
+# less restrictive evaluation metod used before revising the evaluation to be based on the F0.5 score.
 
 # Load necessary libraries
 library(ggplot2)
 
 # Load the data
-original_run_combined_results <- readRDS(results_file)
+original_run_combined_results <- readRDS(results_file) # produced in the main script
 
 
 # fig. 2c - heatmap red (island_heatmap_f1.pdf) ----
@@ -84,9 +86,16 @@ or_df_wide <- or_df_avg %>%
   pivot_wider(names_from = metric, values_from = value) %>%
   arrange(threshold)
 
-# 2) find the threshold with the optimal f1 score
+# # 2) find the threshold with the optimal f1 score
+# or_best_discrete <- or_df_wide %>%
+#   slice_max(f1_score, n = 1)
+
+# find threshold based on f1-balanced accuracy trade-off
+or_best_discrete <- or_df_wide
+
 or_best_discrete <- or_df_wide %>%
-  slice_max(f1_score, n = 1)
+  mutate(absdiff = abs(f1_score - balanced_accuracy)) %>%
+  slice_min(absdiff, n = 1)
 
 # results:
 or_best_discrete_threshold <- or_best_discrete$threshold
