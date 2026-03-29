@@ -1,7 +1,6 @@
 # ---- check k and lambda influence on f0.5 ----
-# this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
-# here we focus on island scale, but there is a section for comparison between scales.
-# stages are according to the pipeline figure (Fig. 1).
+# here we perform a sensitivity analysis of predictive performance according to the maximal number of dimensions allowed in the SVD-based prediction and differend values of lambda.
+# for reproducing supplementary figure S8
 
 # includes:
 library(tidyverse)
@@ -99,15 +98,8 @@ k_sensitivity_swap <- ggplot(plot_df, aes(x = k, y = f05_score, fill = k)) +
     strip.text = element_text(color = "grey10", face = "bold")  # not gray
   ) + tme
 
-pdf(
-  file   = "results/paper_figs/k_sensitivity_swap.pdf",
-  width  = 8,    # inches
-  height = 8,
-  family = "Helvetica"   # or another installed font
-)
-print(k_sensitivity_swap)
-dev.off()     # close the file
 
+# ---- Fig. S8: k sensitivity analysis ----
 # overall k difference
 pval <- kruskal.test(f05_score ~ k, data = plot_df)$p.value
 

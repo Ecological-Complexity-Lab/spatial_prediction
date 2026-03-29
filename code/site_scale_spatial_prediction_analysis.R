@@ -1,6 +1,6 @@
 # ---- Site scale: predicting interactions across space with SVD ----
-# this pipeline allows us to predict missing links using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
-# here we focus on site scale, which is shown in SI note 1.
+# this pipeline allows us to predict missing links at the site level using the softImpute algorithm, calculate evaluators, have some stats and correlate the evaluators with ecological data.
+# here we focus on site scale, which is shown in Appendix S1.
 # stages are according to the pipeline figure (Fig. 1).
 ### code for publication ###
 ## ---- load libraries ----
@@ -1029,6 +1029,9 @@ print(netdensity_f05_nnse)
 dev.off()     # close the file
 
 ### ---- Fig. S2: heatmap ----
+lims <- range(result_summary$f05_score, na.rm = TRUE)
+mid_val <- mean(lims)
+
 site_heatmap_f05 <- 
   ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1037,7 +1040,7 @@ site_heatmap_f05 <-
   geom_tile(data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
-                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
+                       midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
   theme_minimal() +
   theme(
