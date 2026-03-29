@@ -1990,15 +1990,16 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
   theme_minimal() +
   theme(
     axis.text.x = element_blank(),
-    axis.title.x = element_text(margin = margin(t = 14)),
-    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(margin = margin(t = 18)),
+    axis.text.y = element_text(size = 8),
+    axis.title.y = element_text(margin = margin(t = 18)),
     
     legend.position = "bottom",
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_text(size = 14),
     legend.text = element_text(size = 12),
-    legend.spacing.x = unit(0.3, "cm")
+    legend.spacing.x = unit(0.2, "cm")
   ) +
   scale_y_discrete(
     labels = function(x) lapply(strsplit(x, "_"), function(y) {
@@ -2291,12 +2292,12 @@ bottom_row <- plot_grid(
 
 fig3 <- plot_grid(map_missing_links_merged + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
                   bottom_row, labels = c('(a)', ''), 
-                  ncol = 1, rel_heights = c(1.1, 0.7), label_size = 15)
+                  ncol = 1, rel_heights = c(1.3, 0.7), label_size = 15)
 
 
 pdf(file   = "results/paper_figs/missing_interactions_degree2.pdf",
     width  = 13,    # inches
-    height = 11,
+    height = 12,
     family = "Helvetica"   # or another installed font
 )
 fig3
