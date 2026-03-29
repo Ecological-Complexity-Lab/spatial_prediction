@@ -7,22 +7,7 @@
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
-
-# this is for installing the EMLN package (Frydman et al. 2023): designed for handling and analysing of ecological multilayer networks;
-# in this pipeline it is used to import published multilayer network data
-package.list=c("tidyverse", "magrittr","igraph","Matrix","DT","hablar","devtools")
-loaded <-  package.list %in% .packages()
-package.list <-  package.list[!loaded]
-installed <-  package.list %in% .packages(TRUE)
-if (!all(installed)) install.packages(package.list[!installed],repos="http://cran.rstudio.com/")
-
-# Install EMLN only if not already installed
-if (!requireNamespace("emln", quietly = TRUE)) {
-  devtools::install_github("Ecological-Complexity-Lab/emln")
-}
-
 library(emln)
-
 library(reshape2)
 library(ggpubr)
 library(gridExtra)
@@ -40,8 +25,6 @@ library(rstatix)
 library(ggrepel)
 library(pROC)
 library(PRROC)
-library(magick)
-library(pdftools)
 
 source("code/common.R")
 
@@ -93,12 +76,8 @@ implement_impute <- function(C, k, lambda) {
   # Reconstruct the matrix
   C_reconstructed <- softImpute::complete(C, fit)
   
-  # back-transform C to original scale (was centered using biScale)
-  C_reconstructed_orig <- C_reconstructed +
-    outer(row_centers[rownames(C)], col_centers[colnames(C)], "+")
-  
   # Extract the reconstructed P matrix from C_reconstructed
-  P_reconstructed <- C_reconstructed_orig[rownames(P), colnames(P)]
+  P_reconstructed <- C_reconstructed[rownames(P), colnames(P)]
   
   # Combine indices of removed ones and zeros
   if (is.null(dim(remove_indices))) { # handles when remove_indices has only one row
@@ -216,7 +195,7 @@ plot_hist <- function(data, metric,
   ggplot(data, aes(x = .data[[metric]], fill = layer_comparison)) +
     geom_histogram(aes(y = ..count..), alpha = 0.4, color = "black", bins = 8, position = "dodge") +
     #geom_vline(xintercept = 0.5, linetype = "dashed", color = "black", linewidth = 1) +
-    scale_x_continuous(labels = scales::number_format(accuracy = 0.01)) +
+    scale_x_continuous(labels = scales::number_format(accuracy = 0.1)) +
     theme_minimal() +
     labs(x = x_axis_label,
          y = y_axis_label,
@@ -297,7 +276,7 @@ make_facet_scatter_plot <- function(data,
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 14)                          )
+      axis.text.x     = element_text(size = 9)                          )
   
   return(plot)
 }
@@ -656,13 +635,11 @@ if (file.exists(results_file)) {
                                                 NA, 
                                                 (C[rownames(P), colnames(P)] + P[rownames(P), colnames(P)])/2)
         }
-
+        
         
         # Apply biScale to center matrices
         C <- biScale(C, row.center=TRUE, col.center=TRUE, row.scale=FALSE, col.scale=FALSE)
-        # save centers before overwriting (for back-transforming later)
-        row_centers <- attr(C, "biScale:row")$center      # named vector, length = nrow(C)
-        col_centers <- attr(C, "biScale:column")$center   # named vector, length = ncol(C)
+        
         sum(is.na(C))
         
         ### ---- b. + d. prediction with SVD and apply for all network combinations ----
@@ -725,7 +702,7 @@ if (file.exists(results_file)) {
 
 # after reading or producing the results, filter these (important!):
 combined_results <- combined_results %>% 
-  filter(k == 2) %>% 
+  filter(k == 10) %>% 
   filter(!(input_lambda %in%  c(1, 5, 50, 100)))
 
 ## ---- 2. analysis ----
@@ -830,7 +807,7 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
   tme
 
 pdf(
-  file   = "results/paper_figs/optimal_threshold.pdf",
+  file   = "results/paper_figs/k_10/optimal_threshold_k10.pdf",
   width  = 5,    # inches
   height = 4,
   family = "Helvetica"   # or another installed font
@@ -908,10 +885,10 @@ predicted_original <- df_removed %>%
   ) +
   geom_abline (slope=1, linetype = "dashed", color="salmon")+
   coord_equal()+
-  theme_minimal(base_size = 11) + tme
+  theme_minimal(base_size = 14) + tme
 
 pdf(
-  file   = "results/paper_figs/predicted_original.pdf",
+  file   = "results/paper_figs/k_10/predicted_original_k10.pdf",
   width  = 6,    # inches
   height = 9,
   family = "Helvetica"   # or another installed font
@@ -919,18 +896,6 @@ pdf(
 print(predicted_original)
 dev.off()     # close the file
 
-png(
-  filename = "results/paper_figs/predicted_original.png",
-  width    = 6,     # inches
-  height   = 9,
-  units    = "in",
-  res      = 300,   # resolution (dpi)
-  type     = "cairo"  # better text rendering (recommended)
-)
-
-print(predicted_original)
-
-dev.off()
 
 df_removed <- df %>%
   filter(removed == 1) %>% 
@@ -974,7 +939,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- Fig. S9: non-thresholded evaluation ----
+### ---- Fig. S9: plot non-thresholded evaluation ----
 # first add layer names
 net <- emln::load_emln(60) # canary islands
 net$layers
@@ -997,11 +962,7 @@ df_eval_summary <- df_eval_summary %>%
   rename(test_layer_name = name)
 
 # now heatmaps
-
 # roc
-lims_roc <- range(df_eval_summary$auc_roc_mean, na.rm = TRUE)
-mid_val_roc <- mean(lims_roc)
-
 island_heatmap_auc <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1010,7 +971,7 @@ island_heatmap_auc <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
-                       midpoint = mid_val_roc, na.value = "gray") +  # Set NA values to gray
+                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
@@ -1026,9 +987,6 @@ island_heatmap_auc <-
 print(island_heatmap_auc)
 
 # pr
-lims_pr <- range(df_eval_summary$auc_pr_mean, na.rm = TRUE)
-mid_val_pr <- mean(lims_pr)
-
 island_heatmap_pr <- 
   ggplot(df_eval_summary, aes(x = train_layer_name, y = test_layer_name, fill = auc_pr_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -1037,7 +995,7 @@ island_heatmap_pr <-
   geom_tile(data = df_eval_summary[df_eval_summary$train_layer == df_eval_summary$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
-                       midpoint = mid_val_pr, na.value = "gray") +  # Set NA values to gray
+                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "PR-AUC") +
   theme_minimal() +
   theme(
@@ -1064,55 +1022,12 @@ pr_roc <- plot_grid(
 )
 
 # supplementary figure pr_roc
-pdf(file   = "results/paper_figs/pr_roc.pdf",
+pdf(file   = "results/paper_figs/k_10/pr_roc_k10.pdf",
     width  = 13,    # inches
     height = 10,
     family = "Helvetica"   # or another installed font
 )
 pr_roc
-dev.off()
-
-#### ---- false positive rate ----
-roc_obj <- roc(df_removed$original_binary, df_removed$predicted_prob_sigm,
-               quiet = TRUE, na.rm = TRUE,
-               levels = c(0,1), direction = "<")
-plot(roc_obj)
-auc_value <- auc(roc_obj)
-
-threshold <- best_discrete_threshold
-coords_df <- coords(
-  roc_obj,
-  x = threshold,
-  input = "threshold",
-  ret = c("specificity", "sensitivity")
-)
-
-FPR_value <- 1 - coords_df["specificity"]
-TPR_value <- coords_df["sensitivity"]
-
-roc_df <- data.frame(
-  FPR = 1 - roc_obj$specificities,
-  TPR = roc_obj$sensitivities
-)
-
-roc_curve <- ggplot(roc_df, aes(FPR, TPR)) +
-  geom_line(linewidth = 1.2, color = "lightsteelblue") +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "salmon") +
-  labs(
-    title = "ROC curve",
-    subtitle = paste0("AUC = ", round(auc_value, 3)),
-    x = "False positive rate (1 − specificity)",
-    y = "True positive rate (sensitivity)"
-  ) +
-  coord_equal() +
-  theme_classic(base_size = 14) + tme
-
-pdf(file   = "results/paper_figs/roc_curve.pdf",
-    width  = 7,    # inches
-    height = 7,
-    family = "Helvetica"   # or another installed font
-)
-roc_curve
 dev.off()
 
 ### ---- Fig. 2d: distribution of evaluators with/without external data ----
@@ -1130,10 +1045,10 @@ custom_colors <- c("Single location" = "steelblue",
 # plot the histogram: 
 
 hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
-                      y_axis_label = "Count of instances",
-                      x_axis_label = "F0.5 score") + 
+                       y_axis_label = "Count of instances",
+                       x_axis_label = "F0.5 score") + 
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
-  scale_x_continuous(labels = scales::number_format(accuracy = 0.02)) +
+  scale_x_continuous(labels = scales::number_format(accuracy = 0.05)) +
   theme(
     axis.text.x = element_text(hjust = 0.5),  # center tick labels
     legend.position = "bottom",               # move legend below
@@ -1146,34 +1061,47 @@ results_diags <- result_summary %>% filter(layer_comparison == "Single location"
 results_offs <- result_summary %>% filter(layer_comparison == "Added location")
 
 range(results_diags$f05_score)
-mean(results_diags$f05_score)
-sd(results_diags$f05_score)
-
 range(results_offs$f05_score)
-mean(results_offs$f05_score)
-sd(results_offs$f05_score)
 
 # # Base‐R PDF device
 pdf(
-  file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
+  file   = "results/paper_figs/k_10/hist_f05a_legend_bottom_k10.pdf",
   width  = 6,    # inches
-  height = 6,
+  height = 7,
   family = "Helvetica"   # or another installed font
 )
 print(hist_f05a)
 dev.off()     # close the file
 
 # stats
+# run t-test via formula interface
+t_test_f05 <- t.test(f05_score ~ layer_comparison, 
+                     data       = result_summary,
+                     var.equal  = FALSE)  # Welch’s test
+
+# 3. Print the full test
+print(t_test_f05)
 
 # do we need welch/wilcoxon?
 # first normality check
 result_summary %>%
   group_by(layer_comparison) %>%
-  shapiro_test(f05_score) # distributions are normal
+  shapiro_test(f05_score)
 
 # variance check
 result_summary %>% levene_test(f05_score ~ layer_comparison)
-# variances are similar. but due to the dependency between observations (not paired) we will not use Wilcoxon's or t-test
+# all is good, we can use t-test.
+
+# 4. Extract just the numbers you want
+t_stat <- unname(t_test_f05$statistic)
+df_val <- unname(t_test_f05$parameter)
+p_val  <- t_test_f05$p.value
+
+data.frame(
+  t_value = t_stat,
+  df      = df_val,
+  p_value = p_val
+)
 
 ### ---- e. ecological inference ----
 ### ---- network size and density correlation with evaluators ----
@@ -1313,7 +1241,7 @@ netsize_f05_nnse <- plot_f05_nnse_vs_size_free_both(df_f05_nnse_size) + tme # Fi
 netsize_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netsize_f05_nnse.pdf",
+  file   = "results/paper_figs/k_10/netsize_f05_nnse_k10.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1333,7 +1261,7 @@ netdensity_f05_nnse + theme(axis.text.x = element_text(size = 12))
 netdensity_f05_nnse
 
 pdf(
-  file   = "results/paper_figs/netdensity_f05_nnse.pdf",
+  file   = "results/paper_figs/k_10/netdensity_f05_nnse_k10.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -1410,11 +1338,11 @@ canary_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
 
 jaccard_isl_f05 <- make_facet_scatter_plot(data = canary_results_jaccard, 
-                                          evaluator = "f05_score",
-                                          pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                          x_lab = "Jaccard similarity",
-                                          y_lab = "F0.5 score",
-                                          facet_scales = "free_x")
+                                           evaluator = "f05_score",
+                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                           x_lab = "Jaccard similarity",
+                                           y_lab = "F0.5 score",
+                                           facet_scales = "free_x")
 jaccard_isl_f05 # Fig. 4
 
 # # Base‐R PDF device
@@ -1562,9 +1490,7 @@ plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
     y = "Number of predicted, \nnon-observed interactions",
     title = paste("Plants:", label_text_plants)   # <--- add label in title
   ) +
-  theme_minimal() + tme +
-  theme(axis.text.x = element_text(size = 14),
-        axis.text.y = element_text(size = 14))
+  theme_minimal() + tme
 
 # add repel‐text layer
 plant_degree <- plant_degree +
@@ -1599,9 +1525,7 @@ poll_degree <- ggplot(df_to_correlate_poll, aes(x = x, y = y)) +
     y = "Number of predicted, \nnon-observed interactions",
     title = paste("Pollinators:", label_text_polls)   # <--- add label in title
   ) +
-  theme_minimal() + tme +
-  theme(axis.text.x = element_text(size = 14),
-        axis.text.y = element_text(size = 14))
+  theme_minimal() + tme
 
 # # Create the figure
 # final_plot <- combine_plots(plant_degree, poll_degree) # Fig. 3c
@@ -1635,7 +1559,7 @@ final_plot <- plot_grid(
 final_plot # fig. 3c
 
 # # Save to PDF
-pdf("results/paper_figs/degree_unobserved_links.pdf", width = 10, height = 7)  # adjust size as needed
+pdf("results/paper_figs/k_10/degree_unobserved_links_k10.pdf", width = 10, height = 7)  # adjust size as needed
 grid::grid.draw(final_plot)
 dev.off()
 
@@ -1690,52 +1614,53 @@ all((df_summary$avg_prop == 0) == (df_summary$avg_prop_isl == 0)) # check
 df_summary$node_from <- factor(df_summary$node_from, levels = plant_order)
 df_summary$node_to   <- factor(df_summary$node_to, levels = poll_order)
 
-# map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
-#   # First layer: background heatmap for proportion observed (blue gradient)
-#   geom_tile(aes(fill = avg_prop_isl)) +
-#   scale_fill_gradient(low = "white", high = "steelblue", 
-#                       name = "Observed links:\nproportion\nof islands\nobserved",
-#                       breaks = seq(0, 1, 0.2)) +
-#   
-#   # Reset fill scale so the next layer can have its own gradient
-#   new_scale_fill() +
-#   
-#   # Second layer: overlay only cells that were never observed but have high predicted value
-#   geom_tile(
-#     data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
-#     aes(fill = avg_sigm_predicted),
-#     alpha = 0.6
-#   ) +
-#   scale_fill_gradient(low = "tan1", high = "tomato2", 
-#                       name = "Predicted links:\naverage predicted\nprobability",
-#                       breaks = seq(0, 1, 0.1)) +
-#   
-#   # Final adjustments
-#   theme_minimal() +
-#   labs(x = "Pollinator", y = "Plant") +
-#   theme(
-#     axis.text.x = element_blank(), 
-#     axis.text.y = element_text(size = 10),
-#     legend.text = element_text(size = 12),
-#     legend.position = "bottom",         # Place legends at the bottom
-#     legend.box = "horizontal" 
-#   ) + tme +
-#   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#     bquote(italic(.(paste(y, collapse = " "))))
-#   }))
-# 
-# print(map_missing_links)
+map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
+  # First layer: background heatmap for proportion observed (blue gradient)
+  geom_tile(aes(fill = avg_prop_isl)) +
+  scale_fill_gradient(low = "white", high = "steelblue", 
+                      name = "Observed links:\nproportion\nof islands\nobserved",
+                      breaks = seq(0, 1, 0.2)) +
+  
+  # Reset fill scale so the next layer can have its own gradient
+  new_scale_fill() +
+  
+  # Second layer: overlay only cells that were never observed but have high predicted value
+  geom_tile(
+    data = df_summary %>% filter(avg_prop == 0, avg_sigm_predicted > best_discrete_threshold),
+    aes(fill = avg_sigm_predicted),
+    alpha = 0.6
+  ) +
+  scale_fill_gradient(low = "tan1", high = "tomato2", 
+                      name = "Predicted links:\naverage predicted\nprobability",
+                      breaks = seq(0, 1, 0.1)) +
+  
+  # Final adjustments
+  theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
+  theme(
+    axis.text.x = element_blank(), 
+    axis.text.y = element_text(size = 10),
+    legend.text = element_text(size = 12),
+    legend.position = "bottom",         # Place legends at the bottom
+    legend.box = "horizontal" 
+  ) + tme +
+  scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
 
-# pdf(
-#   file   = "results/paper_figs/map_missing_links.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links)
-# dev.off()     # close the file
+print(map_missing_links)
 
-### ---- difference in links predicted with/without external data ----
+pdf(
+  file   = "results/paper_figs/k_10/map_missing_links_k10.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(map_missing_links)
+dev.off()     # close the file
+
+
+### ---- Fig. S11: difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-island data or combination of both.
 df_island_sep <- df_island %>%
   separate(island_id, into = c("island1", "island2"), sep = "_", convert = TRUE)
@@ -1804,203 +1729,41 @@ df_plot <- diff_df %>%
     )
   )
 
-# map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
-#   
-#   # allow a second fill scale
-#   new_scale_fill() +
-#   geom_tile(
-#     data  = filter(df_plot, !is.na(sigm_cat)),
-#     aes(fill = sigm_cat),
-#     alpha = 0.6
-#   ) +
-#   scale_fill_manual(
-#     values = c(
-#       "offs↑ only" = "salmon",
-#       "diag↑ only" = "plum3",
-#       "both↑"       = "lightsteelblue"
-#     ),
-#     na.value = NA,
-#     name   = "Difference in \nprediction approach",
-#     labels = c(
-#       "offs↑ only" = "Predicted only by \nadding external location",
-#       "diag↑ only" = "Predicted only by \nsingle location",
-#       "both↑"       = "Predicted by both approaches"
-#     )
-#   ) +
-#   
-#   # tidy up
-#   theme_minimal() +
-#   labs(x = "Pollinator", y = "Plant") +
-#   theme(
-#     axis.text.x  = element_blank(),
-#     axis.text.y  = element_text(size = 8),
-#     legend.position = "bottom",
-#     legend.box      = "vertical"
-#   ) +
-#   
-#   # your italic‐species labels and extra theme element
-#   scale_y_discrete(
-#     labels = function(x) lapply(strsplit(x, "_"), function(y) {
-#       bquote(italic(.(paste(y, collapse = " "))))
-#     })
-#   ) +
-#   tme
-# 
-# map_missing_links_diags_offs
-# 
-# pdf(
-#   file   = "results/paper_figs/map_missing_links_diags_offs.pdf",
-#   width  = 11,    # inches
-#   height = 6,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(map_missing_links_diags_offs)
-# dev.off()     # close the file
-
-# create a data frame for the plot (unifies previous Fig. 3a and Fig. S11)
-df_combined <- df_summary %>%
-  select(node_from, node_to, avg_prop_isl) %>%
-  full_join(
-    df_plot %>%
-      select(
-        node_from, node_to,
-        avg_sigm_predicted_offs,
-        avg_sigm_predicted_diag,
-        sigm_cat
-      ),
-    by = c("node_from", "node_to")
-  ) %>%
-  mutate(
-    observed_link = avg_prop_isl > 0,
-    
-    pred_prob = case_when(
-      sigm_cat == "offs↑ only" ~ avg_sigm_predicted_offs,
-      sigm_cat == "diag↑ only" ~ avg_sigm_predicted_diag,
-      sigm_cat == "both↑" ~ rowMeans(cbind(avg_sigm_predicted_offs, avg_sigm_predicted_diag), na.rm = TRUE), # if a link was predicted by both approaches, show the average probability
-      TRUE ~ NA_real_
-    ),
-    
-    sigm_cat_plot = case_when(
-      avg_prop_isl == 0 & sigm_cat == "diag↑ only" ~ "Single location",
-      avg_prop_isl == 0 & sigm_cat == "offs↑ only" ~ "External location",
-      avg_prop_isl == 0 & sigm_cat == "both↑" ~ "Both approaches",
-      TRUE ~ NA_character_
-    )
-  ) %>%
-  mutate(
-    sigm_cat_plot = factor(
-      sigm_cat_plot,
-      levels = c("Single location", "External location", "Both approaches")
-    ),
-    pred_prob_alpha = ifelse(
-      !is.na(pred_prob),
-      rescale(pmax(pred_prob, best_discrete_threshold),
-              to = c(0.35, 1),
-              from = c(best_discrete_threshold, 1)),
-      NA_real_
-    )
-  )
-
-n_unobserved_predicted <- df_combined %>%
-  filter(
-    avg_prop_isl == 0,
-    !is.na(pred_prob),
-    pred_prob > best_discrete_threshold
-  ) %>%
-  nrow()
-
-
-# plot 
-
-map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from)) +
+map_missing_links_diags_offs <- ggplot(df_plot, aes(x = node_to, y = node_from)) +
   
-  # observed links
-  geom_tile(
-    data = df_combined %>% filter(observed_link),
-    aes(fill = avg_prop_isl)
-  ) +
-  scale_fill_gradient(
-    low = "white",
-    high = "mediumaquamarine",
-    limits = c(0, 1),
-    breaks = seq(0, 1, 0.2),
-    name = "Observed links:\nproportion of islands observed",
-    guide = guide_colorbar(
-      order = 1,
-      direction = "horizontal",
-      title.position = "top",
-      title.hjust = 0.5,
-      barwidth = unit(4, "cm"),
-      barheight = unit(0.45, "cm")
-    )
-  ) +
-  
-  # black borders around observed links
-  geom_tile(
-    data = df_combined %>% filter(observed_link),
-    fill = NA,
-    color = "black",
-    linewidth = 0.4
-  ) +
-  
-  # reset fill scale
+  # allow a second fill scale
   new_scale_fill() +
-  
-  # predicted missing links:
-  # fill = category hue, alpha = predicted probability
   geom_tile(
-    data = df_combined %>%
-      filter(!is.na(sigm_cat_plot), !is.na(pred_prob), pred_prob >= best_discrete_threshold),
-    aes(fill = sigm_cat_plot, alpha = pred_prob),
-    color = NA
+    data  = filter(df_plot, !is.na(sigm_cat)),
+    aes(fill = sigm_cat),
+    alpha = 0.6
   ) +
-  
   scale_fill_manual(
     values = c(
-      "Single location" = "plum3",
-      "External location" = "salmon",
-      "Both approaches" = "lightsteelblue"
+      "offs↑ only" = "salmon",
+      "diag↑ only" = "plum3",
+      "both↑"       = "lightsteelblue"
     ),
-    name = "Prediction approach",
-    guide = guide_legend(
-      order = 2,
-      title.position = "top",
-      title.hjust = 0.5,
-      nrow = 1,
-      byrow = TRUE,
-      override.aes = list(alpha = 1)
+    na.value = NA,
+    name   = "Difference in \nprediction approach",
+    labels = c(
+      "offs↑ only" = "Predicted only by \nadding external location",
+      "diag↑ only" = "Predicted only by \nsingle location",
+      "both↑"       = "Predicted by both approaches"
     )
   ) +
   
-  scale_alpha_continuous(
-    limits = c(best_discrete_threshold, 1),
-    range = c(0.35, 1),
-    breaks = seq(best_discrete_threshold, 1, 0.1),
-    oob = squish,
-    name = "Predicted probability",
-    guide = guide_legend(
-      order = 3,
-      title.position = "top",
-      title.hjust = 0.5,
-      nrow = 1
-    )
-  ) +
-  
-  labs(x = "Pollinator", y = "Plant") +
+  # tidy up
   theme_minimal() +
+  labs(x = "Pollinator", y = "Plant") +
   theme(
-    axis.text.x = element_blank(),
-    axis.title.x = element_text(margin = margin(t = 18)),
-    axis.text.y = element_text(size = 8),
-    axis.title.y = element_text(margin = margin(t = 18)),
-    
+    axis.text.x  = element_blank(),
+    axis.text.y  = element_text(size = 8),
     legend.position = "bottom",
-    legend.box = "horizontal",
-    legend.box.just = "center",
-    legend.title = element_text(size = 14),
-    legend.text = element_text(size = 12),
-    legend.spacing.x = unit(0.2, "cm")
+    legend.box      = "vertical"
   ) +
+  
+  # your italic‐species labels and extra theme element
   scale_y_discrete(
     labels = function(x) lapply(strsplit(x, "_"), function(y) {
       bquote(italic(.(paste(y, collapse = " "))))
@@ -2008,15 +1771,15 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
   ) +
   tme
 
-map_missing_links_merged
+map_missing_links_diags_offs
 
 pdf(
-  file   = "results/paper_figs/map_missing_links_merged.pdf",
+  file   = "results/paper_figs/k_10/map_missing_links_diags_offs_k10.pdf",
   width  = 11,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
-print(map_missing_links_merged)
+print(map_missing_links_diags_offs)
 dev.off()     # close the file
 
 
@@ -2047,7 +1810,6 @@ df_plot_verified <- diff_df %>%
       TRUE ~ NA_character_
     )
   )
-
 # # if we want to plot them
 # map_existing_links_predicted <- ggplot(df_plot_verified, aes(x = node_to, y = node_from)) +
 # 
@@ -2099,56 +1861,7 @@ df_plot_verified %>%
   group_by(sigm_cat) %>%
   summarise(
     n_links = n()
-  ) # 178 observed links were not predicted
-
-df_plot_verified %>%
-  filter(avg_prop_diag != 0) %>%
-  group_by(sigm_cat) %>%
-  summarise(
-    n_links = n()
-  ) %>%
-  filter(!is.na(sigm_cat)) %>%  # Exclude NA category
-  mutate(
-    total_links = sum(n_links),  # Sum of non-NA categories only
-    percentage = n_links / total_links * 100   # Calculate percentage
   )
-
-#### ---- how many of the predicted links have evidence ----
-# so overall we had
-# predicted links that were observed at least once in the system
-# (df_plot_verified)
-df_observed <- df_plot_verified %>%
-  filter(avg_prop_diag != 0) %>%
-  group_by(sigm_cat) %>%
-  summarise(
-    n_observed = n()
-  ) %>%
-  mutate(status = "observed")  # Add a column to mark these as observed
-
-# predicted links that were never observed in the system
-df_non_observed <- df_plot %>%
-  filter(avg_prop_diag == 0) %>%
-  group_by(sigm_cat) %>%
-  summarise(
-    n_non_observed = n()
-  ) %>%
-  mutate(status = "non_observed")  # Add a column to mark these as non-observed
-
-# Combine both dataframes
-df_combined_obs_non <- bind_rows(df_observed, df_non_observed)
-
-# in total, the proportion of predicted links that were observed in the system:
-df_combined_obs_non %>%
-  filter(!is.na(sigm_cat)) %>%
-  summarise(
-    total_observed = sum(n_observed, na.rm = TRUE),
-    total_non_observed = sum(n_non_observed, na.rm = TRUE)
-  ) %>%
-  mutate(
-    total_links = total_observed + total_non_observed,  # Total links (observed + non-observed)
-    proportion_observed = total_observed / total_links * 100  # Proportion of observed links
-  )
-
 
 # pie chart
 # 1. Count how many interactions fall into each category
@@ -2174,134 +1887,37 @@ new_labels <- c(
   "both↑"      = "Predicted by both approaches"
 )
 ### ---- Fig. 3b: pie chart ----
-# # 3. Make the pie
-# pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
-#   geom_col(width = 1, color = "white") +      # white border between slices
-#   coord_polar(theta = "y") +                  # convert bar → pie
-#   scale_fill_manual(values = my_cols,
-#                     labels = new_labels) +
-#   theme_void() +                              # remove axes/background
-#   theme(
-#     legend.title = element_blank(),
-#     legend.text = element_text(size = 16),
-#     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-#     legend.position  = "bottom",
-#     legend.direction = "vertical"
-#   ) +
-#   #labs(title = "Interactions by Significance Category") +
-#   geom_text(
-#     aes(x = 1.2,label = n),
-#     position = position_stack(vjust = 0.5),
-#     color = "white",
-#     size = 6
-#   )
-# 
-# pie_chart
-# pdf(
-#   file   = "results/paper_figs/pie_chart.pdf",
-#   width  = 7,    # inches
-#   height = 7,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(pie_chart)
-# dev.off()     # close the file
-
-### ---- Fig. 3 (complete): mapping missing links and updated pie chart ----
-
-# add percentages
-df_counts <- df_counts |>
-  dplyr::mutate(
-    sigm_cat = dplyr::recode(
-      sigm_cat,
-      "offs↑ only" = "External data",
-      "diag↑ only" = "Local data",
-      "both↑"      = "Both"
-    )
+# 3. Make the pie
+pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
+  geom_col(width = 1, color = "white") +      # white border between slices
+  coord_polar(theta = "y") +                  # convert bar → pie
+  scale_fill_manual(values = my_cols,
+                    labels = new_labels) +
+  theme_void() +                              # remove axes/background
+  theme(
+    legend.title = element_blank(),
+    legend.text = element_text(size = 16),
+    plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
+    legend.position  = "bottom",
+    legend.direction = "vertical"
+  ) +
+  #labs(title = "Interactions by Significance Category") +
+  geom_text(
+    aes(x = 1.2,label = n),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    size = 6
   )
 
-values <- df_counts$n
-
-labels <- paste0(df_counts$sigm_cat,
-                 "\n",
-                 df_counts$n,
-                 " (", df_counts$pct, ")")
-
+pie_chart
 pdf(
-  file   = "results/paper_figs/pie_chart.pdf",
-  width  = 6,    # inches
-  height = 6,
+  file   = "results/paper_figs/k_10/pie_chart_k10.pdf",
+  width  = 7,    # inches
+  height = 7,
   family = "Helvetica"   # or another installed font
 )
-# Draw pie without labels
-pie(values,
-    labels = NA,
-    col = my_cols,
-    border = "white")
-
-# # Add labels
-fractions <- values / sum(values)
-cum_fractions <- cumsum(fractions)
-mid_angles <- 1.6 * pi * (cum_fractions - fractions / 2)
-
-label_radius <- rep(1.3, length(values))
-i <- which(df_counts$sigm_cat == "Both")
-label_radius[i] <- 1.4   # move this one further out
-j <- which(df_counts$sigm_cat == "Local data")
-label_radius[j] <- 0.9
-k <- which(df_counts$sigm_cat == "External data")
-label_radius[k] <- 0.82
-
-text_colors <- c("salmon", "plum3", "lightsteelblue")
-
-text(label_radius * cos(mid_angles),
-     label_radius * sin(mid_angles),
-     labels = labels,
-     adj = ifelse(cos(mid_angles) > 0, 0, 1),
-     col = text_colors,
-     cex = 1.2,
-     xpd = TRUE)
-
+print(pie_chart)
 dev.off()     # close the file
-
-
-# add to fig 3 at the end of the script
-# Read the pie chart PDF as an image (first page)
-img <- magick::image_read_pdf("results/paper_figs/pie_chart.pdf", density = 300)
-
-image_info(img)
-
-img_cropped <- image_crop(img, geometry = "1800x1800+0+280") # "WIDTHxHEIGHT+LEFT+TOP"
-new_width  <- 1800 - 0 # how much to crop from right
-new_height <- 1800 - 550 # how much to crop from bottom
-
-img_cropped <- image_crop(img_cropped, 
-                          geometry = paste0(new_width, "x", new_height, "+0+0"))
-
-
-# Convert to grob
-pie_grob <- cowplot::ggdraw() + cowplot::draw_image(img_cropped)
-
-bottom_row <- plot_grid(
-  pie_grob,
-  final_plot,
-  rel_widths = c(0.9, 1.2),
-  labels = c("(b)", "(c)"),
-  label_size = 15
-)
-
-
-fig3 <- plot_grid(map_missing_links_merged + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
-                  bottom_row, labels = c('(a)', ''), 
-                  ncol = 1, rel_heights = c(1.3, 0.7), label_size = 15)
-
-
-pdf(file   = "results/paper_figs/missing_interactions_degree2.pdf",
-    width  = 13,    # inches
-    height = 12,
-    family = "Helvetica"   # or another installed font
-)
-fig3
-dev.off()
 
 ### ---- distance decay ----
 #### ---- add distances and location names ----
@@ -2351,10 +1967,7 @@ result_summary_island <- result_summary_island %>%
 result_summary_island_dif <- result_summary_island %>% filter(train_layer != test_layer)
 
 # plot
-cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme) +
-  theme(
-    axis.text.x = element_text(size = 14)  # Adjust x-axis text size
-  )
+cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme)
 
 # pdf(
 #   file   = "cor_plot_dif_isl_f05.pdf",
@@ -2381,7 +1994,7 @@ layers <- sort(unique(c(result_summary_island_dif$train_layer, result_summary_is
 
 # b) initialize empty matrices
 f05_mat      <- matrix(NA, nrow=length(layers), ncol=length(layers),
-                      dimnames=list(layers, layers))
+                       dimnames=list(layers, layers))
 dist_mat_km <- f05_mat
 
 # c) fill in each cell [i,j] with the corresponding f05_score and distance_km
@@ -2513,25 +2126,10 @@ feature_importance_df <- data.frame(
   predictor = predictors,
   importance = feature_importance
 ) %>%
-  arrange(desc(importance)) # most important predictor is Jaccard
+  arrange(desc(importance)) # most important is Jaccard
 
-# Add the feature importance column to mrm_summary
-mrm_summary$importance <- sapply(mrm_summary$predictors, function(preds) {
-  # Split predictors (e.g., "dist_km + jaccard") into individual predictors
-  predictor_list <- strsplit(preds, " \\+ ")[[1]]
-  
-  # Sum the importance of all the predictors in the model
-  sum_importance <- sum(feature_importance_df$importance[feature_importance_df$predictor %in% predictor_list])
-  
-  return(sum_importance)
-})
-
-print(mrm_summary)
 
 ### ---- Fig. 2c heatmap ----
-# Compute limits and midpoint dynamically
-lims <- range(result_summary_island$f05_score, na.rm = TRUE)
-mid_val <- mean(lims)
 
 island_heatmap_f05 <- 
   ggplot(result_summary_island, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
@@ -2541,25 +2139,23 @@ island_heatmap_f05 <-
   geom_tile(data = result_summary_island[result_summary_island$train_layer == result_summary_island$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
-                       midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
+                       midpoint = 0.5, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
   theme_minimal() +
   theme(
-    text = element_text(size = 14),
+    text = element_text(size = 9),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
     panel.background = element_blank(), #This ensures no panel background layers are drawn, which might add extra space.
     panel.grid.major = element_blank(),  # Remove major grid lines
     panel.grid.minor = element_blank(),  # Remove minor grid lines
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),  # Rotate x-axis labels by 45 degrees
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16)
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
   ) +
   coord_fixed() + tme
 
 print(island_heatmap_f05)
 
 pdf(
-  file   = "results/paper_figs/island_heatmap_f05.pdf",
+  file   = "results/paper_figs/k_10/island_heatmap_f05_k10.pdf",
   width  = 6,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
@@ -2568,8 +2164,6 @@ print(island_heatmap_f05)
 dev.off()     # close the file
 
 ### ---- additional stats ----
-overall_sd_f05 <- sd(result_summary$f05_score, na.rm = TRUE)
-
 # sahara predictions
 results_sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara" & train_layer_name != "Western Sahara")
 mean(results_sahara$f05_score)
@@ -2578,8 +2172,8 @@ sd(results_sahara$f05_score)
 # is including external data better?
 # run t-test via formula interface
 wilcox_f05 <- wilcox.test(f05_score ~ layer_comparison,
-                         data = result_summary_island,
-                         exact = FALSE)  # turn off exact test for larger samples
+                          data = result_summary_island,
+                          exact = FALSE)  # turn off exact test for larger samples
 wilcox_f05
 
 # do we need welch/wilcoxon?
@@ -2701,241 +2295,8 @@ final_plot_occ <- plot_grid(
 final_plot_occ
 
 # # Save to PDF
-pdf("results/paper_figs/degree_occurrence.pdf", width = 8, height = 5)  # adjust size as needed
+pdf("results/paper_figs/k_10/degree_occurrence_k10.pdf", width = 8, height = 5)  # adjust size as needed
 grid::grid.draw(final_plot_occ)
-dev.off()
-
-
-## ---- local vs. global degrees and degree binning ----
-# ---- correlate predicted and observed local degree ----
-# if we want to see if the amount of added links (locally in the layer combination) is correlated with the local degree of the species:
-df <- df %>%
-  mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values))
-
-# plants
-# average predicted probability across iterations
-pred_avg <- df %>%
-  group_by(train_layer, test_layer, node_from, node_to, removed) %>%
-  summarise(
-    mean_pred = mean(predicted_prob_sigm, na.rm = TRUE),
-    original_links = first(original_links),  # constant across itr
-    .groups = "drop"
-  )
-
-# predicted degree per species per layer combo
-pred_degree <- pred_avg %>%
-  filter(removed == 1,
-         mean_pred > best_discrete_threshold) %>%
-  group_by(train_layer, test_layer, node_from) %>%
-  summarise(
-    predicted_degree = n_distinct(node_to),
-    .groups = "drop"
-  )
-
-# observed local degree
-obs_degree <- pred_avg %>%
-  filter(original_links > 0) %>%
-  group_by(train_layer, test_layer, node_from) %>%
-  summarise(
-    observed_degree = n_distinct(node_to),
-    .groups = "drop"
-  )
-
-# combine
-degree_comparison <- obs_degree %>%
-  left_join(pred_degree,
-            by = c("train_layer", "test_layer", "node_from")) %>%
-  mutate(
-    predicted_degree = replace_na(predicted_degree, 0)
-  )
-
-# correlate
-correlation_plants_d <- cor.test(degree_comparison$observed_degree, degree_comparison$predicted_degree, use = "complete.obs", method = "pearson")
-correlation_plants_d
-
-# Extract correlation coefficient and p-value
-r_value_d <- round(correlation_plants_d$estimate, 2)
-p_value_d <- formatC(correlation_plants_d$p.value, digits = 2)  # or round as you prefer
-label_text_plants_d <- paste0("r = ", r_value_d, ", p = ", p_value_d)
-
-# plot 
-plant_degree_obs_pred <- ggplot(degree_comparison, aes(x = observed_degree, y = predicted_degree)) +
-  geom_point(alpha = 0.5, size = 2, color = "seagreen3") +
-  geom_smooth(method = "lm", se = FALSE, color = "navy") +
-  labs(
-    x = "Observed degree",
-    y = "Predicted degree",
-    title = paste("Plants:", label_text_plants_d)   # <--- add label in title
-  ) +
-  theme_minimal() + tme
-
-plant_degree_obs_pred
-
-# pollinators
-
-# predicted degree per pollinator per layer combo (pollinators = node_to)
-pred_degree_poll <- pred_avg %>%
-  filter(removed == 1,
-         mean_pred > best_discrete_threshold) %>%
-  group_by(train_layer, test_layer, node_to) %>%
-  summarise(
-    predicted_degree = n_distinct(node_from),
-    .groups = "drop"
-  )
-
-# observed local degree per pollinator (FULL network; pollinators = node_to)
-obs_degree_poll <- pred_avg %>%
-  filter(original_links > 0) %>%
-  group_by(train_layer, test_layer, node_to) %>%
-  summarise(
-    observed_degree = n_distinct(node_from),
-    .groups = "drop"
-  )
-
-# combine
-degree_comparison_poll <- obs_degree_poll %>%
-  left_join(pred_degree_poll,
-            by = c("train_layer", "test_layer", "node_to")) %>%
-  mutate(
-    predicted_degree = replace_na(predicted_degree, 0)
-  )
-
-# correlate
-correlation_poll_d <- cor.test(
-  degree_comparison_poll$observed_degree,
-  degree_comparison_poll$predicted_degree,
-  use = "complete.obs",
-  method = "pearson"
-)
-correlation_poll_d
-
-# Extract correlation coefficient and p-value
-r_value_d <- round(correlation_poll_d$estimate, 2)
-p_value_d <- formatC(correlation_poll_d$p.value, digits = 2)
-label_text_poll_d <- paste0("r = ", r_value_d, ", p = ", p_value_d)
-
-# plot
-poll_degree_obs_pred <- ggplot(degree_comparison_poll, aes(x = observed_degree, y = predicted_degree)) +
-  geom_point(alpha = 0.5, size = 2, color = "thistle") +
-  geom_smooth(method = "lm", se = FALSE, color = "navy") +
-  labs(
-    x = "Observed degree",
-    y = "Predicted degree",
-    title = paste("Pollinators:", label_text_poll_d)
-  ) +
-  theme_minimal() + tme
-
-poll_degree_obs_pred
-
-# Remove individual axis labels
-plant_degree_clean_d <- plant_degree_obs_pred +
-  labs(x = NULL, y = NULL)
-
-poll_degree_clean_d <- poll_degree_obs_pred +
-  labs(x = NULL, y = NULL)
-
-# Combine the two panels
-main_panel <- plot_grid(
-  plant_degree_clean_d,
-  poll_degree_clean_d,
-  ncol = 2,
-  align = "hv"
-)
-
-# Add bottom (shared x-axis) label
-with_x_label <- plot_grid(
-  main_panel,
-  ggdraw() + draw_label("Observed degree",
-                        fontface = "bold",
-                        size = 16),
-  ncol = 1,
-  rel_heights = c(1, 0.08)
-)
-
-# Add left (shared y-axis) label
-final_plot_d <- plot_grid(
-  ggdraw() + draw_label("Predicted degree (withheld links)",
-                        angle = 90,
-                        fontface = "bold",
-                        size = 16),
-  with_x_label,
-  ncol = 2,
-  rel_widths = c(0.08, 1)
-)
-
-final_plot_d
-
-# # Save to PDF
-pdf("results/paper_figs/local_degree_predicted_links.pdf", width = 10, height = 7)  # adjust size as needed
-grid::grid.draw(final_plot_d)
-dev.off()
-
-# ---- performance by degree binning ----
-# add degrees to prediction data frame
-df2 <- df %>%
-  left_join(obs_degree,
-            by = c("train_layer", "test_layer", "node_from"))
-
-# create degree binning
-df2 <- df2 %>%
-  mutate(degree_bin = ntile(observed_degree, 3))
-
-# and label them
-df2$degree_bin <- factor(df2$degree_bin,
-                         levels = 1:3,
-                         labels = c("specialists", "intermediate", "generalists"))
-
-# evaluate
-df3 <- df2 %>%
-  mutate(predicted_binary = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0))
-
-# for each iteration:
-perf_iter <- df3 %>%
-  filter(removed == 1) %>% 
-  group_by(itr, degree_bin) %>%
-  summarise(
-    TP = sum(original_links > 0 & predicted_binary == 1),
-    FN = sum(original_links > 0 & predicted_binary == 0),
-    TN = sum(original_links == 0 & predicted_binary == 0),
-    FP = sum(original_links == 0 & predicted_binary == 1),
-    precision = TP / (TP + FP),
-    recall = TP / (TP + FN),
-    F05 = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
-    .groups = "drop"
-  )
-
-# average across iterations:
-perf_summary <- perf_iter %>%
-  group_by(degree_bin) %>%
-  summarise(
-    mean_F05 = mean(F05, na.rm = TRUE),
-    sd_F05 = sd(F05, na.rm = TRUE)
-  )
-
-# check for normality
-perf_iter %>%
-  group_by(degree_bin) %>%
-  shapiro_test(F05) # normal, we can use anova
-
-p_aov <- aov(F05 ~ degree_bin, data = perf_iter)
-
-degree_binning <- ggplot(perf_iter, aes(x = degree_bin, y = F05, fill = degree_bin)) +
-  geom_boxplot(notch = TRUE) +
-  scale_fill_brewer(palette = "Pastel2") + 
-  labs(
-    x = "Species degree class",
-    y = expression(F[0.5]),
-    title = paste0("ANOVA p = ", signif(p_val, 3))
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    text = element_text(size = 12)
-  ) + tme
-
-pdf("results/paper_figs/degree_binning.pdf", width = 6, height = 6)  # adjust size as needed
-grid::grid.draw(degree_binning)
 dev.off()
 
 ## Combine key plots into figures -----------
@@ -2947,69 +2308,39 @@ dev.off()
 # Fig. 2c is island_heatmap_f05
 # Fig. 2d is hist_f05a
 
-# Step 1: Read the PDF files (assuming your PDFs are stored at specific file paths)
-p_f05_img <- magick::image_read_pdf("results/paper_figs/island_subset_f05.pdf", density = 300)  # Read the p_f05 PDF
-p_nnse_img <- magick::image_read_pdf("results/paper_figs/island_subset_nnse.pdf", density = 300)  # Read the p_nnse PDF
-hist_f05a_img <- magick::image_read_pdf("results/paper_figs/hist_f05a_legend_bottom.pdf", density = 300)  # Read the hist_f05a PDF
-island_heatmap_f05_img <- magick::image_read_pdf("results/paper_figs/island_heatmap_f05.pdf", density = 300)  # Read the island_heatmap_f05 PDF
 
-# crop
-image_info(island_heatmap_f05_img)
-island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img, geometry = "1800x1800+0+200") # "WIDTHxHEIGHT+LEFT+TOP"
-new_width  <- 1800 - 0 # how much to crop from right
-new_height <- 1800 - 400 # how much to crop from bottom
+# fig2cd <- plot_grid(island_heatmap_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     hist_f05a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# fig2ab <- plot_grid(p_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
+#                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
+#                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
+#                     rel_widths = c(1,0.95))
+# 
+# fig2_complete <- fig2ab/fig2
 
-island_heatmap_f05_img_cropped <- image_crop(island_heatmap_f05_img_cropped, 
-                                             geometry = paste0(new_width, "x", new_height, "+0+0"))
-
-
-# Step 2: Convert the PDFs to graphical objects (grobs)
-p_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(p_f05_img)
-p_nnse_grob <- cowplot::ggdraw() + cowplot::draw_image(p_nnse_img)
-hist_f05a_grob <- cowplot::ggdraw() + cowplot::draw_image(hist_f05a_img)
-island_heatmap_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(island_heatmap_f05_img_cropped)
-
-
-# Step 3: Add labels manually using ggdraw and draw_label
-p_f05_grob_labeled <- p_f05_grob + cowplot::draw_label("(a)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-p_nnse_grob_labeled <- p_nnse_grob + cowplot::draw_label("(b)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(c)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(d)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-
-
-# Step 4: Create the 2x2 grid with labeled plots
-fig2x2_labeled <- plot_grid(
-  p_f05_grob_labeled, p_nnse_grob_labeled,  # Top row with labels
-  island_heatmap_f05_grob_labeled, hist_f05a_grob_labeled,  # Bottom row with labels
-  ncol = 2, nrow = 2,  # 2x2 grid layout
-  rel_widths = c(1, 1),  # Equal widths for the columns
-  rel_heights = c(1, 1)  # Equal heights for the rows
-)
-
-
-# Display the labeled 2x2 plot
-print(fig2x2_labeled)
-
-pdf(file   = "results/paper_figs/subset_heatmap_hist_v2.pdf",
-    width  = 10,    # inches
-    height = 8,
-    family = "Helvetica"   # or another installed font
-)
-fig2x2_labeled
-dev.off()
+# Fig. 2
+# pdf(file   = "results/paper_figs/diagonals_heatmap_fig2.pdf",
+#     width  = 15,    # inches
+#     height = 7,
+#     family = "Helvetica"   # or another installed font
+# )
+# fig2
+# dev.off()
 
 
 # Fig. 3
 
-# bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
-#                         final_plot,
-#                         rel_widths = c(0.6, 1),
-#                         labels = c('(b)', '(c)'), label_size = 12)
-# fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
-#                   bottom_row, labels = c('(a)', ''), 
-#                   ncol = 1, rel_heights = c(1.1, 0.7), label_size = 12)
-# 
-# 
+bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
+                        final_plot,
+                        rel_widths = c(0.6, 1),
+                        labels = c('(b)', '(c)'), label_size = 12)
+fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
+                  bottom_row, labels = c('(a)', ''), 
+                  ncol = 1, rel_heights = c(1.1, 0.7), label_size = 12)
+
+
 
 # pdf(file   = "results/paper_figs/missing_interactions_degree.pdf",
 #     width  = 13,    # inches
@@ -3113,7 +2444,7 @@ make_facet_scatter_plot2 <- function(
       strip.text   = element_text(size = 12, face = "plain"),
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks   = element_line(color = "black"),
-      axis.text.x  = element_text(size = 14)
+      axis.text.x  = element_text(size = 12)
     )
 }
 
@@ -3157,7 +2488,7 @@ p_d_core <- cor_plot_dif_isl_f05 +
   tme +
   theme(
     axis.title.y = element_blank(),
-    axis.text.x  = element_text(size = 14)   # <— shrink x tick labels here
+    axis.text.x  = element_text(size = 12)   # <— shrink x tick labels here
   )
 p_d_core <- drop_text_layers(p_d_core)   # strip annotate("text", ...) if present
 label_d <- paste0("Geographic distance: ", rp_text("distance_km", "f05_score", result_summary_island_dif))
@@ -3182,7 +2513,7 @@ isl_jaccard_distance <- plot_grid(
 isl_jaccard_distance
 
 pdf(
-  file   = "results/paper_figs/isl_jaccard_distance.pdf",
+  file   = "results/paper_figs/k_10/isl_jaccard_distance_k10.pdf",
   width  = 8,    # inches
   height = 8,
   family = "Helvetica"   # or another installed font
@@ -3191,10 +2522,10 @@ print(isl_jaccard_distance)
 dev.off()     # close the file
 
 # ---- save results summary ----
-# results_summary_islands <- summary(result_summary)
-# 
-# save_results_summary_from_summarytable(
-#   results_summary_islands,
-#   best_discrete_threshold = best_discrete_threshold,
-#   out_csv = "results/predictions_island_scale_summary.csv"
-# )
+results_summary_k10 <- summary(result_summary)
+
+save_results_summary_from_summarytable(
+  results_summary_k10,
+  best_discrete_threshold = best_discrete_threshold,
+  out_csv = "results/paper_figs/k_10/predictions_island_scale_summary_k10.csv"
+)
