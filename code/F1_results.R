@@ -90,7 +90,7 @@ or_df_wide <- or_df_avg %>%
 # or_best_discrete <- or_df_wide %>%
 #   slice_max(f1_score, n = 1)
 
-# find threshold based on f1-balanced accuracy trade-off
+# find threshold based on f1-balanced accuracy trade-off (original approach)
 or_best_discrete <- or_df_wide
 
 or_best_discrete <- or_df_wide %>%
@@ -413,4 +413,45 @@ print(or_map_missing_links)
 dev.off()     # close the file
 
 
+# jaccard
 
+or_result_summary_island <- or_result_summary_island %>%
+  left_join(results_jaccard, by = c("train_layer", "test_layer")) # add jaccard from main script to results table
+
+
+or_results_diff <- or_result_summary_island %>%
+  filter(train_layer != test_layer)
+
+or_jaccard_isl_f1 <- make_facet_scatter_plot(data = or_results_diff, 
+                                           evaluator = "f1_score",
+                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
+                                           x_lab = "Jaccard similarity",
+                                           y_lab = "F1 score",
+                                           facet_scales = "free_x")
+or_jaccard_isl_f1 
+
+# distance
+or_results_diff <- or_results_diff %>%
+  left_join(new_layer_names, by = c("train_layer" = "group_id")) %>%
+  rename(train_layer_name = name) %>%
+  left_join(new_layer_names, by = c("test_layer" = "group_id")) %>%
+  rename(test_layer_name = name)
+
+or_results_diff <- or_results_diff %>%
+  left_join(
+    distance_island_table, # from the main script
+    by = c("train_layer_name" = "from", "test_layer_name" = "to")
+  ) %>%
+  mutate(distance_km = if_else(train_layer_name == test_layer_name,
+                               0,              # distance = 0 if same site
+                               avg_distance_km))   # otherwise, keep joined distance
+
+# plot
+or_cor_plot_dif_isl_f1 <- make_cor_plot(or_results_diff, evaluator = "f1_score", extra_theme = tme) +
+  theme(
+    axis.text.x = element_text(size = 14),  # Adjust x-axis text size
+    axis.title.y = element_text(size = 16, face = "bold")  # Customize the y-axis title
+  ) +
+  ylab("F1 score")  # Set the y-axis title to "F1 score"
+
+or_cor_plot_dif_isl_f1
