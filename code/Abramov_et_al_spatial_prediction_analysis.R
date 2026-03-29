@@ -2871,6 +2871,66 @@ pdf("results/paper_figs/local_degree_predicted_links.pdf", width = 10, height = 
 grid::grid.draw(final_plot_d)
 dev.off()
 
+# ---- plant degree across islands ----
+df_itr1_observed <- df %>% filter(itr == 1 & original_links > 0)
+
+plant_island_degree <- df_itr1_observed %>%
+  group_by(test_layer, node_from) %>%
+  summarise(island_degree = n_distinct(node_to), .groups = "drop")
+
+plant_global_degree <- df_itr1_observed %>%
+  group_by(node_from) %>%
+  summarise(global_degree = n_distinct(node_to), .groups = "drop")
+
+plant_degree_combined <- plant_island_degree %>%
+  left_join(plant_global_degree, by = "node_from")
+
+# 1) reorder species the same way as in the plot
+plant_degree_plot_df <- plant_degree_combined %>%
+  mutate(node_from = fct_reorder(node_from, island_degree, .fun = median))
+
+# 2) count unique test layers per species
+layer_counts <- plant_degree_plot_df %>%
+  group_by(node_from) %>%
+  summarise(
+    n_test_layers = n_distinct(test_layer),
+    y_pos = max(island_degree, na.rm = TRUE) + 2,   # place label above each box
+    .groups = "drop"
+  )
+
+# 3) plot
+plant_island_degree <- plant_degree_plot_df %>%
+  ggplot(aes(x = node_from, y = island_degree, fill = node_from)) +
+  geom_boxplot() +
+  geom_text(
+    data = layer_counts,
+    aes(x = node_from, y = y_pos, label = n_test_layers),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  scale_fill_viridis_d(option = "viridis") +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(size = 10, angle = 90, hjust = 1, vjust = 0.5)
+  ) +
+  labs(x = "Plant", y = "Island level degree") +
+  tme +
+  scale_x_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
+    bquote(italic(.(paste(y, collapse = " "))))
+  }))
+
+plant_island_degree
+
+pdf(
+  file   = "results/paper_figs/plant_island_degree.pdf",
+  width  = 11,    # inches
+  height = 6,
+  family = "Helvetica"   # or another installed font
+)
+print(plant_island_degree)
+dev.off()     # close the file
+
 # ---- performance by degree binning ----
 # add degrees to prediction data frame
 df2 <- df %>%
