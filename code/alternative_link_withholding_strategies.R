@@ -15,10 +15,46 @@ library(PRROC)
 library(ggnewscale)
 
 # params ----
-best_discrete_threshold <- 0.7 # adjust according to what you get for your network in the main script!
 set.seed(42) # the answer to everything
 
 # functions ----
+
+# Find the threshold (on sigmoid-transformed predictions) that maximises the
+# mean F0.5 score across all withheld observations in a results data frame.
+find_optimal_threshold <- function(df, thresholds = seq(0, 1, by = 0.1)) {
+  df_prepped <- df %>%
+    filter(removed == 1) %>%
+    mutate(
+      predicted_prob  = sigmoid(predicted_values),
+      original_binary = if_else(original_links > 0, 1, 0)
+    )
+  
+  df_thresh <- df_prepped %>%
+    tidyr::expand_grid(threshold = thresholds) %>%
+    mutate(predicted_bin = if_else(predicted_prob > threshold, 1, 0)) %>%
+    group_by(emln_id, train_layer, test_layer, itr, threshold) %>%
+    summarise(
+      TP        = sum(original_binary == 1 & predicted_bin == 1),
+      FP        = sum(original_binary == 0 & predicted_bin == 1),
+      FN        = sum(original_binary == 1 & predicted_bin == 0),
+      precision = TP / (TP + FP),
+      recall    = TP / (TP + FN),
+      f05_score = (1.25) * (precision * recall) / ((0.25 * precision) + recall),
+      .groups   = "drop"
+    ) %>%
+    group_by(emln_id, train_layer, test_layer, threshold) %>%
+    summarise(f05_score = mean(f05_score, na.rm = TRUE), .groups = "drop") %>%
+    group_by(threshold) %>%
+    summarise(f05_score = mean(f05_score, na.rm = TRUE), .groups = "drop")
+  
+  best_row      <- df_thresh[which.max(df_thresh$f05_score), ]
+  best_threshold <- best_row$threshold
+  best_f05       <- best_row$f05_score
+  
+  message(sprintf("Optimal threshold: %.1f  (mean F0.5 = %.4f)", best_threshold, best_f05))
+  return(best_threshold)
+}
+
 predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_degree_effect) {
   n_layers <- length(unique(aggregated_df$layer_from))
   
@@ -46,7 +82,7 @@ predict_with_degree_dependant_link_holdout <- function(aggregated_df, negative_d
       num_1_to_remove <- floor(sum(P>0, na.rm = T)*prop_ones_to_remove)  # Number of links to remove
       num_0_to_remove <- num_1_to_remove
       prop_0_removed <- num_0_to_remove / sum(P == 0, na.rm = T)
-  
+      
       
       # debug print
       print(paste("1 remove:", num_1_to_remove))
@@ -206,13 +242,13 @@ df_pos <- combined_results_degree_based_pos %>%
 df_neg <- combined_results_degree_based_neg %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values))
 
-prepare_results_to_plot <- function(df) {
+prepare_results_to_plot <- function(df, threshold) {
   new_layer_names <- get_island_names_with_layer_indexes()
   
   result_summary <- df %>%
     filter(removed == 1) %>% 
     mutate(predicted_prob_sigm = sigmoid(predicted_values)) %>%  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-    mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > best_discrete_threshold, 1, 0)) %>% 
+    mutate(predicted_bin_sigm = if_else(predicted_prob_sigm > threshold, 1, 0)) %>%
     mutate(original_binary = if_else(original_links > 0, 1, 0)) %>%
     group_by(emln_id, train_layer, test_layer, itr) %>% # start summarizing data
     summarise(
@@ -253,58 +289,61 @@ prepare_results_to_plot <- function(df) {
   return(result_summary)
 }
 
-result_summary_pos <- prepare_results_to_plot(df_pos)
-result_summary_neg <- prepare_results_to_plot(df_neg)
+threshold_pos <- find_optimal_threshold(df_pos)
+threshold_neg <- find_optimal_threshold(df_neg)
+
+result_summary_pos <- prepare_results_to_plot(df_pos, threshold_pos)
+result_summary_neg <- prepare_results_to_plot(df_neg, threshold_neg)
 
 ## ---- Fig. S???: based on fig.2c - heatmap ----
 plot_island_heatmap_with_degree_holdout <- function(result_summary, plot_title = NULL) {
+  
+  # Compute limits and midpoint dynamically
+  lims <- range(result_summary$f05_score, na.rm = TRUE)
+  mid_val <- mean(lims)
+  
+  island_heatmap_degree <- ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
     
-    # Compute limits and midpoint dynamically
-    lims <- range(result_summary$f05_score, na.rm = TRUE)
-    mid_val <- mean(lims)
+    # Base heatmap
+    geom_tile(color = "black", linewidth = 0.1) +
     
-    island_heatmap_degree <- ggplot(result_summary, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
-      
-      # Base heatmap
-      geom_tile(color = "black", linewidth = 0.1) +
-      
-      # Highlight diagonal
-      geom_tile(
-        data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
-        color = "black", linewidth = 1.2
-      ) +
-      
-      # Dynamic color scale
-      scale_fill_gradient2(
-        low = "lightsteelblue2",
-        mid = "white",
-        high = "salmon2",
-        midpoint = mid_val,
-        limits = lims,
-        na.value = "gray"
-      ) +
-      
-      labs(
-        title = plot_title,
-        x = "Added location",
-        y = "Predicted location",
-        fill = "F0.5 score"
-      ) +
-      
-      theme_minimal() +
-      theme(
-        text = element_text(size = 15),
-        plot.margin = unit(c(0, 0, 0, 0), "cm"),
-        panel.background = element_blank(),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
-      ) +
-      
-      coord_fixed() + tme
+    # Highlight diagonal
+    geom_tile(
+      data = result_summary[result_summary$train_layer == result_summary$test_layer, ],
+      color = "black", linewidth = 1.2
+    ) +
     
-    return(island_heatmap_degree)
-  }
+    # Dynamic color scale
+    scale_fill_gradient2(
+      low = "lightsteelblue2",
+      mid = "white",
+      high = "salmon2",
+      midpoint = mid_val,
+      limits = lims,
+      na.value = "gray"
+    ) +
+    
+    labs(
+      title = plot_title,
+      x = "Added location",
+      y = "Predicted location",
+      fill = "F0.5 score"
+    ) +
+    
+    theme_minimal() +
+    theme(
+      text = element_text(size = 15),
+      plot.margin = unit(c(0, 0, 0, 0), "cm"),
+      panel.background = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    ) +
+    
+    coord_fixed() + tme
+  
+  return(island_heatmap_degree)
+}
 
 heatmap_pos <- 
   plot_island_heatmap_with_degree_holdout(result_summary_pos, 
@@ -450,15 +489,15 @@ plot_link_prediction_map <- function(df, best_discrete_threshold, map_title) {
     scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
       bquote(italic(.(paste(y, collapse = " "))))
     }))
-
+  
   return(map_missing_links_degree_based)
 }
 
-map_links_degree_pos <- 
-  plot_link_prediction_map(df_pos, best_discrete_threshold, 
+map_links_degree_pos <-
+  plot_link_prediction_map(df_pos, threshold_pos,
                            map_title = "Degree-based withholding: positive degree effect")
-map_links_degree_neg <- 
-  plot_link_prediction_map(df_neg, best_discrete_threshold,
+map_links_degree_neg <-
+  plot_link_prediction_map(df_neg, threshold_neg,
                            map_title = "Degree-based withholding: negative degree effect")
 
 print(map_links_degree_pos)
@@ -625,9 +664,10 @@ df_im <- combined_results_class_imbalance %>%
   mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values)) %>% 
   mutate(original_binary = if_else(original_links > 0, 1, 0)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-  
 
-result_summary_imbalance <- prepare_results_to_plot(df_im)
+
+threshold_im <- find_optimal_threshold(df_im)
+result_summary_imbalance <- prepare_results_to_plot(df_im, threshold_im)
 
 ## ---- plot roc and pr curves for class imbalance ----
 # positive class prevalence
@@ -646,7 +686,7 @@ roc_obj <- roc(
 auc_roc_value <- as.numeric(auc(roc_obj))
 
 # point for chosen threshold
-threshold <- best_discrete_threshold
+threshold <- threshold_im
 
 coords_df <- coords(
   roc_obj,
@@ -670,7 +710,7 @@ roc_point <- data.frame(
 roc_plot <- ggplot(roc_df, aes(FPR, TPR)) +
   geom_line(linewidth = 1.2, color = "lightsteelblue") +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "salmon") +
-  geom_point(data = roc_point, aes(FPR, TPR), size = 3, color = "black") +
+  #geom_point(data = roc_point, aes(FPR, TPR), size = 3, color = "black") +
   labs(
     title = "ROC curve",
     subtitle = paste0("AUC = ", round(auc_roc_value, 3)),
@@ -726,6 +766,8 @@ fig_imbalance_pr_roc <- plot_grid(
   label_y = 1.1    # move labels closer to the plot
 )
 
+fig_imbalance_pr_roc
+
 pdf(
   file   = "results/paper_figs/fig_imbalance_pr_roc.pdf",
   width  = 11,    # inches
@@ -745,7 +787,7 @@ df_eval_im <- df_im %>%
     # ROC-AUC (coerce to numeric!)
     auc_roc = tryCatch({
       roc_obj <- roc(response = original_binary,
-                     predictor = predicted_prob,
+                     predictor = predicted_prob_sigm,
                      quiet = TRUE, na.rm = TRUE,
                      levels = c(0,1), direction = "<")
       as.numeric(auc(roc_obj))   # <-- important
@@ -753,8 +795,8 @@ df_eval_im <- df_im %>%
     
     # PR-AUC (guard against all-one-class cases)
     auc_pr = tryCatch({
-      pos <- predicted_prob[original_binary == 1]
-      neg <- predicted_prob[original_binary == 0]
+      pos <- predicted_prob_sigm[original_binary == 1]
+      neg <- predicted_prob_sigm[original_binary == 0]
       if (length(pos) == 0 || length(neg) == 0) return(NA_real_)
       pr_obj <- pr.curve(scores.class0 = pos, scores.class1 = neg, curve = FALSE)
       pr_obj$auc.integral
