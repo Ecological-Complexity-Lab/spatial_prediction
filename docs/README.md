@@ -1,3 +1,12 @@
+# Interactive Figures – SVD-Based Spatial Prediction (Canary Islands)
+
+| Figure | Description | URL |
+|--------|-------------|-----|
+| **Fig. 3** | Predicted plant–pollinator interactions | [ecological-complexity-lab.github.io/svd_based_spatial_prediction/](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/) |
+| **Fig. 4** | Prediction performance vs. network similarity & distance | [ecological-complexity-lab.github.io/svd_based_spatial_prediction/figure4.html](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/figure4.html) |
+
+---
+
 # Interactive Fig. 3 – Predicted Plant–Pollinator Interactions (Canary Islands)
 
 **Live figure:** [ecological-complexity-lab.github.io/svd_based_spatial_prediction](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/)
