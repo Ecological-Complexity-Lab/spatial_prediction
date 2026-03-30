@@ -2979,6 +2979,8 @@ perf_iter %>%
   shapiro_test(F05) # normal, we can use anova
 
 p_aov <- aov(F05 ~ degree_bin, data = perf_iter)
+# Extract p-value
+p_val <- summary(p_aov)[[1]]["degree_bin", "Pr(>F)"]
 
 degree_binning <- ggplot(perf_iter, aes(x = degree_bin, y = F05, fill = degree_bin)) +
   geom_boxplot(notch = TRUE) +
