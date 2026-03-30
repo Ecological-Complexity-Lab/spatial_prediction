@@ -178,8 +178,8 @@ rect.tile.sel-highlight { stroke: #cc2200 !important; stroke-width: 3px !importa
 <div id="controls">
   <div class="ctrl-group">
     <span class="ctrl-label">Threshold:</span>
-    <input type="range" id="thresh-slider" min="0" max="20" step="1" value="12">
-    <span id="thresh-display">0.600</span>
+    <input type="range" id="thresh-slider" min="0" max="20" step="1" value="16">
+    <span id="thresh-display">0.700</span>
   </div>
   <div class="ctrl-group">
     <span class="ctrl-label">Metric:</span>
@@ -326,7 +326,7 @@ const PANELS = [
 // ═══════════════════════════════════════════════════════════════
 
 let appData = null;
-let state = { threshIdx: 12, metric: "f05", selectedPair: null };
+let state = { threshIdx: 16, metric: "f05", selectedPair: null };
 
 // ── pair key helper ──
 function pairKey(train, test) { return `${train}||${test}`; }
