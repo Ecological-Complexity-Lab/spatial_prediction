@@ -2569,6 +2569,9 @@ dev.off()     # close the file
 
 ### ---- additional stats ----
 overall_sd_f05 <- sd(result_summary$f05_score, na.rm = TRUE)
+overall_mean_f05 <- mean(result_summary$f05_score, na.rm = TRUE)
+overall_max_f05 <- max(result_summary$f05_score, na.rm = TRUE)
+
 
 # sahara predictions
 results_sahara <- result_summary_island %>% filter(test_layer_name == "Western Sahara" & train_layer_name != "Western Sahara")
