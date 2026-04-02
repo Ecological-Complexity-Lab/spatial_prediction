@@ -1,10 +1,10 @@
-# degree based link withholding -
-# for each node, save its degree. then there will be two degree values for each link - multiply them.
+# alternative strategies for link withholding -
+# in the main code, we sample links uniformly at random. here we explore 3 alternative link withholding strategies.
+# degree-based: for each node, save its degree. then there will be two degree values for each link - multiply them.
 # then sample from the list of links, when the priority is in proportion to their degree:
 # 1. positive proportionality - the higher the degree, the more likely to be sampled
 # 2. negative proportionality - the higher the degree, the less likely to be sampled
-# - the 3rd option is to sample uniformly at random, which is the same as not using degree information at all - the ones in the main script.
-# output: figures 3a, 2c from the paper, for each option.
+# 3. sampling zeros while preserving the class imbalance in the data.
 
 
 # load packages
@@ -295,7 +295,7 @@ threshold_neg <- find_optimal_threshold(df_neg)
 result_summary_pos <- prepare_results_to_plot(df_pos, threshold_pos)
 result_summary_neg <- prepare_results_to_plot(df_neg, threshold_neg)
 
-## ---- Fig. S???: based on fig.2c - heatmap ----
+## ---- Fig. S10: based on fig.2c - heatmap ----
 plot_island_heatmap_with_degree_holdout <- function(result_summary, plot_title = NULL) {
   
   # Compute limits and midpoint dynamically
@@ -374,7 +374,7 @@ print(fig_degree_holdout)
 dev.off()     # close the file
 
 
-## ---- Fig. S???: based on fig.3a ----
+## ---- maps based on fig.3a ----
 plot_link_prediction_map <- function(df, best_discrete_threshold, map_title) {
   # for each island and interaction, determine if the interaction was observed.
   # we use `any(original_links == 1)` so that if the interaction is observed in at least one iteration, we count it.
@@ -503,15 +503,15 @@ map_links_degree_neg <-
 print(map_links_degree_pos)
 print(map_links_degree_neg)
 
-pdf(
-  file   = "results/paper_figs/map_missing_links_degree_based_holdout.pdf",
-  width  = 11,    # inches
-  height = 6,
-  family = "Helvetica"   # or another installed font
-)
-print(map_links_degree_pos)
-print(map_links_degree_neg)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/paper_figs/map_missing_links_degree_based_holdout.pdf",
+#   width  = 11,    # inches
+#   height = 6,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(map_links_degree_pos)
+# print(map_links_degree_neg)
+# dev.off()     # close the file
 
 
 # ---- class-imbalance dependent withholding ----
@@ -669,7 +669,7 @@ df_im <- combined_results_class_imbalance %>%
 threshold_im <- find_optimal_threshold(df_im)
 result_summary_imbalance <- prepare_results_to_plot(df_im, threshold_im)
 
-## ---- plot roc and pr curves for class imbalance ----
+## ---- Fig. S9: plot roc and pr curves for class imbalance ----
 # positive class prevalence
 prev_pos <- mean(df_im$original_binary == 1, na.rm = TRUE)
 
@@ -837,6 +837,9 @@ df_eval_summary_im <- df_eval_summary_im %>%
 
 
 # roc
+lims <- range(df_eval_summary_im$auc_roc_mean, na.rm = TRUE)
+mid_val <- mean(lims)
+
 imbalance_heatmap_roc <- 
   ggplot(df_eval_summary_im, aes(x = train_layer_name, y = test_layer_name, fill = auc_roc_mean)) +
   # First draw the entire heatmap with white borders for all tiles
@@ -844,8 +847,8 @@ imbalance_heatmap_roc <-
   # Then draw the diagonal tiles on top with black borders
   geom_tile(data = df_eval_summary_im[df_eval_summary_im$train_layer == df_eval_summary_im$test_layer, ],
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
-  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
-                       midpoint = 0.69, na.value = "gray") +  # Set NA values to gray
+  scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
+                       midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
@@ -857,6 +860,4 @@ imbalance_heatmap_roc <-
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)  # Rotate x-axis labels by 45 degrees
   ) +
   coord_fixed() + tme
-
-print(imbalance_heatmap_roc)
 
