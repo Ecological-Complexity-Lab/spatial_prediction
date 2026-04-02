@@ -23,6 +23,7 @@ Detailed in the repository Wiki (under "Data").
 
 Case studies: 
 Trøjelsgaard, K., Jordano, P., Carstensen, D. W., & Olesen, J. M. (2015). Geographical variation in mutualistic networks: Similarity, turnover and partner fidelity. Proceedings. Biological sciences / The Royal Society, 282 (1802), 20142925. https://doi.org/10.1098/rspb.2014.2925
+
 Krasnov, Boris R., Sonja Matthee, Marcela Lareschi, Natalia P. Korallo‐Vinarskaya, and Maxim V. Vinarski. (2010). Co‐occurrence of Ectoparasites on Rodent Hosts: Null Model Analyses of Data from Three Continents. Oikos 119 (1): 120–28. https://doi.org/10.1111/j.1600-0706.2009.17902.x
 
 Distance between sites: distance_between_sites_canary.csv
