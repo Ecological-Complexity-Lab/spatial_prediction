@@ -742,7 +742,7 @@ length(plant_species)
 length(pollinator_species)
 
 ### ---- c. evaluation ----
-### ---- Fig. S8: selecting optimal threshold ----
+### ---- selecting optimal threshold ----
 # select the threshold for classifying links as 1s or 0s based on max f0.5
 
 # 0) set an array of thresholds
@@ -829,14 +829,14 @@ optimal_threshold <- ggplot(df_avg_plot, aes(threshold, value, color = metric)) 
   scale_color_brewer(palette = "Pastel2") +
   tme
 
-pdf(
-  file   = "results/paper_figs/optimal_threshold.pdf",
-  width  = 5,    # inches
-  height = 4,
-  family = "Helvetica"   # or another installed font
-)
-print(optimal_threshold)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/paper_figs/optimal_threshold.pdf",
+#   width  = 5,    # inches
+#   height = 4,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(optimal_threshold)
+# dev.off()     # close the file
 
 df_eval <- df %>%
   filter(removed == 1) %>%
@@ -895,7 +895,7 @@ df_removed <- df %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-### ---- Fig. S10: predicted vs. observed weights ----
+### ---- Fig. S13: predicted vs. observed weights ----
 predicted_original <- df_removed %>%
   ggplot(aes(x = original_links, y = predicted_values)) +
   geom_point(alpha = 0.6, color = "lightsteelblue") +
@@ -974,7 +974,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of islands 
 
-### ---- Fig. S9: non-thresholded evaluation ----
+### ---- Fig. S11: non-thresholded evaluation ----
 # first add layer names
 net <- emln::load_emln(60) # canary islands
 net$layers
@@ -1072,7 +1072,7 @@ pdf(file   = "results/paper_figs/pr_roc.pdf",
 pr_roc
 dev.off()
 
-#### ---- false positive rate ----
+### ---- Fig. S12: false positive rate ----
 roc_obj <- roc(df_removed$original_binary, df_removed$predicted_prob_sigm,
                quiet = TRUE, na.rm = TRUE,
                levels = c(0,1), direction = "<")
@@ -1135,9 +1135,13 @@ hist_f05a <- plot_hist(result_summary, metric = "f05_score",
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.02)) +
   theme(
-    axis.text.x = element_text(hjust = 0.5),  # center tick labels
-    legend.position = "bottom",               # move legend below
-    legend.box = "horizontal"                 # optional: lay it out horizontally
+    axis.text.x = element_text(size = 22, hjust = 0.5),
+    axis.text.y = element_text(size = 22),
+    axis.title  = element_text(size = 30),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(size = 18),
+    legend.title = element_text(size = 21)
   )
 
 hist_f05a # Fig. 2b
@@ -1156,8 +1160,8 @@ sd(results_offs$f05_score)
 # # Base‐R PDF device
 pdf(
   file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
-  width  = 6,    # inches
-  height = 6,
+  width  = 7,    # inches
+  height = 7,
   family = "Helvetica"   # or another installed font
 )
 print(hist_f05a)
@@ -1269,7 +1273,7 @@ summary(results)
 result_summary <- result_summary %>%
   left_join(results, by = c("train_layer", "test_layer")) # add to results table
 
-# summerize (table ST1)
+# summerize (Table S2)
 
 # Add island names to main table
 result_summary <- result_summary %>%
@@ -1293,7 +1297,7 @@ df_summary
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. S13: correlate network size with evaluators ----
+#### ---- Fig. S18: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f05_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1321,7 +1325,7 @@ pdf(
 print(netsize_f05_nnse)
 dev.off()     # close the file
 
-#### ---- Fig. S5: density ----
+#### ---- Fig. S19: density ----
 
 df_f05_nnse_density <- result_summary %>%
   select(f05_score, nnse, density_P, density_C) %>%
@@ -2173,40 +2177,9 @@ new_labels <- c(
   "diag↑ only" = "Predicted only by single location" ,
   "both↑"      = "Predicted by both approaches"
 )
-### ---- Fig. 3b: pie chart ----
-# # 3. Make the pie
-# pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
-#   geom_col(width = 1, color = "white") +      # white border between slices
-#   coord_polar(theta = "y") +                  # convert bar → pie
-#   scale_fill_manual(values = my_cols,
-#                     labels = new_labels) +
-#   theme_void() +                              # remove axes/background
-#   theme(
-#     legend.title = element_blank(),
-#     legend.text = element_text(size = 16),
-#     plot.title = element_text(hjust = 0.5, size = 15, face = "bold"),
-#     legend.position  = "bottom",
-#     legend.direction = "vertical"
-#   ) +
-#   #labs(title = "Interactions by Significance Category") +
-#   geom_text(
-#     aes(x = 1.2,label = n),
-#     position = position_stack(vjust = 0.5),
-#     color = "white",
-#     size = 6
-#   )
-# 
-# pie_chart
-# pdf(
-#   file   = "results/paper_figs/pie_chart.pdf",
-#   width  = 7,    # inches
-#   height = 7,
-#   family = "Helvetica"   # or another installed font
-# )
-# print(pie_chart)
-# dev.off()     # close the file
 
 ### ---- Fig. 3 (complete): mapping missing links and updated pie chart ----
+#### ---- Fig. 3b: pie chart ----
 
 # add percentages
 df_counts <- df_counts |>
@@ -2370,7 +2343,7 @@ cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f
 cor_plot_dif_isl_nnse  <- make_cor_plot(result_summary_island_dif, evaluator = "nnse", extra_theme = tme)
 saveRDS(result_summary_island_dif, "results/result_summary_island_dif.rds")
 
-#### ---- MRM test: island scale ----
+### ---- Table 1: MRM test and variable importance ----
 result_summary_island_dif <- readRDS("results/result_summary_island_dif.rds")
 
 # build square matrices of f0.5 and distance
@@ -2469,7 +2442,7 @@ mrm_summary <- do.call(rbind, lapply(mrm_results, function(x) {
 }))
 print(mrm_summary)
 
-# try to evaluate the best variable combination using AICc ----
+##### ---- evaluate the best variable combination using AICc ----
 # (aka Akaike Information Criterion corrected for small sample sizes)
 
 # Note: distance-matrix entries are not independent, so AIC/AICc here 
@@ -2543,7 +2516,7 @@ island_heatmap_f05 <-
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
   labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
-  theme_minimal() +
+  theme_minimal() + tme +
   theme(
     text = element_text(size = 14),
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
@@ -2551,10 +2524,12 @@ island_heatmap_f05 <-
     panel.grid.major = element_blank(),  # Remove major grid lines
     panel.grid.minor = element_blank(),  # Remove minor grid lines
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),  # Rotate x-axis labels by 45 degrees
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16)
+    axis.title.x = element_text(size = 22),
+    axis.title.y = element_text(size = 22),
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 16)
   ) +
-  coord_fixed() + tme
+  coord_fixed()
 
 print(island_heatmap_f05)
 
@@ -2595,7 +2570,7 @@ shapiro_f05 <- result_summary_island %>%
 levene_f05 <- result_summary_island %>% levene_test(f05_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
-## ---- Fig. S12: no. of islands in which species occur ----
+## ---- Fig. S14: species occurrence and degree ----
 
 # Combine plant and pollinator columns into one column of species occurrences
 
@@ -2709,8 +2684,8 @@ grid::grid.draw(final_plot_occ)
 dev.off()
 
 
-## ---- local vs. global degrees and degree binning ----
-# ---- correlate predicted and observed local degree ----
+# ---- local vs. global degrees and degree binning ----
+## ---- Fig. S15: correlate predicted and observed local degree ----
 # if we want to see if the amount of added links (locally in the layer combination) is correlated with the local degree of the species:
 df <- df %>%
   mutate(island_id = paste(train_layer, test_layer, sep = "_")) %>% 
@@ -2874,7 +2849,7 @@ pdf("results/paper_figs/local_degree_predicted_links.pdf", width = 10, height = 
 grid::grid.draw(final_plot_d)
 dev.off()
 
-# ---- plant degree across islands ----
+## ---- Fig. S17: plant degree across islands ----
 df_itr1_observed <- df %>% filter(itr == 1 & original_links > 0)
 
 plant_island_degree <- df_itr1_observed %>%
@@ -2934,7 +2909,7 @@ pdf(
 print(plant_island_degree)
 dev.off()     # close the file
 
-# ---- performance by degree binning ----
+## ---- Fig. S16: performance by degree binning ----
 # add degrees to prediction data frame
 df2 <- df %>%
   left_join(obs_degree,
@@ -3003,9 +2978,9 @@ pdf("results/paper_figs/degree_binning.pdf", width = 6, height = 6)  # adjust si
 grid::grid.draw(degree_binning)
 dev.off()
 
-## Combine key plots into figures -----------
+# Combine key plots into figures -----------
 
-# Fig. 2:
+### ---- Fig. 2: ----
 
 # Fig. 2a is p_f05 from subset_analysis.R
 # Fig. 2b is p_nnse from subset_analysis.R
@@ -3038,8 +3013,8 @@ island_heatmap_f05_grob <- cowplot::ggdraw() + cowplot::draw_image(island_heatma
 # Step 3: Add labels manually using ggdraw and draw_label
 p_f05_grob_labeled <- p_f05_grob + cowplot::draw_label("(a)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
 p_nnse_grob_labeled <- p_nnse_grob + cowplot::draw_label("(b)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(c)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
-hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(d)", x = 0, y = 1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+island_heatmap_f05_grob_labeled <- island_heatmap_f05_grob + cowplot::draw_label("(c)", x = 0, y = 1.1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
+hist_f05a_grob_labeled <- hist_f05a_grob + cowplot::draw_label("(d)", x = 0, y = 1.1, hjust = 0, vjust = 1, size = 18, fontface = "bold")
 
 
 # Step 4: Create the 2x2 grid with labeled plots
@@ -3056,44 +3031,17 @@ fig2x2_labeled <- plot_grid(
 print(fig2x2_labeled)
 
 pdf(file   = "results/paper_figs/subset_heatmap_hist_v2.pdf",
-    width  = 10,    # inches
-    height = 8,
+    width  = 11,    # inches
+    height = 9,
     family = "Helvetica"   # or another installed font
 )
 fig2x2_labeled
 dev.off()
 
-
-# Fig. 3
-
-# bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
-#                         final_plot,
-#                         rel_widths = c(0.6, 1),
-#                         labels = c('(b)', '(c)'), label_size = 12)
-# fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
-#                   bottom_row, labels = c('(a)', ''), 
-#                   ncol = 1, rel_heights = c(1.1, 0.7), label_size = 12)
-# 
-# 
-
-# pdf(file   = "results/paper_figs/missing_interactions_degree.pdf",
-#     width  = 13,    # inches
-#     height = 11,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig3
-# dev.off()
-
-# Fig. 4:
+### ---- Fig. 4: ----
 
 # Fig. 4a,b,c are jaccard_isl_f05
 # Fig. 4d is cor_plot_dif_isl_f05
-# fig4 <- plot_grid(jaccard_isl_f05, 
-#                   cor_plot_dif_isl_f05 + labs(y = "F0.5 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
-#                   labels = c('(a)', '(b)'),
-#                   ncol = 1,
-#                   rel_heights = c(1,1))
-# 
 
 # helpers
 
