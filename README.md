@@ -15,9 +15,6 @@ Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Predicti
 # :computer: Code:
 Instructions for running the code and reproducing the results are in the repository Wiki under "Code".
 
-# :file_folder: Folder breakdown:
-Detailed in the repository Wiki (under "Directories").
-
 # :file_cabinet: Data:
 Detailed in the repository Wiki (under "Data").
 
@@ -26,7 +23,7 @@ Trøjelsgaard, K., Jordano, P., Carstensen, D. W., & Olesen, J. M. (2015). Geogr
 
 Krasnov, Boris R., Sonja Matthee, Marcela Lareschi, Natalia P. Korallo‐Vinarskaya, and Maxim V. Vinarski. (2010). Co‐occurrence of Ectoparasites on Rodent Hosts: Null Model Analyses of Data from Three Continents. Oikos 119 (1): 120–28. https://doi.org/10.1111/j.1600-0706.2009.17902.x
 
-Distance between sites: distance_between_sites_canary.csv
+Distance between sites: `distance_between_sites_canary.csv`
 
 The data are available in the repository set up in original publications:
 main analysis:
