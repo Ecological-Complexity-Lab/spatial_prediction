@@ -30,18 +30,18 @@ Distance between sites: distance_between_sites_canary.csv
 
 The data are available in the repository set up in original publications:
 main analysis:
-https://datadryad.org/dataset/doi:
-10.5061/dryad.76173.
+[https://datadryad.org/dataset/doi:
+10.5061/dryad.76173.](https://datadryad.org/dataset/doi:10.5061/dryad.76173)
 
-Host-parasite network analysis: https:533
-//datadryad.org/dataset/doi:10.5061/dryad.d3d36.
+Host-parasite network analysis: 
+[https://datadryad.org/dataset/doi:10.5061/dryad.d3d36.](https://datadryad.org/dataset/doi:10.5061/dryad.d3d36)
 
 # :bar_chart: Output:
 Plots in PDF or PNG format. Files are saved to `results/paper_figs/` (main and scale analyses) or `results/hp_analysis/paper_figs/` (host-parasite analysis).
 
 ---
 
-## Main analysis — island scale (`Abramov_et_al_spatial_prediction_analysis.R`)
+## Main analysis (`Abramov_et_al_spatial_prediction_analysis.R`)
 
 ### Main figures
 | File | Figure |
