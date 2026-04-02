@@ -623,15 +623,18 @@ p_nnse <- ggplot(df_plot, aes(x = dataset, y = nnse, fill = dataset)) +
     method      = "t.test",
     method.args = list(var.equal = FALSE),   # Welch's t-test
     label       = "p.format",
-    tip.length  = 0.01
+    tip.length  = 0.01,
+    size = 6
   ) +
   scale_fill_manual(values = my_palette, guide = FALSE) +
+  scale_y_continuous(limits = c(0, 0.7)) +
   labs(y = "NNSE") +
   theme_minimal() +
   tme +  # your custom theme
   theme(
-    axis.text.x         = element_text(angle = 25, hjust = 1),
+    axis.text.x         = element_text(size = 22, angle = 25, hjust = 1),
     panel.grid.major.x  = element_blank(),
+    axis.title.y         = element_text(size = 22),
     axis.title.x        = element_blank()  # we'll add a shared x‐label later
   )
 
@@ -651,15 +654,18 @@ p_f05 <- ggplot(df_plot, aes(x = dataset, y = f05_score, fill = dataset)) +
     comparisons = comparisons,
     method      = "wilcox.test",
     label       = "p.format",
-    tip.length  = 0.01
+    tip.length  = 0.01,
+    size        = 6
   ) +
   scale_fill_manual(values = my_palette, guide = FALSE) +
+  scale_y_continuous(limits = c(0.4, 0.75)) +
   labs(y = "F0.5 score") +
   theme_minimal() +
   tme +
   theme(
-    axis.text.x         = element_text(angle = 25, hjust = 1),
+    axis.text.x         = element_text(size = 22, angle = 25, hjust = 1),
     panel.grid.major.x  = element_blank(),
+    axis.title.y         = element_text(size = 22),
     axis.title.x        = element_blank()
   )
 
@@ -680,14 +686,14 @@ combined <- (p_f05 | p_nnse) +       # side by side
 
 print(combined)
 
-pdf(
-  file   = "results/paper_figs/subset_analysis.pdf",
-  width  = 7,    # inches
-  height = 5,
-  family = "Helvetica"   # or another installed font
-)
-print(combined)
-dev.off()     # close the file
+# pdf(
+#   file   = "results/paper_figs/subset_analysis.pdf",
+#   width  = 7,    # inches
+#   height = 5,
+#   family = "Helvetica"   # or another installed font
+# )
+# print(combined)
+# dev.off()     # close the file
 
 
 pdf(
