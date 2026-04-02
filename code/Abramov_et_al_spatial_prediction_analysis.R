@@ -1991,26 +1991,26 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
   ) +
   
   labs(x = "Pollinator", y = "Plant") +
-  theme_minimal() +
+  theme_minimal() + tme +
   theme(
     axis.text.x = element_blank(),
-    axis.title.x = element_text(margin = margin(t = 18)),
+    axis.title.x = element_text(margin = margin(t = 24)),
     axis.text.y = element_text(size = 8),
-    axis.title.y = element_text(margin = margin(t = 18)),
+    axis.title.y = element_text(margin = margin(t = 24)),
     
     legend.position = "bottom",
     legend.box = "horizontal",
     legend.box.just = "center",
     legend.title = element_text(size = 14),
     legend.text = element_text(size = 12),
-    legend.spacing.x = unit(0.2, "cm")
+    legend.spacing.x = unit(0.2, "cm"),
+    legend.box.spacing = unit(0.05, "cm")
   ) +
   scale_y_discrete(
     labels = function(x) lapply(strsplit(x, "_"), function(y) {
       bquote(italic(.(paste(y, collapse = " "))))
     })
-  ) +
-  tme
+  ) 
 
 map_missing_links_merged
 
