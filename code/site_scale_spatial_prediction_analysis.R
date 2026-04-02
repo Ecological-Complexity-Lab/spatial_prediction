@@ -1145,14 +1145,6 @@ pdf(
 print(jaccard_site_f05)
 dev.off()     # close the file
 
-jaccard_site_nnse <- make_facet_scatter_plot(data = canary_results_jaccard, 
-                                           evaluator = "nnse",
-                                           pivot_cols = c("jaccard_pollinators", "jaccard_plants", "jaccard_edges"),
-                                           x_lab = "Jaccard similarity",
-                                           y_lab = "NNSE",
-                                           facet_scales = "free_x")
-jaccard_site_nnse
-
 ## ---- distance decay ----
 #### ---- add distances and location names ----
 distance_table <- read.csv("data/distance_between_sites_canary.csv", row.names = NULL)
