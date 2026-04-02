@@ -7,7 +7,6 @@
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
-# library(emln)
 library(reshape2)
 library(ggpubr)
 library(gridExtra)
@@ -771,7 +770,7 @@ length(host_species)
 length(parasite_species)
 
 ### ---- c. evaluation ----
-### ---- Fig. S8: selecting optimal threshold ----
+### ---- selecting optimal threshold ----
 # select the threshold for classifying links as 1s or 0s based on max f0.5
 
 # 0) set an array of thresholds
@@ -924,7 +923,7 @@ df_removed <- df %>%
   mutate(original_links_binary = ifelse(original_links == 0, 0, 1)) %>% 
   mutate(predicted_prob_sigm = sigmoid(predicted_values))
 
-### ---- Fig. S10: predicted vs. observed weights ----
+### ---- predicted vs. observed weights ----
 predicted_original <- df_removed %>%
   ggplot(aes(x = original_links, y = predicted_values)) +
   geom_point(alpha = 0.6, color = "lightsteelblue") +
@@ -991,7 +990,7 @@ result_summary <- df_removed %>%
 head(result_summary)
 summary(result_summary) # result_summary includes evaluation results across all iterations for each combination of years 
 
-### ---- Fig. S9: non-thresholded evaluation ----
+### ---- Fig. S20: non-thresholded evaluation ----
 # Add year names to main table using the layer_to_year mapping created earlier
 # Create a data frame with layer numbers and corresponding years
 layer_year_df <- data.frame(
@@ -1082,7 +1081,7 @@ pdf(file   = "results/hp_analysis/paper_figs/pr_roc_host_parasite.pdf",
 pr_roc
 dev.off()
 
-### ---- Fig. 2d: distribution of evaluators with/without external data ----
+### ---- distribution of evaluators with/without external data ----
 # this analysis shows us if predictions made using added information from other locations (off-diagonals in layer-to-layer predictions, as a heatmap) is any better than not adding any information (cases on the diagonal)
 
 result_summary <- result_summary %>%
@@ -1274,7 +1273,7 @@ df_summary
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. S13: correlate network size with evaluators ----
+#### ---- correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f05_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1302,7 +1301,7 @@ netsize_f05_nnse
 # print(netsize_f05_nnse)
 # dev.off()     # close the file
 
-#### ---- Fig. S5: density ----
+#### ---- density ----
 
 df_f05_nnse_density <- result_summary %>%
   select(f05_score, nnse, density_P, density_C) %>%
@@ -1384,7 +1383,7 @@ head(results_jaccard)
 result_summary <- result_summary %>%
   left_join(results_jaccard, by = c("train_layer", "test_layer")) # add to results table
 
-#### ---- Fig. 4a,b,c: plot Jaccard ----
+#### ---- Fig. S22 a,b,c: plot Jaccard ----
 # we filter only pairs of different years for this analysis, since Jaccard index for the same year is 1
 network_results_jaccard <- result_summary %>%
   filter(train_layer != test_layer)
@@ -1451,7 +1450,7 @@ overall_parasite_degree <- df_filtered %>%
   group_by(node_to) %>% 
   summarise(overall_parasite_degree = length(unique(node_from)), .groups = "drop")
 
-#### ---- Fig. 3c: plot degree vs. number of never observed interactions ----
+#### ---- plot degree vs. number of never observed interactions ----
 # here by "year pair" we refer to a layer pair
 
 df <- df %>%
@@ -1615,7 +1614,7 @@ final_plot # fig. 3c
 # grid::grid.draw(final_plot)
 # dev.off()
 
-### ---- Fig. 3a: mapping never-observed links ----
+### ---- Fig. S21: mapping potential missing links ----
 # here we visualize the links that were never observed yet predicted to exist by the algorithm, and alongside them interactions that were observed, and the proportion of cases in which these interactions were observed.
 
 # order species by their degree
@@ -1689,13 +1688,14 @@ map_missing_links <- ggplot(df_summary, aes(x = node_to, y = node_from)) +
   # Final adjustments
   theme_minimal() +
   labs(x = "Parasite", y = "Host") +
+  tme +
   theme(
     axis.text.x = element_blank(), 
     axis.text.y = element_text(size = 10),
     legend.text = element_text(size = 12),
     legend.position = "bottom",         # Place legends at the bottom
     legend.box = "horizontal" 
-  ) + tme +
+  ) + 
   scale_y_discrete(labels = function(x) lapply(strsplit(x, "_"), function(y) {
     bquote(italic(.(paste(y, collapse = " "))))
   }))
@@ -1712,7 +1712,7 @@ print(map_missing_links)
 dev.off()     # close the file
 
 
-### ---- Fig. S11: difference in links predicted with/without external data ----
+### ---- difference in links predicted with/without external data ----
 # this analysis shows us which links (and how many) were predicted only using external data, single-year data or combination of both.
 df_year_pair_sep <- df_year_pair %>%
   separate(year_pair_id, into = c("year1", "year2"), sep = "_", convert = TRUE)
@@ -1938,7 +1938,7 @@ new_labels <- c(
   "diag↑ only" = "Predicted only by single location" ,
   "both↑"      = "Predicted by both approaches"
 )
-### ---- Fig. 3b: pie chart ----
+### ---- pie chart ----
 # 3. Make the pie
 pie_chart <- ggplot(df_counts, aes(x = "", y = n, fill = sigm_cat)) +
   geom_col(width = 1, color = "white") +      # white border between slices
@@ -2122,7 +2122,7 @@ mrm_summary <- do.call(rbind, lapply(mrm_results, function(x) {
 }))
 print(mrm_summary)
 
-# try to evaluate the best variable combination using AICc ----
+#### evaluate the best variable combination using AICc ----
 # (aka Akaike Information Criterion corrected for small sample sizes)
 
 # Note: distance-matrix entries are not independent, so AIC/AICc here 
@@ -2169,7 +2169,7 @@ feature_importance_df <- data.frame(
   arrange(desc(importance)) # most important is Jaccard
 
 
-### ---- Fig. 2c heatmap ----
+### ---- heatmap ----
 
 year_heatmap_f05 <- 
   ggplot(result_summary_temporal, aes(x = train_layer_name, y = test_layer_name, fill = f05_score)) +
@@ -2226,7 +2226,7 @@ shapiro_f05 <- result_summary_temporal %>%
 levene_f05 <- result_summary_temporal %>% levene_test(f05_score ~ layer_comparison)
 # variances are equal, use wilcoxon
 
-## ---- Fig. S12: no. of years in which species occur ----
+## ---- no. of years in which species occur ----
 
 # Combine host and parasite columns into one column of species occurrences
 
@@ -2341,65 +2341,10 @@ dev.off()
 
 ## Combine key plots into figures -----------
 
-# Fig. 2:
-
-# Fig. 2a is p_f05 from subset_analysis.R
-# Fig. 2b is p_nnse from subset_analysis.R
-# Fig. 2c is year_heatmap_f05
-# Fig. 2d is hist_f05a
-
-
-# fig2cd <- plot_grid(year_heatmap_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     hist_f05a + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-#                     labels = c('(c)', '(d)'), label_size = 18, label_x = c(0, -0.02),
-#                     rel_widths = c(1,0.95))
-# fig2ab <- plot_grid(p_f05 + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")), 
-#                     p_nnse + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")),
-#                     labels = c('(a)', '(b)'), label_size = 18, label_x = c(0, -0.02),
-#                     rel_widths = c(1,0.95))
-# 
-# fig2_complete <- fig2ab/fig2
-
-# Fig. 2
-# pdf(file   = "results/hp_analysis/paper_figs/diagonals_heatmap_fig2.pdf",
-#     width  = 15,    # inches
-#     height = 7,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig2
-# dev.off()
-
-
-# Fig. 3
-
-bottom_row <- plot_grid(pie_chart + theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")) ,
-                        final_plot,
-                        rel_widths = c(0.6, 1),
-                        labels = c('(b)', '(c)'), label_size = 12)
-fig3 <- plot_grid(map_missing_links + theme(plot.margin = unit(c(0.8,0.2,0.2,0.2), "cm")), 
-                  bottom_row, labels = c('(a)', ''), 
-                  ncol = 1, rel_heights = c(1.1, 0.7), label_size = 12)
-
-
-
-# pdf(file   = "results/hp_analysis/paper_figs/missing_interactions_degree.pdf",
-#     width  = 13,    # inches
-#     height = 11,
-#     family = "Helvetica"   # or another installed font
-# )
-# fig3
-# dev.off()
-
-# Fig. 4:
+# ---- Fig. S22: ----
 
 # Fig. 4a,b,c are jaccard_year_f05
 # Fig. 4d is cor_plot_dif_year_f05
-# fig4 <- plot_grid(jaccard_year_f05, 
-#                   cor_plot_dif_year_f05 + labs(y = "F0.5 score") + theme(plot.margin = unit(c(0.2,14.2,0,0.2), "cm")),
-#                   labels = c('(a)', '(b)'),
-#                   ncol = 1,
-#                   rel_heights = c(1,1))
-# 
 
 # helpers
 
