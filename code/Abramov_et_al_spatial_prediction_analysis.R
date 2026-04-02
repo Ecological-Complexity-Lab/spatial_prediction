@@ -1297,7 +1297,7 @@ df_summary
 overall_sd_density <- sd(df_summary$density_P, na.rm = TRUE)
 overall_mean_density <- mean(df_summary$density_P, na.rm = TRUE)
 
-#### ---- Fig. S18: correlate network size with evaluators ----
+#### ---- Fig. S19: correlate network size with evaluators ----
 
 df_netsize <- result_summary %>%
   select(f05_score, nnse, size_P, density_P, size_C, density_C) %>%
@@ -1325,7 +1325,7 @@ pdf(
 print(netsize_f05_nnse)
 dev.off()     # close the file
 
-#### ---- Fig. S19: density ----
+#### ---- Fig. S18: density ----
 
 df_f05_nnse_density <- result_summary %>%
   select(f05_score, nnse, density_P, density_C) %>%
