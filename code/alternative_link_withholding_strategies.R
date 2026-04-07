@@ -667,6 +667,9 @@ threshold_im <- find_optimal_threshold(df_im)
 result_summary_imbalance <- prepare_results_to_plot(df_im, threshold_im)
 
 ## ---- Fig. S9: plot roc and pr curves for class imbalance ----
+df_im <- df_im %>% mutate(original_binary = if_else(original_links > 0, 1, 0)) %>% 
+  mutate(predicted_prob_sigm = sigmoid(predicted_values))  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
+
 # positive class prevalence
 prev_pos <- mean(df_im$original_binary == 1, na.rm = TRUE)
 
