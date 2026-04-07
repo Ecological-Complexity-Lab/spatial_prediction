@@ -661,10 +661,7 @@ combined_results_class_imbalance <-
 print("finished predicting with class imbalance")
 
 df_im <- combined_results_class_imbalance %>%
-  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values)) %>% 
-  mutate(original_binary = if_else(original_links > 0, 1, 0)) %>% 
-  mutate(predicted_prob_sigm = sigmoid(predicted_values))  # convert the predicted values to probability values in the interval (0, 1) using the logistic function
-
+  mutate(predicted_values = if_else(predicted_values < 0, 0, predicted_values)) 
 
 threshold_im <- find_optimal_threshold(df_im)
 result_summary_imbalance <- prepare_results_to_plot(df_im, threshold_im)
