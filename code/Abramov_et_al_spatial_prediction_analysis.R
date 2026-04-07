@@ -1905,6 +1905,8 @@ df_combined <- df_summary %>%
     )
   )
 
+# saveRDS(df_combined, "results/df_combined.rds")
+
 n_unobserved_predicted <- df_combined %>%
   filter(
     avg_prop_isl == 0,
