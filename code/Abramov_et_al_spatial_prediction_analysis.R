@@ -1559,7 +1559,7 @@ df_labels <- df_to_correlate %>%
 # plot
 
 plant_degree <- ggplot(df_to_correlate, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "seagreen3") +
+  geom_point(alpha = 0.6, size = 2, color = "#2E8B57") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
@@ -1596,7 +1596,7 @@ p_value <- formatC(correlation_poll$p.value, digits = 2)  # or round as you pref
 label_text_polls <- paste0("r = ", r_value, ", p = ", p_value)
 
 poll_degree <- ggplot(df_to_correlate_poll, aes(x = x, y = y)) +
-  geom_point(alpha = 0.6, size = 2, color = "rosybrown2") +
+  geom_point(alpha = 0.6, size = 2, color = "#CC8844") +
   geom_smooth(method = "lm", se = FALSE, color = "navy") +
   labs(
     x = "Overall degree",
