@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fig. 3 – Predicted Plant–Pollinator Interactions (Canary Islands)</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    background: #f8f8f8;
+    color: #222;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 10px 20px 8px;
+    border-bottom: 1px solid #ddd;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  header .header-text h1 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  header .header-text p  { font-size: 12px; color: #555; }
+  header .header-links {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  header .header-links a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #555;
+    text-decoration: none;
+  }
+  header .header-links a:hover { color: #000; }
+  header .header-links img {
+    height: 32px;
+    width: auto;
+  }
+  header .header-links .gh-icon {
+    width: 22px; height: 22px;
+    fill: #333;
+  }
+  header .header-links a:hover .gh-icon { fill: #000; }
+  .screen-notice {
+    font-size: 10px; color: #c00; font-weight: 600;
+    border: 1px solid #c00; border-radius: 3px;
+    padding: 2px 6px; white-space: nowrap;
+  }
+
+  /* ── main layout ── */
+  #app {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  #top-row {
+    display: flex;
+    flex: 1 1 auto;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ── left column (matrix + map stacked) ── */
+  #left-col {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* ── island-highlight cells ── */
+  td.cell.island-hi {
+    box-shadow: inset 0 0 0 1.5px #3366cc;
+    position: relative;
+    z-index: 5;
+  }
+  /* island dot when selected */
+  .isle-grp.isle-selected .isle-base {
+    r: 7; fill: #3366cc; stroke: #fff; stroke-width: 1.5;
+  }
+
+  /* ── map area ── */
+  #map-area {
+    flex-shrink: 0;
+    height: 340px;
+    border-top: 1px solid #ddd;
+    background: #cde8f5;
+    overflow: visible;
+  }
+
+  /* ── matrix area ── */
+  #matrix-area {
+    flex: 1 1 auto;
+    overflow: auto;
+    min-height: 0;
+    position: relative;
+    background: #fff;
+    border-right: 1px solid #ddd;
+  }
+
+  /* the actual table inside the scrollable area */
+  #matrix-table {
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  /* sticky header row (pollinators) */
+  #matrix-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    vertical-align: bottom;
+    padding: 0;
+  }
+
+  /* ── matrix frame (borders on edges of data cell area) ── */
+  /* top edge: bottom border of every header cell */
+  th.corner, th.poll-hdr { border-bottom: 1.5px solid #000 !important; }
+  /* left edge: right border of plant label column */
+  td.plant-lbl { border-right: 1.5px solid #000 !important; }
+  /* bottom edge: bottom border of last data row */
+  #matrix-table tbody tr:last-child td.cell { border-bottom: 1.5px solid #000; }
+  /* right edge: right border of last data column */
+  #matrix-table tbody td.cell:last-child { border-right: 1.5px solid #000; }
+
+  /* corner cell */
+  th.corner {
+    position: sticky;
+    left: 0;
+    z-index: 30 !important;
+    background: #fff !important;
+    min-width: 190px;
+    width: 190px;
+    text-align: right;
+    padding-right: 6px;
+    font-size: 10px;
+    color: #888;
+    vertical-align: bottom;
+    padding-bottom: 4px;
+  }
+
+  /* pollinator column header cell */
+  th.poll-hdr {
+    width: 7px;
+    min-width: 7px;
+    cursor: pointer;
+    overflow: hidden;
+    vertical-align: bottom;
+    padding: 0;
+    transition: border-color 0.15s;
+  }
+  th.poll-hdr:hover  { border-bottom-color: #888; background: #f5f5f5; }
+  th.poll-hdr.selected { border-bottom-color: #3366cc; background: #ddeeff; }
+
+  th.poll-hdr .poll-name {
+    display: block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 6.5px;
+    font-style: italic;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    max-height: 130px;
+    line-height: 7px;
+    padding: 0;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+  th.poll-hdr:hover .poll-name  { color: #111; }
+  th.poll-hdr.selected .poll-name { color: #003080; font-weight: 700; }
+
+  /* plant label cells (sticky left) */
+  td.plant-lbl {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: #fff;
+    min-width: 190px;
+    width: 190px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
+    font-size: 11px;
+    text-align: right;
+    padding-right: 5px;
+    cursor: pointer;
+    color: #333;
+    border-right: 1px solid #ccc;
+    height: 17px;
+    line-height: 17px;
+  }
+  td.plant-lbl:hover { background: #f0f0f0; color: #000; }
+  td.plant-lbl.selected { background: #ddeeff; font-weight: 600; color: #003080; }
+
+  /* row highlight: cells in a selected-plant row */
+  tr.row-selected td.cell {
+    box-shadow: inset 0 1px 0 #5599dd, inset 0 -1px 0 #5599dd;
+  }
+  tr.row-selected td.plant-lbl {
+    background: #ddeeff;
+    font-weight: 600;
+    color: #003080;
+  }
+
+  /* column highlight: cells in a selected-poll column */
+  td.cell.col-selected {
+    box-shadow: inset 1px 0 0 #5599dd, inset -1px 0 0 #5599dd;
+  }
+  th.poll-hdr.col-selected {
+    border-bottom-color: #3366cc;
+    background: #ddeeff;
+  }
+  th.poll-hdr.col-selected .poll-name { color: #003080; font-weight: 700; }
+
+  /* row + column both selected (interaction click) */
+  tr.row-selected td.cell.col-selected {
+    box-shadow: inset 0 1px 0 #3366cc, inset 0 -1px 0 #3366cc,
+                inset 1px 0 0 #3366cc, inset -1px 0 0 #3366cc;
+  }
+
+  /* matrix data cells */
+  td.cell {
+    width: 5px;
+    min-width: 5px;
+    height: 17px;
+    padding: 0;
+    cursor: pointer;
+    transition: opacity 0.1s;
+  }
+  td.cell:hover { outline: 1px solid #333; outline-offset: -1px; z-index: 5; position: relative; }
+
+  /* ── right sidebar ── */
+  #right-side {
+    width: 420px;
+    min-width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #ddd;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  /* ── collapsible right sections ── */
+  .right-section {
+    display: flex; flex-direction: column;
+    border-top: 1px solid #e0e0e0; min-height: 0; flex-shrink: 0;
+  }
+  .right-section:first-child { border-top: none; }
+  .right-section.grows { flex: 1 1 auto; }
+  .right-section-hdr {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 14px; cursor: pointer; flex-shrink: 0;
+    background: #f0f0f0; font-size: 11px; font-weight: 600; color: #444;
+    user-select: none;
+  }
+  .right-section-hdr:hover { background: #e6e6e6; }
+  .toggle-arrow {
+    font-size: 9px; display: inline-block; color: #777;
+    transition: transform 0.15s;
+  }
+  .right-section.collapsed .toggle-arrow { transform: rotate(-90deg); }
+  .right-section.collapsed .right-section-body { display: none; }
+  .right-section-body { overflow: hidden; }
+  .right-section.grows .right-section-body { flex: 1 1 auto; overflow-y: auto; }
+  .right-section-body.corr-body { padding: 6px 0 10px; }
+
+  /* ── info panel ── */
+  #info-panel {
+    background: #fff;
+    padding: 14px;
+    font-size: 12px;
+  }
+  #info-panel h2 { font-size: 13px; margin-bottom: 10px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+  #info-panel .hint { color: #999; font-size: 11px; line-height: 1.6; }
+  #info-panel .species-name { font-style: italic; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  #info-panel .stat-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #eee; }
+  #info-panel .stat-label { color: #666; }
+  #info-panel .stat-val { font-weight: 600; }
+  #info-panel .island-list { margin-top: 6px; }
+  #info-panel .island-list h4 { font-size: 11px; color: #888; margin-bottom: 4px; }
+  #info-panel .island-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  #info-panel .chip {
+    padding: 2px 7px; border-radius: 10px; font-size: 10px;
+    background: #e8f4ea; color: #2a6e3a; border: 1px solid #b5d6be;
+  }
+  #info-panel .chip.absent { background: #f5f5f5; color: #aaa; border-color: #ddd; }
+  #info-panel .inter-list { margin-top: 8px; }
+  #info-panel .inter-list h4 { font-size: 11px; color: #888; margin-bottom: 4px; }
+  #info-panel .inter-scroll { max-height: 130px; overflow-y: auto; }
+  #info-panel .inter-item { padding: 2px 0; font-style: italic; font-size: 11px; color: #444; border-bottom: 1px dotted #eee; }
+  #info-panel .pred-badge {
+    display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 11px;
+    margin: 6px 0 4px; color: #fff; font-weight: 600;
+  }
+  #info-panel .pred-badge.single { background: var(--col-single); color: #333; }
+  #info-panel .pred-badge.external { background: var(--col-external); color: #333; }
+  #info-panel .pred-badge.both { background: var(--col-both); color: #333; }
+  #info-panel .sep { height: 1px; background: #eee; margin: 10px 0; }
+  #info-panel .back-link { color: #3399cc; cursor: pointer; font-size: 11px; margin-bottom: 6px; display: inline-block; }
+  #info-panel .back-link:hover { text-decoration: underline; }
+
+  /* ── filter panel ── */
+  #filter-panel {
+    width: 148px;
+    min-width: 148px;
+    flex-shrink: 0;
+    border-left: 1px solid #ddd;
+    background: #fafafa;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 11px;
+    overflow-y: auto;
+  }
+  #filter-panel .filter-title {
+    font-weight: 600;
+    color: #444;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #333;
+    line-height: 1.3;
+  }
+  .filter-item input[type="checkbox"] { cursor: pointer; margin: 0; }
+  .filter-sep { height: 1px; background: #ddd; margin: 4px 0; }
+  :root {
+    --col-obs:      #66CDAA;
+    --col-single:   #DDA0DD;
+    --col-external: #FA8072;
+    --col-both:     #B0C4DE;
+  }
+  #thresh-slider { width: 100%; cursor: pointer; accent-color: #3366cc; margin: 2px 0; }
+  #thresh-input {
+    width: 62px; border: 1px solid #ccc; border-radius: 3px;
+    padding: 2px 4px; font-size: 11px; text-align: center;
+  }
+  .filter-swatch {
+    width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  /* hide-* classes on the table suppress the matching cell type */
+  #matrix-table.hide-observed  td.cell[data-ct="obs"]      { background: transparent !important; outline: none !important; box-shadow: none !important; }
+  #matrix-table.hide-single    td.cell[data-ct="single"]   { background: transparent !important; }
+  #matrix-table.hide-external  td.cell[data-ct="external"] { background: transparent !important; }
+  #matrix-table.hide-both      td.cell[data-ct="both"]     { background: transparent !important; }
+
+  .corr-svg { display: block; width: 100%; }
+
+  /* ── legend ── */
+  #legend {
+    padding: 8px 16px;
+    background: #fff;
+    border-top: 1px solid #ddd;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+  .legend-group { display: flex; align-items: center; gap: 8px; }
+  .legend-group-title { font-weight: 600; color: #555; margin-right: 2px; }
+  .leg-gradient {
+    width: 90px; height: 10px; border-radius: 2px;
+    background: linear-gradient(to right, #ffffff, var(--col-obs));
+    border: 1px solid #ccc;
+  }
+  .leg-swatch {
+    width: 14px; height: 14px; border-radius: 2px;
+    border: 1px solid rgba(0,0,0,0.15);
+    display: inline-block;
+  }
+  .leg-alpha-row { display: flex; gap: 3px; align-items: center; }
+  .leg-alpha-swatch {
+    width: 12px; height: 12px; border-radius: 2px;
+    border: 1px solid #bbb;
+  }
+  .leg-scale { display: flex; justify-content: space-between; width: 90px; font-size: 10px; color: #888; }
+  .tooltip-box {
+    position: fixed;
+    background: rgba(0,0,0,0.78);
+    color: #fff;
+    font-size: 11px;
+    font-style: italic;
+    padding: 4px 9px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+    white-space: nowrap;
+    display: none;
+  }
+  #loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #555; z-index: 999;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">Loading data…</div>
+<div class="tooltip-box" id="tooltip"></div>
+
+<header>
+  <div class="header-text">
+    <h1>Fig. 3 – Predicted plant–pollinator interactions (Canary Islands)</h1>
+    <p><strong>Click a plant label</strong> (left) or <strong>pollinator column header</strong> (top) for species info &nbsp;|&nbsp; <strong>Click a matrix cell</strong> for interaction details &nbsp;|&nbsp; <strong>Click a scatter-plot point</strong> to highlight a species &nbsp;|&nbsp; <strong>Click an island</strong> to highlight all its observed &amp; predicted links</p>
+    <p style="font-size:0.85em;color:#555;">Map symbols on selection: <span style="color:#2E8B57;font-size:1.2em;">&#9679;</span> plant &nbsp;|&nbsp; <span style="color:#CC8844;font-size:1.2em;">&#9679;</span> pollinator &nbsp;&mdash;&nbsp; appear at locations where the species occurs; number inside = interaction partners recorded at that location</p>
+  </div>
+  <div class="header-links">
+    <span class="screen-notice">Best viewed on a large screen</span>
+    <a href="https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction" target="_blank" title="GitHub repository">
+      <svg class="gh-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+          -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+          .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+          -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27
+          .68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+          .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+          0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      GitHub
+    </a>
+    <a href="https://ecomplab.com" target="_blank" title="Ecological Complexity Lab">
+      <img src="ecomplab_logo.png" alt="EcompLab">
+    </a>
+  </div>
+</header>
+
+<div id="app">
+  <div id="top-row">
+    <div id="left-col">
+      <div id="matrix-area"></div>
+<div id="map-area"></div>
+    </div>
+    <div id="filter-panel">
+      <div class="filter-title">Show:</div>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-observed" checked>
+        <span class="filter-swatch" style="background:var(--col-obs)"></span>
+        Observed
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-single" checked>
+        <span class="filter-swatch" style="background:var(--col-single)"></span>
+        Single location
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-external" checked>
+        <span class="filter-swatch" style="background:var(--col-external)"></span>
+        External location
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-both" checked>
+        <span class="filter-swatch" style="background:var(--col-both)"></span>
+        Both approaches
+      </label>
+      <div class="filter-sep"></div>
+      <div class="filter-title">Threshold:</div>
+      <input type="range" id="thresh-slider" min="0.5" max="1" step="0.01" value="0.7">
+      <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+        <input type="number" id="thresh-input" min="0.5" max="1" step="0.01" value="0.70">
+      </div>
+      <div class="filter-sep"></div>
+      <div class="filter-title">Panels:</div>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-map" checked>
+        Show map
+      </label>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-right" checked>
+        Show right panel
+      </label>
+      <div class="filter-sep"></div>
+      <label class="filter-item">
+        <input type="checkbox" id="cb-colorblind">
+        Color-blind friendly
+      </label>
+    </div>
+    <div id="right-side">
+      <div class="right-section grows" id="info-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Information
+        </div>
+        <div class="right-section-body" id="info-panel">
+          <h2>Information</h2>
+          <p class="hint">Click any plant label (left), pollinator column header (top of matrix), or matrix cell to explore.</p>
+        </div>
+      </div>
+      <div class="right-section" id="corr-poll-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Pollinators: degree vs. predicted links
+        </div>
+        <div class="right-section-body corr-body">
+          <svg id="corr-poll-svg" class="corr-svg"></svg>
+        </div>
+      </div>
+      <div class="right-section" id="corr-plant-section">
+        <div class="right-section-hdr" onclick="toggleSection(this)">
+          <span class="toggle-arrow">▾</span> Plants: degree vs. predicted links
+        </div>
+        <div class="right-section-body corr-body">
+          <svg id="corr-plant-svg" class="corr-svg"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="legend">
+    <div class="legend-group">
+      <span class="legend-group-title">Observed links:</span>
+      <div>
+        <div class="leg-gradient"></div>
+        <div class="leg-scale"><span>0.0</span><span>0.5</span><span>1.0</span></div>
+        <div style="color:#888;font-size:10px">proportion of islands</div>
+      </div>
+    </div>
+    <div class="legend-group">
+      <span class="legend-group-title">Prediction approach:</span>
+      <span class="leg-swatch" style="background:var(--col-single)"></span> Single location &nbsp;
+      <span class="leg-swatch" style="background:var(--col-external)"></span> External location &nbsp;
+      <span class="leg-swatch" style="background:var(--col-both)"></span> Both approaches
+    </div>
+    <div class="legend-group">
+      <span class="legend-group-title">Predicted probability:</span>
+      <div class="leg-alpha-row" id="leg-alpha-swatches">
+        <div class="leg-alpha-swatch" style="background:rgba(176,196,222,0.35)"></div>
+        <div class="leg-alpha-swatch" style="background:rgba(176,196,222,0.57)"></div>
+        <div class="leg-alpha-swatch" style="background:rgba(176,196,222,0.78)"></div>
+        <div class="leg-alpha-swatch" style="background:rgba(176,196,222,1.0)"></div>
+      </div>
+      <span style="color:#888;font-size:10px">0.7 → 0.8 → 0.9 → 1.0 &nbsp;(threshold = 0.7)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── utility ────────────────────────────────────────────────────────────────
+function toArray(val) {
+  if (val === null || val === undefined) return [];
+  return Array.isArray(val) ? val : [val];
+}
+
+// ── colour palettes ─────────────────────────────────────────────────────────
+const PALETTE_DEFAULT = {
+  obsHigh:  [102, 205, 170],  // #66CDAA mediumaquamarine
+  single:   [221, 160, 221],  // #DDA0DD plum3
+  external: [250, 128, 114],  // #FA8072 salmon
+  both:     [176, 196, 222],  // #B0C4DE lightsteelblue
+  plant:    "#2E8B57",
+  poll:     "#CC8844",
+  regLine:  "#2255aa",
+  singleHex:   "#DDA0DD",
+  externalHex: "#FA8072",
+  bothHex:     "#B0C4DE",
+  obsHex:      "#66CDAA",
+};
+const PALETTE_CB = {
+  obsHigh:  [81,  40,  136],  // #512888
+  single:   [240, 228,  66],  // #F0E442 yellow
+  external: [230, 159,   0],  // #E69F00 orange
+  both:     [102, 204, 238],  // #66CCEE cyan
+  plant:    "#0072B2",        // dark blue
+  poll:     "#D55E00",        // vermilion (Okabe-Ito)
+  regLine:  "#000000",
+  singleHex:   "#F0E442",
+  externalHex: "#E69F00",
+  bothHex:     "#66CCEE",
+  obsHex:      "#512888",
+};
+let PAL = PALETTE_DEFAULT;
+
+function applyPalette() {
+  const root = document.documentElement.style;
+  root.setProperty("--col-obs",      PAL.obsHex);
+  root.setProperty("--col-single",   PAL.singleHex);
+  root.setProperty("--col-external", PAL.externalHex);
+  root.setProperty("--col-both",     PAL.bothHex);
+  // update alpha swatches in legend
+  const alphaContainer = document.getElementById("leg-alpha-swatches");
+  if (alphaContainer) {
+    const [r, g, b] = PAL.both;
+    alphaContainer.innerHTML = [0.35, 0.57, 0.78, 1.0].map(a =>
+      `<div class="leg-alpha-swatch" style="background:rgba(${r},${g},${b},${a})"></div>`
+    ).join("");
+  }
+}
+
+function obsColor(prop) {
+  if (!prop) return "#ffffff";
+  const [hr, hg, hb] = PAL.obsHigh;
+  const r = Math.round(255 - prop * (255 - hr));
+  const g = Math.round(255 - prop * (255 - hg));
+  const b = Math.round(255 - prop * (255 - hb));
+  return `rgb(${r},${g},${b})`;
+}
+
+function predColor(cat, alpha) {
+  const map = {
+    "Single location":   PAL.single,
+    "External location": PAL.external,
+    "Both approaches":   PAL.both,
+  };
+  const [r, g, b] = map[cat];
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── state ──────────────────────────────────────────────────────────────────
+let DATA = null;
+let plantMap = {};   // id -> plant object
+let pollMap  = {};   // id -> pollinator object
+let cellMap  = {};   // "plant|poll" -> interaction object
+let selectedPlant = null;
+let selectedPoll  = null;
+let currentThreshold = 0.7;
+
+// ── load data ──────────────────────────────────────────────────────────────
+fetch("figure3_data.json")
+  .then(r => r.json())
+  .then(data => {
+    DATA = data;
+    // normalize single-element arrays that JSON auto_unbox turned into scalars
+    data.plants.forEach(p => {
+      p.interactions = toArray(p.interactions);
+      plantMap[p.id] = p;
+    });
+    data.pollinators.forEach(p => {
+      p.interactions = toArray(p.interactions);
+      pollMap[p.id] = p;
+    });
+    data.interactions.forEach(ix => {
+      if (ix.islands_observed) ix.islands_observed = toArray(ix.islands_observed);
+    });
+    // index interactions
+    data.interactions.forEach(ix => {
+      cellMap[ix.plant + "|" + ix.pollinator] = ix;
+    });
+    applyPalette();
+    buildMatrix();
+    setupFilters();
+    buildCorrPlots();
+    initMap();
+    document.getElementById("loading").style.display = "none";
+  })
+  .catch(err => {
+    document.getElementById("loading").textContent = "Error loading data: " + err;
+  });
+
+// ── build matrix table (innerHTML for performance) ────────────────────────
+function buildMatrix() {
+  const { plant_order, poll_order } = DATA;
+  const area = document.getElementById("matrix-area");
+
+  // pre-build pollinator header
+  let hdrCells = `<th class="corner">← Plant&nbsp;&nbsp;&nbsp;Pollinator →</th>`;
+  poll_order.forEach((pid) => {
+    const name = pid.replace(/_/g, " ");
+    hdrCells += `<th class="poll-hdr" data-poll-id="${pid}" title="${name}"><span class="poll-name">${name}</span></th>`;
+  });
+
+  // pre-build body rows
+  let bodyRows = "";
+  plant_order.forEach((plid) => {
+    const plantName = plid.replace(/_/g, " ");
+    let row = `<tr><td class="plant-lbl" data-plant-id="${plid}">${plantName}</td>`;
+    poll_order.forEach((pid) => {
+      const key = plid + "|" + pid;
+      const ix = cellMap[key];
+      let style = "", ct = "";
+      if (ix) {
+        if (ix.observed_link) {
+          const bg = obsColor(ix.avg_prop_isl);
+          style = `background:${bg};outline:0.5px solid rgba(0,0,0,0.3);outline-offset:-0.5px`;
+          ct = "obs";
+        } else if (ix.sigm_cat_plot && ix.pred_prob !== null) {
+          style = `background:${predColor(ix.sigm_cat_plot, ix.pred_prob_alpha)}`;
+          ct = ix.sigm_cat_plot === "Single location" ? "single"
+             : ix.sigm_cat_plot === "External location" ? "external"
+             : "both";
+        }
+      }
+      const probAttr = (ct && ct !== "obs" && ix?.pred_prob != null) ? ` data-prob="${ix.pred_prob}"` : "";
+      row += `<td class="cell" data-plant-id="${plid}" data-poll-id="${pid}"${ct ? ` data-ct="${ct}"` : ""}${probAttr}${style ? ` style="${style}"` : ""}></td>`;
+    });
+    row += "</tr>";
+    bodyRows += row;
+  });
+
+  area.innerHTML = `
+    <table id="matrix-table">
+      <thead><tr>${hdrCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>`;
+
+  const tbl = document.getElementById("matrix-table");
+  tbl.addEventListener("click", handleTableClick);
+  tbl.addEventListener("mousemove", handleMouseMove);
+  tbl.addEventListener("mouseleave", () => { document.getElementById("tooltip").style.display = "none"; });
+}
+
+// ── event handlers ────────────────────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+
+function handleMouseMove(e) {
+  const th = e.target.closest("th.poll-hdr");
+  if (th) {
+    const name = th.dataset.pollId.replace(/_/g, " ");
+    tooltip.textContent = name;
+    tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 12) + "px";
+    tooltip.style.top  = (e.clientY - 24) + "px";
+  } else {
+    tooltip.style.display = "none";
+  }
+}
+
+function handleTableClick(e) {
+  // ── pollinator column header ──
+  const th = e.target.closest("th.poll-hdr");
+  if (th) {
+    clearSelections();
+    selectedPoll = th.dataset.pollId;
+    applyColumnHighlight(selectedPoll);
+    th.classList.add("selected");
+    highlightCorrPoint("poll", selectedPoll);
+    showPollinatorPanel(selectedPoll);
+    return;
+  }
+
+  // ── plant label ──
+  const lbl = e.target.closest("td.plant-lbl");
+  if (lbl) {
+    clearSelections();
+    selectedPlant = lbl.dataset.plantId;
+    applyRowHighlight(selectedPlant);
+    highlightCorrPoint("plant", selectedPlant);
+    showPlantPanel(selectedPlant);
+    return;
+  }
+
+  // ── matrix cell ──
+  const cell = e.target.closest("td.cell");
+  if (cell) {
+    clearSelections();
+    applyRowHighlight(cell.dataset.plantId);
+    applyColumnHighlight(cell.dataset.pollId);
+    highlightCorrPoint("plant", cell.dataset.plantId);
+    highlightCorrPoint("poll",  cell.dataset.pollId);
+    showInteractionPanel(cell.dataset.plantId, cell.dataset.pollId);
+    return;
+  }
+}
+
+function applyRowHighlight(plantId) {
+  const lbl = document.querySelector(`td.plant-lbl[data-plant-id="${plantId}"]`);
+  if (lbl) lbl.closest("tr").classList.add("row-selected");
+}
+
+function applyColumnHighlight(pollId) {
+  document.querySelectorAll(`td.cell[data-poll-id="${pollId}"]`).forEach(td => td.classList.add("col-selected"));
+  document.querySelector(`th.poll-hdr[data-poll-id="${pollId}"]`)?.classList.add("col-selected");
+}
+
+function clearSelections() {
+  document.querySelectorAll("tr.row-selected").forEach(el => el.classList.remove("row-selected"));
+  document.querySelectorAll("td.cell.col-selected").forEach(el => el.classList.remove("col-selected"));
+  document.querySelectorAll("th.poll-hdr.selected, th.poll-hdr.col-selected").forEach(el => {
+    el.classList.remove("selected");
+    el.classList.remove("col-selected");
+  });
+  highlightCorrPoint(null, null);
+  updateMapHighlight("clear");
+  document.querySelectorAll("td.cell.island-hi").forEach(el => el.classList.remove("island-hi"));
+  document.querySelectorAll(".isle-grp.isle-selected").forEach(el => el.classList.remove("isle-selected"));
+}
+
+// ── info panel builders ───────────────────────────────────────────────────
+function showPlantPanel(plantId) {
+  const p = plantMap[plantId];
+  const panel = document.getElementById("info-panel");
+  if (!p) { panel.innerHTML = "<h2>Plant</h2><p class='hint'>No data.</p>"; return; }
+  updateMapHighlight("plant", p.local_degrees, null);
+
+  const allIslands = DATA.islands;
+  const presIslands = p.local_degrees ? Object.keys(p.local_degrees) : [];
+
+  const chipHtml = allIslands.map(isl => {
+    const ldeg = p.local_degrees && p.local_degrees[isl] !== undefined ? p.local_degrees[isl] : null;
+    if (ldeg !== null) {
+      return `<span class="chip" title="local degree: ${ldeg}">${isl} (deg: ${ldeg})</span>`;
+    }
+    return `<span class="chip absent">${isl}</span>`;
+  }).join("");
+
+  const interHtml = p.interactions && p.interactions.length > 0
+    ? p.interactions.map(x => `<div class="inter-item">${x}</div>`).join("")
+    : "<div class='hint'>No recorded interactions</div>";
+
+  panel.innerHTML = `
+    <h2>Plant</h2>
+    <div class="species-name">${p.name}</div>
+    <div class="stat-row"><span class="stat-label">Islands present</span><span class="stat-val">${p.n_islands} / ${DATA.n_islands} (${p.pct_islands}%)</span></div>
+    <div class="stat-row"><span class="stat-label">Global degree</span><span class="stat-val">${p.global_degree} pollinators</span></div>
+    <div class="island-list">
+      <h4>Presence by island (with local degree)</h4>
+      <div class="island-chips">${chipHtml}</div>
+    </div>
+    <div class="inter-list">
+      <h4>Recorded pollinator interactions (${p.interactions ? p.interactions.length : 0})</h4>
+      <div class="inter-scroll">${interHtml}</div>
+    </div>`;
+}
+
+function showPollinatorPanel(pollId) {
+  const p = pollMap[pollId];
+  const panel = document.getElementById("info-panel");
+  if (!p) { panel.innerHTML = "<h2>Pollinator</h2><p class='hint'>No data.</p>"; return; }
+  updateMapHighlight("poll", null, p.local_degrees);
+
+  const allIslands = DATA.islands;
+
+  const chipHtml = allIslands.map(isl => {
+    const ldeg = p.local_degrees && p.local_degrees[isl] !== undefined ? p.local_degrees[isl] : null;
+    if (ldeg !== null) {
+      return `<span class="chip" title="local degree: ${ldeg}">${isl} (deg: ${ldeg})</span>`;
+    }
+    return `<span class="chip absent">${isl}</span>`;
+  }).join("");
+
+  const interHtml = p.interactions && p.interactions.length > 0
+    ? p.interactions.map(x => `<div class="inter-item">${x}</div>`).join("")
+    : "<div class='hint'>No recorded interactions</div>";
+
+  panel.innerHTML = `
+    <h2>Pollinator</h2>
+    <div class="species-name">${p.name}</div>
+    <div class="stat-row"><span class="stat-label">Islands present</span><span class="stat-val">${p.n_islands} / ${DATA.n_islands} (${p.pct_islands}%)</span></div>
+    <div class="stat-row"><span class="stat-label">Global degree</span><span class="stat-val">${p.global_degree} plants</span></div>
+    <div class="island-list">
+      <h4>Presence by island (with local degree)</h4>
+      <div class="island-chips">${chipHtml}</div>
+    </div>
+    <div class="inter-list">
+      <h4>Recorded plant interactions (${p.interactions ? p.interactions.length : 0})</h4>
+      <div class="inter-scroll">${interHtml}</div>
+    </div>`;
+}
+
+function showInteractionPanel(plantId, pollId) {
+  const panel = document.getElementById("info-panel");
+  const key = plantId + "|" + pollId;
+  const ix  = cellMap[key];
+  const pl  = plantMap[plantId];
+  const po  = pollMap[pollId];
+  updateMapHighlight("cell", pl?.local_degrees, po?.local_degrees);
+
+  const threshold = currentThreshold;
+
+  // ── observation section ──
+  let obsHtml = "";
+  if (ix && ix.observed_link) {
+    const observedSet = new Set(ix.islands_observed);
+    const islandHtml = DATA.islands.map(isl =>
+      observedSet.has(isl)
+        ? `<span class="chip">${isl}</span>`
+        : `<span class="chip absent">${isl}</span>`
+    ).join("");
+    obsHtml = `
+      <div class="stat-row"><span class="stat-label">Observed in</span><span class="stat-val">${ix.n_islands_observed} / ${DATA.n_islands} islands (${ix.pct_islands_observed}%)</span></div>
+      <div class="stat-row"><span class="stat-label">Proportion</span><span class="stat-val">${ix.avg_prop_isl.toFixed(2)}</span></div>
+      <div class="island-list">
+        <h4>Islands where observed</h4>
+        <div class="island-chips">${islandHtml}</div>
+      </div>`;
+  } else {
+    obsHtml = `<div class="stat-row"><span class="stat-label">Observed in network</span><span class="stat-val">No</span></div>`;
+  }
+
+  // ── prediction section ──
+  let predHtml = "";
+  if (!ix) {
+    // species pair not present in any island pair — no prediction data
+    predHtml = `
+      <div class="sep"></div>
+      <p class="hint">No prediction data — these species were never compared in any island pair in the analysis.</p>`;
+  } else if (ix.observed_link && ix.prob_single === null && ix.prob_external === null) {
+    // observed links: prediction probabilities not stored (analysis focused on withheld links)
+    predHtml = `
+      <div class="sep"></div>
+      <p class="hint" style="font-size:11px">Prediction probabilities are not stored for observed interactions (the model was evaluated on withheld links only).</p>`;
+  } else {
+    // mini probability bar (0–1 scale, 100px max)
+    const probBar = (val, color) => {
+      if (val === null || val === undefined) return `<span style="color:#bbb">n/a</span>`;
+      const w = Math.round(val * 100);
+      const above = val >= threshold;
+      return `<span style="display:inline-flex;align-items:center;gap:5px">
+        <span style="display:inline-block;width:${w}px;max-width:100px;height:8px;background:${above ? color : '#ddd'};border-radius:3px;border:1px solid #ccc"></span>
+        <span style="${above ? 'font-weight:600' : 'color:#999'}">${val.toFixed(3)}</span>
+      </span>`;
+    };
+
+    let badgeHtml = "";
+    if (ix.sigm_cat_plot) {
+      const cat = ix.sigm_cat_plot;
+      const cls = cat === "Single location" ? "single" : cat === "External location" ? "external" : "both";
+      badgeHtml = `<span class="pred-badge ${cls}">${cat}</span><br>`;
+    }
+
+    predHtml = `
+      <div class="sep"></div>
+      <h4 style="font-size:11px;color:#888;margin-bottom:6px">Predicted probability (threshold = ${threshold})</h4>
+      ${badgeHtml}
+      <div class="stat-row">
+        <span class="stat-label" style="color:${PAL.singleHex};font-weight:600">Single location</span>
+        <span class="stat-val">${probBar(ix.prob_single, PAL.singleHex)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label" style="color:${PAL.externalHex};font-weight:600">External location</span>
+        <span class="stat-val">${probBar(ix.prob_external, PAL.externalHex)}</span>
+      </div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="stat-row">
+      <span class="stat-label">Plant</span>
+      <span class="stat-val">
+        <span class="back-link" onclick="showPlantPanel('${plantId}')"><em>${pl ? pl.name : plantId}</em></span>
+      </span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Pollinator</span>
+      <span class="stat-val">
+        <span class="back-link" onclick="showPollinatorPanel('${pollId}')"><em>${po ? po.name : pollId}</em></span>
+      </span>
+    </div>
+    <div class="sep"></div>
+    ${obsHtml}
+    ${predHtml}`;
+}
+
+// ── map ────────────────────────────────────────────────────────────────────
+
+const ISLAND_LOCS = [
+  { id: "El Hierro",      label: "El Hierro",     lng: -17.9, lat: 27.8  },
+  { id: "La Gomera",      label: "La Gomera",     lng: -17.2, lat: 28.0  },
+  { id: "Tenerife 1",     label: "Tenerife N",    lng: -16.9, lat: 28.42 },
+  { id: "Tenerife 2",     label: "Tenerife S",    lng: -16.4, lat: 28.18 },
+  { id: "Gran Canaria",   label: "Gran Canaria",  lng: -15.4, lat: 27.9  },
+  { id: "Fuerteventura",  label: "Fuerteventura", lng: -13.9, lat: 28.6  },
+  { id: "Western Sahara", label: "W. Sahara",     lng: -14.4, lat: 26.2  },
+];
+
+let mapSvg = null, mapProjection = null;
+const islandGroups = {};
+
+function initMap() {
+  const areaEl = document.getElementById("map-area");
+  const W = areaEl.clientWidth, H = areaEl.clientHeight;
+
+  // Projection fitted to all sampling sites with padding
+  mapProjection = d3.geoMercator().fitExtent(
+    [[50, 22], [W - 50, H - 45]],
+    { type: "Feature", geometry: { type: "MultiPoint",
+        coordinates: ISLAND_LOCS.map(d => [d.lng, d.lat]) } }
+  );
+  const pathGen = d3.geoPath().projection(mapProjection);
+
+  mapSvg = d3.select("#map-area").append("svg")
+    .attr("width", W).attr("height", H);
+
+  // Ocean background
+  mapSvg.append("rect").attr("width", W).attr("height", H).attr("fill", "#cde8f5");
+
+  // Land from Natural Earth via world-atlas (50 m resolution)
+  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/land-50m.json")
+    .then(world => {
+      mapSvg.append("path")
+        .datum(topojson.feature(world, world.objects.land))
+        .attr("d", pathGen)
+        .attr("fill", "#e8e2d0")
+        .attr("stroke", "#bbb")
+        .attr("stroke-width", 0.5);
+    })
+    .catch(() => {})
+    .finally(buildIslandMarkers);
+}
+
+function buildIslandMarkers() {
+  ISLAND_LOCS.forEach(loc => {
+    const [x, y] = mapProjection([loc.lng, loc.lat]);
+    const g = mapSvg.append("g")
+      .attr("class", "isle-grp")
+      .attr("transform", `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+
+    g.append("circle").attr("class", "isle-base")
+      .attr("r", 5).attr("fill", "#aaa")
+      .attr("stroke", "#fff").attr("stroke-width", 1);
+
+    g.append("text").attr("class", "isle-lbl")
+      .attr("y", 18).attr("text-anchor", "middle")
+      .attr("font-size", "9px").attr("fill", "#333")
+      .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
+      .text(loc.label);
+
+    g.style("cursor", "pointer")
+      .on("click", () => handleIslandClick(loc.id));
+
+    islandGroups[loc.id] = g;
+  });
+}
+
+function handleIslandClick(islandId) {
+  clearSelections();
+
+  // Mark the island dot as selected
+  islandGroups[islandId]?.classed("isle-selected", true)
+    .select(".isle-base")
+    .attr("r", 7).attr("fill", "#3366cc").attr("stroke", "#fff").attr("stroke-width", 1.5);
+
+  // Collect matching cells
+  const threshold = currentThreshold;
+  DATA.interactions.forEach(ix => {
+    let match = false;
+    if (ix.observed_link) {
+      match = toArray(ix.islands_observed).includes(islandId);
+    } else if (ix.sigm_cat_plot && ix.pred_prob !== null && ix.pred_prob >= threshold) {
+      match = plantMap[ix.plant]?.local_degrees?.[islandId] !== undefined &&
+              pollMap[ix.pollinator]?.local_degrees?.[islandId] !== undefined;
+    }
+    if (!match) return;
+    const cell = document.querySelector(
+      `td.cell[data-plant-id="${ix.plant}"][data-poll-id="${ix.pollinator}"]`
+    );
+    if (cell) cell.classList.add("island-hi");
+  });
+}
+
+function updateMapHighlight(type, plantDeg, pollDeg) {
+  if (!mapSvg) return;
+  ISLAND_LOCS.forEach(({ id }) => {
+    const g = islandGroups[id];
+    if (!g) return;
+    g.selectAll(".dyn").remove();
+
+    if (type === "clear") {
+      g.select(".isle-base").attr("r", 5).attr("fill", "#aaa");
+      return;
+    }
+    g.select(".isle-base").attr("r", 0);  // hide resting dot
+
+    if (type === "plant" || type === "poll") {
+      const deg   = (type === "plant" ? plantDeg : pollDeg)?.[id];
+      const color = type === "plant" ? PAL.plant : PAL.poll;
+      if (deg !== undefined) {
+        islandDot(g, 0, 14, color, deg);
+      } else {
+        g.append("circle").attr("class", "dyn")
+          .attr("r", 4).attr("fill", "#ddd")
+          .attr("stroke", "#bbb").attr("stroke-width", 1);
+      }
+    } else {  // "cell" — show plant (top) and pollinator (bottom)
+      const pd = plantDeg?.[id], qd = pollDeg?.[id];
+      const both = pd !== undefined && qd !== undefined;
+      const off  = both ? 10 : 0, r = both ? 10 : 14;
+      if (pd !== undefined) islandDot(g, both ? -off : 0, r, PAL.plant, pd);
+      if (qd !== undefined) islandDot(g, both ? +off : 0, r, PAL.poll,  qd);
+      if (pd === undefined && qd === undefined) {
+        g.append("circle").attr("class", "dyn")
+          .attr("r", 4).attr("fill", "#ddd")
+          .attr("stroke", "#bbb").attr("stroke-width", 1);
+      }
+    }
+  });
+}
+
+function islandDot(g, cy, r, fill, deg) {
+  g.append("circle").attr("class", "dyn")
+    .attr("cy", cy).attr("r", r)
+    .attr("fill", fill).attr("stroke", "#fff").attr("stroke-width", 1.5);
+  g.append("text").attr("class", "dyn")
+    .attr("y", cy).attr("dy", "0.35em").attr("text-anchor", "middle")
+    .attr("font-size", r >= 13 ? "9px" : "8px")
+    .attr("font-weight", "700").attr("fill", "#fff")
+    .attr("font-family", "'Helvetica Neue', Arial, sans-serif")
+    .text(deg);
+}
+
+// ── collapsible right panel sections ──────────────────────────────────────
+
+function toggleSection(hdrEl) {
+  hdrEl.closest(".right-section").classList.toggle("collapsed");
+}
+
+// ── filter checkboxes ─────────────────────────────────────────────────────
+
+function setupFilters() {
+  const checks = [
+    ["cb-observed",  "hide-observed"],
+    ["cb-single",    "hide-single"],
+    ["cb-external",  "hide-external"],
+    ["cb-both",      "hide-both"],
+  ];
+  checks.forEach(([id, cls]) => {
+    document.getElementById(id).addEventListener("change", e => {
+      document.getElementById("matrix-table").classList.toggle(cls, !e.target.checked);
+    });
+  });
+
+  document.getElementById("cb-map").addEventListener("change", e => {
+    document.getElementById("map-area").style.display = e.target.checked ? "" : "none";
+  });
+  document.getElementById("cb-right").addEventListener("change", e => {
+    document.getElementById("right-side").style.display = e.target.checked ? "" : "none";
+  });
+
+  document.getElementById("cb-colorblind").addEventListener("change", e => {
+    PAL = e.target.checked ? PALETTE_CB : PALETTE_DEFAULT;
+    applyPalette();
+    rebuildColors();
+  });
+
+  const slider   = document.getElementById("thresh-slider");
+  const numInput = document.getElementById("thresh-input");
+
+  slider.addEventListener("input", () => {
+    const v = parseFloat(slider.value);
+    numInput.value = v.toFixed(2);
+    applyThreshold(v);
+  });
+
+  numInput.addEventListener("change", () => {
+    let v = parseFloat(numInput.value);
+    if (isNaN(v)) v = 0.7;
+    v = Math.min(1, Math.max(0.5, v));
+    numInput.value = v.toFixed(2);
+    slider.value = v;
+    applyThreshold(v);
+  });
+}
+
+// ── apply threshold dynamically ────────────────────────────────────────────
+
+function applyThreshold(t) {
+  currentThreshold = t;
+
+  document.querySelectorAll('td.cell[data-ct="single"], td.cell[data-ct="external"], td.cell[data-ct="both"]').forEach(cell => {
+    const prob = parseFloat(cell.dataset.prob);
+    if (isNaN(prob) || prob < t) {
+      cell.style.background = "";
+    } else {
+      const catName = cell.dataset.ct === "single"   ? "Single location"
+                    : cell.dataset.ct === "external" ? "External location"
+                    : "Both approaches";
+      const alpha = t >= 1 ? 1 : 0.35 + (prob - t) / (1 - t) * 0.65;
+      cell.style.background = predColor(catName, Math.min(1, Math.max(0, alpha)));
+    }
+  });
+
+  buildCorrPlots();
+}
+
+// ── rebuild all colours after palette switch ───────────────────────────────
+
+function rebuildColors() {
+  // re-paint every matrix cell
+  document.querySelectorAll("#matrix-table td.cell").forEach(cell => {
+    const ct = cell.dataset.ct;
+    if (ct === "obs") {
+      const ix = cellMap[cell.dataset.plantId + "|" + cell.dataset.pollId];
+      if (ix) cell.style.background = obsColor(ix.avg_prop_isl);
+    } else if (ct === "single" || ct === "external" || ct === "both") {
+      const prob = parseFloat(cell.dataset.prob || 0);
+      const t = currentThreshold;
+      const alpha = t >= 1 ? 1 : 0.35 + (prob - t) / (1 - t) * 0.65;
+      const catName = ct === "single" ? "Single location"
+                    : ct === "external" ? "External location"
+                    : "Both approaches";
+      cell.style.background = predColor(catName, Math.min(1, Math.max(0, alpha)));
+    }
+  });
+  // re-draw corr plots and map highlights
+  buildCorrPlots();
+  updateMapHighlight("clear", null, null);
+}
+
+// ── correlation plots ──────────────────────────────────────────────────────
+
+let plantCorrData = [];
+let pollCorrData  = [];
+
+function corrAvgProb(ix) {
+  // Replicate R's avg_sigm_predicted: weighted average across all island pairs
+  // (n_diag diagonal + n_offs off-diagonal), matching df_summary$avg_sigm_predicted
+  const nDiag = DATA.n_islands;
+  const nOffs = DATA.n_islands * (DATA.n_islands - 1);
+  const nTotal = nDiag + nOffs;
+  const ps = ix.prob_single;
+  const pe = ix.prob_external;
+  if (ps === null && pe === null) return null;
+  if (ps === null) return pe;
+  if (pe === null) return ps;
+  return (nDiag * ps + nOffs * pe) / nTotal;
+}
+
+function buildCorrPlots() {
+  const threshold = currentThreshold;
+  const plantPredCount = {}, pollPredCount = {};
+  DATA.interactions.forEach(ix => {
+    // Use avg_sigm_predicted (R's df_summary criterion), not pred_prob (the categorised approach)
+    const avg = corrAvgProb(ix);
+    if (!ix.observed_link && avg !== null && avg > threshold) {
+      plantPredCount[ix.plant]      = (plantPredCount[ix.plant]      || 0) + 1;
+      pollPredCount[ix.pollinator]  = (pollPredCount[ix.pollinator]  || 0) + 1;
+    }
+  });
+  // Match R logic: only include species that have ≥1 predicted never-observed interaction
+  // (R's df_never_observed left-join excludes species with count = 0)
+  plantCorrData = DATA.plants.map(p => ({ id: p.id, name: p.name, x: p.global_degree, y: plantPredCount[p.id] || 0 })).filter(p => p.y > 0);
+  pollCorrData  = DATA.pollinators.map(p => ({ id: p.id, name: p.name, x: p.global_degree, y: pollPredCount[p.id]  || 0 })).filter(p => p.y > 0);
+  drawCorrPlot("corr-poll-svg",  pollCorrData,  PAL.poll,  "poll");
+  drawCorrPlot("corr-plant-svg", plantCorrData, PAL.plant, "plant");
+}
+
+// ── statistics helpers ─────────────────────────────────────────────────────
+
+function pearsonStats(pts) {
+  const n = pts.length;
+  if (n < 3) return { r: 0, p: 1, a: 0, b: 0 };
+  const mx = pts.reduce((s, p) => s + p.x, 0) / n;
+  const my = pts.reduce((s, p) => s + p.y, 0) / n;
+  const ssxx = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const ssxy = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+  const ssyy = pts.reduce((s, p) => s + (p.y - my) ** 2, 0);
+  if (ssxx === 0 || ssyy === 0) return { r: 0, p: 1, a: my, b: 0 };
+  const r = ssxy / Math.sqrt(ssxx * ssyy);
+  const b = ssxy / ssxx;
+  const a = my - b * mx;
+  const t = r * Math.sqrt(n - 2) / Math.sqrt(1 - r * r);
+  const p = twoTailP(Math.abs(t), n - 2);
+  return { r, p, a, b };
+}
+
+function twoTailP(t, df) {
+  const x = df / (df + t * t);
+  return regIncBeta(x, df / 2, 0.5);
+}
+
+function regIncBeta(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const lbeta = lnGam(a) + lnGam(b) - lnGam(a + b);
+  const front = Math.exp(a * Math.log(x) + b * Math.log(1 - x) - lbeta) / a;
+  return front * betaCF(x, a, b);
+}
+
+function betaCF(x, a, b) {
+  const MAXIT = 200, EPS = 3e-8, FPMIN = 1e-300;
+  const qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < FPMIN) d = FPMIN;
+  d = 1 / d; let h = d;
+  for (let m = 1; m <= MAXIT; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; const del = d * c; h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return h;
+}
+
+function lnGam(z) {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.001208650973866179, -5.395239384953e-6];
+  let x = z, y = z, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+
+function fmtP(p) {
+  if (p < 0.001) {
+    const e = Math.floor(Math.log10(p));
+    const m = (p / Math.pow(10, e)).toFixed(1);
+    return `${m}e${e}`;
+  }
+  return p.toFixed(3);
+}
+
+function niceTicks(min, max, n) {
+  if (max === 0) return [0];
+  const raw = (max - min) / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map(f => f * mag).find(s => s >= raw) || mag;
+  const ticks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) ticks.push(+t.toPrecision(6));
+  return ticks;
+}
+
+// ── draw one SVG scatter plot ──────────────────────────────────────────────
+
+function drawCorrPlot(svgId, data, ptColor, type) {
+  const svgEl = document.getElementById(svgId);
+  const W = svgEl.parentElement.clientWidth || 280;
+  const H = W;   // square
+  const mg = { top: 20, right: 10, bottom: 36, left: 36 };
+  const pw = W - mg.left - mg.right;
+  const ph = H - mg.top  - mg.bottom;
+
+  const maxX = Math.max(...data.map(d => d.x), 1);
+  const maxY = Math.max(...data.map(d => d.y), 1);
+  const sx = x => mg.left + (x / maxX) * pw;
+  const sy = y => mg.top  + ph - (y / maxY) * ph;
+
+  const { r, p, a, b } = pearsonStats(data);
+
+  const ns = "http://www.w3.org/2000/svg";
+  svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svgEl.setAttribute("width",  W);
+  svgEl.setAttribute("height", H);
+  svgEl.innerHTML = "";
+
+  function el(tag, attrs, txt) {
+    const e = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  }
+
+  const FONT = "10px 'Helvetica Neue', Arial, sans-serif";
+  const FONT_SM = "8.5px 'Helvetica Neue', Arial, sans-serif";
+
+  // r / p label
+  svgEl.appendChild(el("text", { x: mg.left, y: 13, "font": FONT, fill: "#333" },
+    `r = ${r.toFixed(2)},  p = ${fmtP(p)}`));
+
+  // axes
+  svgEl.appendChild(el("line", { x1: mg.left, y1: mg.top, x2: mg.left, y2: mg.top + ph, stroke: "#000", "stroke-width": 1 }));
+  svgEl.appendChild(el("line", { x1: mg.left, y1: mg.top + ph, x2: mg.left + pw, y2: mg.top + ph, stroke: "#000", "stroke-width": 1 }));
+
+  // x ticks
+  niceTicks(0, maxX, 4).forEach(t => {
+    const x = sx(t);
+    svgEl.appendChild(el("line", { x1: x, y1: mg.top + ph, x2: x, y2: mg.top + ph + 4, stroke: "#555", "stroke-width": 0.8 }));
+    svgEl.appendChild(el("text", { x, y: mg.top + ph + 13, "font": FONT_SM, fill: "#555", "text-anchor": "middle" }, t));
+  });
+
+  // y ticks
+  niceTicks(0, maxY, 4).forEach(t => {
+    const y = sy(t);
+    svgEl.appendChild(el("line", { x1: mg.left - 4, y1: y, x2: mg.left, y2: y, stroke: "#555", "stroke-width": 0.8 }));
+    svgEl.appendChild(el("text", { x: mg.left - 6, y: y + 3, "font": FONT_SM, fill: "#555", "text-anchor": "end" }, t));
+  });
+
+  // axis labels
+  svgEl.appendChild(el("text", { x: mg.left + pw / 2, y: H - 2, "font": FONT_SM, fill: "#555", "text-anchor": "middle" }, "Overall degree"));
+  const yLbl = el("text", { x: 9, y: mg.top + ph / 2, "font": FONT_SM, fill: "#555", "text-anchor": "middle",
+    transform: `rotate(-90, 9, ${mg.top + ph / 2})` }, "Predicted links");
+  svgEl.appendChild(yLbl);
+
+  // regression line
+  const rx0 = 0, rx1 = maxX;
+  const ry0 = Math.max(0, a), ry1 = a + b * rx1;
+  svgEl.appendChild(el("line", {
+    x1: sx(rx0), y1: sy(ry0), x2: sx(rx1), y2: sy(ry1),
+    stroke: PAL.regLine, "stroke-width": 1.5
+  }));
+
+  // data points (draw last so they're on top of line)
+  data.forEach(d => {
+    const c = el("circle", {
+      class: "corr-pt", "data-type": type, "data-id": d.id,
+      cx: sx(d.x), cy: sy(d.y), r: 3,
+      fill: ptColor, "fill-opacity": 0.75, stroke: "#fff", "stroke-width": 0.8,
+      style: "cursor:pointer"
+    });
+    c.addEventListener("click", () => {
+      if (type === "plant") {
+        clearSelections();
+        applyRowHighlight(d.id);
+        highlightCorrPoint("plant", d.id);
+        showPlantPanel(d.id);
+      } else {
+        clearSelections();
+        applyColumnHighlight(d.id);
+        document.querySelector(`th.poll-hdr[data-poll-id="${d.id}"]`)?.classList.add("selected");
+        highlightCorrPoint("poll", d.id);
+        showPollinatorPanel(d.id);
+      }
+    });
+    svgEl.appendChild(c);
+  });
+}
+
+// ── highlight a corr point ────────────────────────────────────────────────
+
+function highlightCorrPoint(type, id) {
+  // reset only points of this type (so plant + poll can both be highlighted)
+  const selector = type ? `.corr-pt.corr-hi[data-type="${type}"]` : ".corr-pt.corr-hi";
+  document.querySelectorAll(selector).forEach(pt => {
+    pt.classList.remove("corr-hi");
+    pt.setAttribute("r", 3);
+    pt.setAttribute("stroke", "#fff");
+    pt.setAttribute("stroke-width", 0.8);
+    pt.setAttribute("fill-opacity", 0.75);
+  });
+  if (!type || !id) return;
+  const pt = document.querySelector(`.corr-pt[data-type="${type}"][data-id="${id}"]`);
+  if (pt) {
+    pt.classList.add("corr-hi");
+    pt.setAttribute("r", 5.5);
+    pt.setAttribute("stroke", "#000");
+    pt.setAttribute("stroke-width", 1.5);
+    pt.setAttribute("fill-opacity", 1);
+    pt.parentElement.appendChild(pt); // bring to front
+  }
+}
+
+</script>
+</body>
+</html>
