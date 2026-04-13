@@ -55,6 +55,14 @@
     fill: #333;
   }
   header .header-links a:hover .gh-icon { fill: #000; }
+.back-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: #555;
+  text-decoration: none; border: 1px solid #ccc;
+  border-radius: 4px; padding: 3px 9px;
+  background: #f5f5f5; transition: background 0.15s, color 0.15s;
+}
+.back-btn:hover { background: #e8e8e8; color: #000; }
   .screen-notice {
     font-size: 10px; color: #c00; font-weight: 600;
     border: 1px solid #c00; border-radius: 3px;
@@ -438,7 +446,7 @@
     <p style="font-size:0.85em;color:#555;">Map symbols on selection: <span style="color:#2E8B57;font-size:1.2em;">&#9679;</span> plant &nbsp;|&nbsp; <span style="color:#CC8844;font-size:1.2em;">&#9679;</span> pollinator &nbsp;&mdash;&nbsp; appear at locations where the species occurs; number inside = interaction partners recorded at that location</p>
   </div>
   <div class="header-links">
-    <span class="screen-notice">Best viewed on a large screen</span>
+    <a href="index.html" class="back-btn">&#8592; All figures</a>
     <a href="https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction" target="_blank" title="GitHub repository">
       <svg class="gh-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
         <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38

@@ -315,8 +315,8 @@ footer a:hover { color: var(--text); }
   <section class="paper-section">
     <h1>Predicting Ecological Interactions Across Space Through Pairwise Integration of Latent Network Patterns</h1>
     <p class="authors">Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis &amp; Shai Pilosof</p>
-    <p class="journal">EcoEvoRxiv (preprint) &middot; 2025</p>
-    <a class="paper-link" href="https://doi.org/TBD" target="_blank" rel="noopener">
+    <p class="journal">bioRxiv (preprint) &middot; 2025</p>
+    <a class="paper-link" href="https://www.biorxiv.org/content/10.1101/2025.11.20.689463v1" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
       </svg>
@@ -331,10 +331,10 @@ footer a:hover { color: var(--text); }
     <span class="arrow">&#9658;</span> Abstract
   </button>
   <div class="abstract-body" id="abs-body">
-    <p>Ecological communities are complex and exhibit considerable spatial variability, presenting challenges in accurately understanding these systems. A primary obstacle in ecological research is the existence of 'missing links' between species: inevitable unobserved interactions that limit our comprehension of ecological networks and their response to change. While link prediction methods have been developed to address this challenge, most approaches overlook the intrinsic spatial variability of ecological systems.</p>
+    <p>Ecological communities are complex and exhibit considerable spatial variability, presenting challenges in accurately understanding these systems. A primary obstacle in ecological research is the existence of &lsquo;missing links&rsquo; between species: inevitable unobserved interactions that limit our comprehension of ecological networks and their response to change. While link prediction methods have been developed to address this challenge, most approaches overlook the intrinsic spatial variability of ecological systems.</p>
     <p>We introduce a flexible, spatially explicit framework based on matrix decomposition that leverages latent structural patterns to predict missing interactions and their strength, without requiring species traits or environmental data. The framework integrates information from paired auxiliary and target networks (locations) using thresholded SVD for link prediction. We applied it to plant&ndash;pollinator networks across the Canary Islands, performing pairwise predictions between locations, comparing them to within-location predictions (as a control), and quantifying how spatial variability influences predictive performance.</p>
     <p>Predictions revealed that latent network structure contains substantial predictive information, with F<sub>0.5</sub> scores consistently exceeding a random baseline (mean F<sub>0.5</sub> = 0.67 &plusmn; 0.02 SD), while being less sensitive to interaction strength. The method enabled identifying plausible gaps in the data and producing ecologically coherent predictions. Incorporating information from auxiliary locations enhanced predictive accuracy in certain cases, but success depended on spatial context: predictions were most reliable when derived from nearby, ecologically similar locations, and declined with increasing geographic and ecological distance, consistent with a distance-decay effect.</p>
-    <p>We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. Our framework is computationally efficient, transferable, and readily applicable to any system with spatial or temporal replication.</p>
+    <p>We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. While network structure offers rich predictive information, spatial context is essential for applying it effectively: ignoring spatial variability can obscure ecological signals and inflate predictive error. Our framework is computationally efficient, transferable, and readily applicable to any system with spatial or temporal replication. It can be used for a variety of ecological contexts, including island systems, fragmented landscapes, and environmental gradients, making it a practical and scalable tool for advancing link prediction in ecology.</p>
   </div>
 
   <hr>
@@ -359,10 +359,11 @@ footer a:hover { color: var(--text); }
     <a class="fig-card card-fig4" href="figure4.html">
       <span class="fig-label">Figure 4</span>
       <h3>Prediction Performance vs. Network Similarity &amp; Distance</h3>
-      <p>Examine how F<sub>0.5</sub> predictive performance varies with geographic distance and network dissimilarity across all pairwise island comparisons.</p>
+      <p>Examine how predictive performance (F<sub>0.1</sub>, F<sub>1</sub>, PR-AUC) varies with geographic distance and network dissimilarity across all pairwise island comparisons.</p>
       <div class="legend">
-        <span class="legend-dot" style="background:var(--plum);">F&#x2080;.&#x2085; scores</span>
-        <span class="legend-dot" style="background:#888;">Distance decay</span>
+        <span class="legend-dot" style="background:var(--plum);">F&#x2080;.&#x2081;</span>
+        <span class="legend-dot" style="background:#555;">F&#x2081;</span>
+        <span class="legend-dot" style="background:#888;">PR-AUC</span>
       </div>
       <span class="cta">Open Figure 4 &rarr;</span>
     </a>
@@ -373,7 +374,7 @@ footer a:hover { color: var(--text); }
   <hr>
   <p style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12.5px;color:var(--muted);line-height:1.65;">
     Data: plant&ndash;pollinator visitation networks from the Canary Islands, originally published by
-    <a href="https://doi.org/10.1098/rspb.2015.0798" target="_blank" rel="noopener" style="color:var(--blue);">Trøjelsgaard et al. (2015)</a>.
+    <a href="http://dx.doi.org/10.1098/rspb.2014.2925" target="_blank" rel="noopener" style="color:var(--blue);">Trøjelsgaard et al. (2015)</a>.
     39 plant species &times; 249 pollinator species across 7 island-level locations.
     Predictions generated via a thresholded softImpute SVD algorithm applied pairwise.
     Source code available on <a href="https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction" target="_blank" rel="noopener" style="color:var(--blue);">GitHub</a>.
