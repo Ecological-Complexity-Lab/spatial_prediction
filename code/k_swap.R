@@ -5,6 +5,8 @@
 # includes:
 library(tidyverse)
 library(scales)
+library(effsize)
+library(purrr)
 
 source("code/common.R")
 
@@ -132,3 +134,27 @@ pdf(
 )
 print(k_overall_sensitivity)
 dev.off()     # close the file
+
+# ---- calculate effect size ----
+# based on Cohen's d 
+k_levels <- levels(plot_df$k)
+
+pairwise_d <- combn(k_levels, 2, simplify = FALSE) %>%
+  map_df(function(pair) {
+    k1 <- pair[1]
+    k2 <- pair[2]
+    
+    d_val <- cohen.d(
+      plot_df$f05_score[plot_df$k == k1],
+      plot_df$f05_score[plot_df$k == k2],
+      hedges.correction = TRUE
+    )$estimate
+    
+    data.frame(
+      k1 = k1,
+      k2 = k2,
+      d = d_val
+    )
+  })
+
+pairwise_d
