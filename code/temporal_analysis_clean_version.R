@@ -112,7 +112,10 @@ make_facet_scatter_plot2 <- function(
       strip.text   = element_text(size = 12, face = "plain"),
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks   = element_line(color = "black"),
-      axis.text.x  = element_text(size = 12)
+      axis.text.x  = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 15),
+      axis.title.y = element_text(size = 15)
     )
 }
 
@@ -757,7 +760,8 @@ p_c <- add_center_header(p_c_core, label_c, size = 12)
 # (d) Temporal distance correlation
 p_d_core <- cor_plot_dif_year_f05 +
   tme +
-  theme(axis.title.y = element_blank(), axis.text.x = element_text(size = 12))
+  theme(axis.title.y = element_blank(), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size = 15))
 p_d_core <- drop_text_layers(p_d_core)  # remove in-panel annotation; header carries stats
 label_d  <- paste0("Temporal distance: ",
                    rp_text("distance_km", "f05_score", result_summary_temporal_dif))
