@@ -265,6 +265,15 @@ plot_f05_nnse_vs_density_free_both <- function(data) {
       label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
     )
   
+  # panel labels
+  panel_labels <- tibble::tribble(
+    ~evaluator,  ~measure_type, ~panel_label,
+    "f05_score", "density_C",   "(a)",
+    "f05_score", "density_P",   "(b)",
+    "nnse",      "density_C",   "(c)",
+    "nnse",      "density_P",   "(d)"
+  )
+  
   ggplot(data, aes(x = measure_value, y = evaluator_value)) +
     geom_point(color = "steelblue", alpha = 0.6, size = 2) +
     geom_smooth(method = "lm", se = FALSE, color = "salmon") +
@@ -272,7 +281,7 @@ plot_f05_nnse_vs_density_free_both <- function(data) {
     facet_grid(
       rows   = vars(evaluator),
       cols   = vars(measure_type),
-      scales = "free",     # ← free both x and y per facet
+      scales = "free",
       labeller = labeller(
         evaluator    = c(f05_score = "F0.5 score", nnse = "NNSE"),
         measure_type = c(density_P  = "Connectance of matrix P",
@@ -283,24 +292,39 @@ plot_f05_nnse_vs_density_free_both <- function(data) {
     
     geom_text(
       data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
+      aes(label   = label_text),
+      x           = Inf,
+      y           = Inf,
+      hjust       = 1.1,
+      vjust       = 1.2,
       size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    geom_text(
+      data        = panel_labels,
+      aes(label   = panel_label),
+      x           = -Inf,
+      y           = Inf,
+      hjust       = -0.4,
+      vjust       = 1.4,
+      size        = 5,
+      fontface    = "bold",
       inherit.aes = FALSE
     ) +
     
     scale_x_continuous(
       name   = "Network connectance",
-      breaks = scales::breaks_width(0.02),       # 0.02 between ticks
+      breaks = scales::breaks_width(0.02),
       labels = scales::label_number(accuracy = 0.01),
       expand = expansion(mult = c(0.05, 0.05))
     ) +
     
     scale_y_continuous(
-      name   = NULL,                # remove y title
+      name   = NULL,
       expand = expansion(mult = c(0.05, 0.1))
     ) +
+    
     theme_minimal() +
     theme(
       strip.placement    = "outside",
@@ -310,8 +334,8 @@ plot_f05_nnse_vs_density_free_both <- function(data) {
       axis.ticks         = element_line(color = "black"),
       strip.background   = element_blank(),
       panel.spacing.x    = unit(0.7, "cm"),
-      axis.text.x  = element_text(size = 10),
-      axis.text.y  = element_text(size = 10)
+      axis.text.x        = element_text(size = 10),
+      axis.text.y        = element_text(size = 10)
     )
 }
 
