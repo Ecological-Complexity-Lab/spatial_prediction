@@ -2331,6 +2331,53 @@ cor_plot_dif_isl_f05  <- make_cor_plot(result_summary_island_dif, evaluator = "f
     axis.text.x = element_text(size = 14)  # Adjust x-axis text size
   )
 
+## a check for relationship with log distance
+make_cor_plot_log <- function(data, evaluator, 
+                              distance_col = "log_distance_km", 
+                              x_lab = "Log geographic distance (km)",
+                              y_lab = NULL,
+                              extra_theme = NULL) {
+  # Use evaluator as y_lab if no alternative is provided
+  if (is.null(y_lab)) {
+    y_lab <- evaluator
+  }
+  
+  # Compute correlation between evaluator and distance
+  correlation <- cor.test(data[[evaluator]], data[[distance_col]], 
+                          use = "complete.obs", method = "pearson")
+  r_value <- round(correlation$estimate, 2)
+  p_value <- ifelse(
+    correlation$p.value < 0.001,
+    formatC(correlation$p.value, format = "e", digits = 2),  # scientific for very small
+    formatC(correlation$p.value, format = "f", digits = 3)   # fixed format otherwise
+  ) 
+  label_text <- paste0("r = ", r_value, ", p = ", p_value)
+  
+  # Create plot with label in the upper right corner using Inf coordinates
+  plot <- ggplot(data, aes_string(x = distance_col, y = evaluator)) +
+    geom_point(color = "salmon2", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, color = "steelblue2") +
+    labs(x = x_lab, y = y_lab) +
+    # The following places the label at the upper right of the plot area
+    annotate("text", x = Inf, y = Inf, label = label_text,
+             hjust = 1.1, vjust = 1.1, size = 3.5, color = "black")
+  
+  # Optionally add additional theme modifications
+  if (!is.null(extra_theme)) {
+    plot <- plot + extra_theme
+  }
+  
+  return(plot)
+}
+
+result_summary_island_dif <- result_summary_island_dif %>% mutate(log_distance_km = log(distance_km))
+
+cor_plot_dif_isl_f05_log  <- make_cor_plot_log(result_summary_island_dif, evaluator = "f05_score", extra_theme = tme) +
+  theme(
+    axis.text.x = element_text(size = 14)  # Adjust x-axis text size
+  )
+# the correlation is nearly identical.
+
 # pdf(
 #   file   = "cor_plot_dif_isl_f05.pdf",
 #   width  = 4,
