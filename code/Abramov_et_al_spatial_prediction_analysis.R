@@ -2881,10 +2881,20 @@ poll_degree_clean_d <- poll_degree_obs_pred +
 # Combine the two panels
 main_panel <- plot_grid(
   plant_degree_clean_d,
+  NULL,
   poll_degree_clean_d,
-  ncol = 2,
-  align = "hv"
+  ncol = 3,
+  align = "hv",
+  rel_widths = c(1, 0.04, 1),
+  labels = c("(a)", "", "(b)"),
+  label_size = 16,
+  label_fontface = "bold",
+  label_x = -0.02,
+  label_y = 0.99,
+  hjust = 0,
+  vjust = 1
 )
+
 
 # Add bottom (shared x-axis) label
 with_x_label <- plot_grid(
