@@ -2708,21 +2708,37 @@ poll_degree_occ_clean <- poll_degree_occurrence +
 
 # Add bottom label with padding
 final_plot_occ <- plot_grid(
-  # main plots
-  plot_grid(plant_degree_occ_clean, poll_degree_occ_clean, ncol = 2, align = "hv"),
-  # x label
+  plot_grid(
+    plant_degree_occ_clean,
+    NULL,
+    poll_degree_occ_clean,
+    ncol = 3,
+    align = "hv",
+    rel_widths = c(1, 0.04, 1),
+    labels = c("(a)", "", "(b)"),
+    label_size = 16,
+    label_fontface = "bold",
+    label_x = -0.02,
+    label_y = 0.99,
+    hjust = 0,
+    vjust = 1
+  ),
   ggdraw() + draw_label("Overall degree", fontface = "bold", size = 16),
   ncol = 1,
-  rel_heights = c(1, 0.08)  # second element is space for x-axis label
+  rel_heights = c(1, 0.08)
 )
 
 # Add y label with padding
 final_plot_occ <- plot_grid(
-  ggdraw() + draw_label("Number of islands present",
-                        angle = 90, fontface = "bold", size = 16),
+  ggdraw() + draw_label(
+    "Number of islands present",
+    angle = 90,
+    fontface = "bold",
+    size = 16
+  ),
   final_plot_occ,
   ncol = 2,
-  rel_widths = c(0.08, 1)   # first element is space for y-axis label
+  rel_widths = c(0.08, 1)
 )
 
 final_plot_occ
