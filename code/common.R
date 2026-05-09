@@ -200,6 +200,15 @@ plot_f05_nnse_vs_size_free_both <- function(data) {
       label_text = paste0("r = ", r_fmt, ", p = ", p_fmt)
     )
   
+  # panel labels
+  panel_labels <- tibble::tribble(
+    ~evaluator,  ~measure_type, ~panel_label,
+    "f05_score", "size_C",   "(a)",
+    "f05_score", "size_P",   "(b)",
+    "nnse",      "size_C",   "(c)",
+    "nnse",      "size_P",   "(d)"
+  )
+  
   ggplot(data, aes(x = measure_value, y = evaluator_value)) +
     geom_point(color = "steelblue", alpha = 0.6, size = 2) +
     geom_smooth(method = "lm", se = FALSE, color = "salmon") +
@@ -218,10 +227,24 @@ plot_f05_nnse_vs_size_free_both <- function(data) {
     
     geom_text(
       data        = cor_table,
-      aes(label    = label_text),
-      x           = Inf, y    = Inf,
-      hjust       = 1.1, vjust = 1.2,
+      aes(label   = label_text),
+      x           = Inf,
+      y           = Inf,
+      hjust       = 1.1,
+      vjust       = 1.2,
       size        = 3.2,
+      inherit.aes = FALSE
+    ) +
+    
+    geom_text(
+      data        = panel_labels,
+      aes(label   = panel_label),
+      x           = -Inf,
+      y           = Inf,
+      hjust       = -0.4,
+      vjust       = 1.4,
+      size        = 5,
+      fontface    = "bold",
       inherit.aes = FALSE
     ) +
     
