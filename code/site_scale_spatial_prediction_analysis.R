@@ -254,6 +254,11 @@ make_facet_scatter_plot <- function(data,
     jaccard_pollinators = "Pollinators overlap"
   )
   
+  panel_labels <- tibble::tibble(
+    !!names_to := pivot_cols,
+    panel_label = c("(c)", "(b)", "(a)")
+  )
+  
   # Construct the faceted scatter plot
   plot <- ggplot(df_long, aes_string(x = values_to, y = evaluator)) +
     geom_point(color = "steelblue", alpha = 0.6, size = 2) +
@@ -272,13 +277,25 @@ make_facet_scatter_plot <- function(data,
               size = 3.2,
               color = "black") +
     labs(x = x_lab, y = y_lab, title = plot_title) +
+    geom_text(
+      data = panel_labels,
+      aes(label = panel_label),
+      x = -Inf,
+      y = Inf,
+      hjust = -0.4,
+      vjust = 1.4,
+      size = 5,
+      fontface = "bold",
+      inherit.aes = FALSE
+    ) +
     theme_minimal() +
     tme +
     theme(
       strip.text = element_text(size = 12),  # <-- Facet titles larger and bold
       panel.border = element_rect(color = "black", fill = NA, size = 1),
       axis.ticks = element_line(color = "black"),
-      axis.text.x     = element_text(size = 14)                          )
+      axis.text.x     = element_text(size = 12),   
+      axis.text.y     = element_text(size = 12))
   
   return(plot)
 }
