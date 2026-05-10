@@ -1343,6 +1343,11 @@ metric_labels <- c(
   nnse              = "NNSE"
 )
 
+panel_labels <- tibble::tibble(
+  metric = names(metric_labels),
+  panel_label = c("(a)", "(b)")
+)
+
 nnse_f05_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
   geom_boxplot(
     notch        = TRUE,
@@ -1354,39 +1359,51 @@ nnse_f05_scales <- ggplot(df_long, aes(x = scale, y = value, fill = scale)) +
     scales        = "free_y",
     labeller      = as_labeller(metric_labels),
     ncol          = 4,
-    switch        = "y"             # move the strip to the left side
+    switch        = "y"
   ) +
   stat_compare_means(
     method         = "wilcox.test",
-    label          = "p.format",    # print the full p‐value
+    label          = "p.format",
     p.format.args  = list(
-      digits     = 2,               # two digits after decimal
-      scientific = TRUE             # use e-notation for small p’s
+      digits     = 2,
+      scientific = TRUE
     ),
     label.y        = Inf,
     vjust          = 1.5,
     label.x        = 1.45,
     tip.length     = 0.01,
-    size           = 3.5              # adjust this for font size
+    size           = 3.5
+  ) +
+  geom_text(
+    data = panel_labels,
+    aes(label = panel_label),
+    x = -Inf,
+    y = Inf,
+    hjust = -0.4,
+    vjust = 1.4,
+    size = 5,
+    fontface = "bold",
+    inherit.aes = FALSE
   ) +
   scale_fill_manual(values = c("Site"   = "lightsteelblue2",
                                "Island" = "wheat2")) +
   labs(
     x = NULL,
-    y = NULL                       # we’ll rely on the left‐side strips as “y‐titles”
+    y = NULL
   ) +
   theme_minimal(base_size = 14) +
   theme(
-    strip.placement       = "outside",           # draw strips outside the plot panel
+    strip.placement       = "outside",
     strip.text.y.left     = element_text(
-      angle = 90,          # horizontal text
+      angle = 90,
       face  = "bold",
       size  = 12
     ),
     axis.text.x           = element_blank(),
     axis.ticks.x          = element_blank(),
     legend.position       = "bottom"
-  ) + tme
+  ) +
+  tme
 
 nnse_f05_scales
 
