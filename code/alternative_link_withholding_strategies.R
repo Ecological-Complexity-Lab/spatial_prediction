@@ -761,9 +761,13 @@ fig_imbalance_pr_roc <- plot_grid(
   pr_plot,
   labels = c("(a)", "(b)"),
   ncol = 2,
+  align = "hv",
   label_size = 17,
-  label_x = 0.02,   # horizontal position (default ≈ 0)
-  label_y = 1.1    # move labels closer to the plot
+  label_fontface = "bold",
+  label_x = 0.02,
+  label_y = 0.78,
+  hjust = 0,
+  vjust = 1
 )
 
 fig_imbalance_pr_roc
