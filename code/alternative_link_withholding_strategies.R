@@ -765,7 +765,7 @@ fig_imbalance_pr_roc <- plot_grid(
   label_size = 17,
   label_fontface = "bold",
   label_x = 0.02,
-  label_y = 0.78,
+  label_y = 0.762,
   hjust = 0,
   vjust = 1
 )
