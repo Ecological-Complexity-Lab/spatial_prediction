@@ -1058,7 +1058,7 @@ site_heatmap_f05 <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
+  labs(x = "Auxiliary site", y = "Target site", fill = "F0.5 score") +
   theme_minimal() +
   theme(
     plot.margin = unit(c(0, 0, 0, 0), "cm"),  # Minimize margins
