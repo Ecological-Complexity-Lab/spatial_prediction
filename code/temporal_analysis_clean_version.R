@@ -498,7 +498,7 @@ year_heatmap_auc <-
             color = "black", linewidth = 1.2) +
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2",
                        midpoint = mid_val_roc, na.value = "gray") +
-  labs(x = "Added year", y = "Predicted year", fill = "ROC-AUC") +
+  labs(x = "Auxiliary year", y = "Target year", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
     text             = element_text(size = 18),
@@ -520,7 +520,7 @@ year_heatmap_pr <-
             color = "black", linewidth = 1.2) +
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle",
                        midpoint = mid_val_pr, na.value = "gray") +
-  labs(x = "Added year", y = "Predicted year", fill = "PR-AUC") +
+  labs(x = "Auxiliary year", y = "Target year", fill = "PR-AUC") +
   theme_minimal() +
   theme(
     text             = element_text(size = 18),
@@ -753,7 +753,7 @@ p_c_core <- make_facet_scatter_plot2(
   data = network_results_jaccard, evaluator = "f05_score",
   pivot_cols = "jaccard_edges", facet_scales = "free_x", tme = tme
 )
-label_c <- paste0("Edge overlap: ",
+label_c <- paste0("Interaction overlap: ",
                   rp_text("jaccard_edges", "f05_score", network_results_jaccard))
 p_c <- add_center_header(p_c_core, label_c, size = 12)
 
