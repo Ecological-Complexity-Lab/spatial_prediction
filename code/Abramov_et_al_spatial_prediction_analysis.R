@@ -1129,9 +1129,20 @@ custom_colors <- c("Single location" = "steelblue",
 
 # plot the histogram: 
 
-hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
-                      y_axis_label = "Count of instances",
-                      x_axis_label = "F0.5 score") + 
+
+hist_f05a <- plot_hist(
+  result_summary,
+  metric = "f05_score",
+  y_axis_label = "Count of instances",
+  x_axis_label = "F0.5 score"
+) +
+  scale_fill_manual(
+    values = custom_colors,
+    labels = c(
+      "Single location" = "Within location",
+      "Added location" = "External location"
+    )
+  ) +
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.02)) +
   theme(
@@ -1160,7 +1171,7 @@ sd(results_offs$f05_score)
 # # Base‐R PDF device
 pdf(
   file   = "results/paper_figs/hist_f05a_legend_bottom.pdf",
-  width  = 7,    # inches
+  width  = 7.5,    # inches
   height = 7,
   family = "Helvetica"   # or another installed font
 )
@@ -2564,7 +2575,7 @@ island_heatmap_f05 <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "salmon2", 
                        midpoint = mid_val, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "F0.5 score") +
+  labs(x = "Auxiliary location", y = "Target location", fill = "F0.5 score") +
   theme_minimal() + tme +
   theme(
     text = element_text(size = 14),
