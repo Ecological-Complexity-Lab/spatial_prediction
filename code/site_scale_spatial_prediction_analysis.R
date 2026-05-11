@@ -814,6 +814,13 @@ custom_colors <- c("Single location" = "steelblue",
 hist_f05a <- plot_hist(result_summary, metric = "f05_score", 
                      y_axis_label = "Count of instances",
                      x_axis_label = "F0.5 score") + 
+  scale_fill_manual(
+    values = custom_colors,
+    labels = c(
+      "Single location" = "Within site",
+      "Added location" = "External site"
+    )
+  ) +
   scale_y_continuous(labels = scales::number_format(accuracy = 1.0)) +
   scale_x_continuous(labels = scales::number_format(accuracy = 0.05))
 
