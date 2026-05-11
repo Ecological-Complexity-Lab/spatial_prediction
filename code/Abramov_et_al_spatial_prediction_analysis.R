@@ -1011,7 +1011,7 @@ island_heatmap_auc <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "rosybrown2", 
                        midpoint = mid_val_roc, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "ROC-AUC") +
+  labs(x = "Auxiliary location", y = "Target location", fill = "ROC-AUC") +
   theme_minimal() +
   theme(
     text = element_text(size = 18),
@@ -1038,7 +1038,7 @@ island_heatmap_pr <-
             color = "black", linewidth = 1.2) +  # Black borders only for diagonal tiles
   scale_fill_gradient2(low = "lightsteelblue2", mid = "white", high = "thistle", 
                        midpoint = mid_val_pr, na.value = "gray") +  # Set NA values to gray
-  labs(x = "Added location", y = "Predicted location", fill = "PR-AUC") +
+  labs(x = "Auxiliary location", y = "Target location", fill = "PR-AUC") +
   theme_minimal() +
   theme(
     text = element_text(size = 18),
@@ -3252,7 +3252,7 @@ p_c_core <- make_facet_scatter_plot2(
   facet_scales = "free_x",
   tme = tme
 )
-label_c <- paste0("Edge overlap: ", rp_text("jaccard_edges", "f05_score", canary_results_jaccard))
+label_c <- paste0("Interaction overlap: ", rp_text("jaccard_edges", "f05_score", canary_results_jaccard))
 p_c <- add_center_header(p_c_core, label_c, size = 12)
 
 # (d) Correlation — remove in-panel stats; header carries the stats

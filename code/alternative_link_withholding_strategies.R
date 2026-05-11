@@ -325,8 +325,8 @@ plot_island_heatmap_with_degree_holdout <- function(result_summary, plot_title =
     
     labs(
       title = plot_title,
-      x = "Added location",
-      y = "Predicted location",
+      x = "Auxiliary location",
+      y = "Target location",
       fill = "F0.5 score"
     ) +
     
