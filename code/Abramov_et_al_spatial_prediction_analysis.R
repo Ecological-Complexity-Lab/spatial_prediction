@@ -1978,6 +1978,11 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
       "External location" = "salmon",
       "Both approaches" = "lightsteelblue"
     ),
+    labels = c(
+      "Single location" = "Within location",
+      "External location" = "External location",
+      "Both approaches" = "Both approaches"
+    ),
     name = "Prediction approach",
     guide = guide_legend(
       order = 2,
@@ -2199,8 +2204,8 @@ df_counts <- df_counts |>
   dplyr::mutate(
     sigm_cat = dplyr::recode(
       sigm_cat,
-      "offs↑ only" = "External data",
-      "diag↑ only" = "Local data",
+      "offs↑ only" = "External location",
+      "diag↑ only" = "Within location",
       "both↑"      = "Both"
     )
   )
@@ -2214,7 +2219,7 @@ labels <- paste0(df_counts$sigm_cat,
 
 pdf(
   file   = "results/paper_figs/pie_chart.pdf",
-  width  = 6,    # inches
+  width  = 6.5,    # inches
   height = 6,
   family = "Helvetica"   # or another installed font
 )
@@ -2232,9 +2237,9 @@ mid_angles <- 1.6 * pi * (cum_fractions - fractions / 2)
 label_radius <- rep(1.3, length(values))
 i <- which(df_counts$sigm_cat == "Both")
 label_radius[i] <- 1.4   # move this one further out
-j <- which(df_counts$sigm_cat == "Local data")
+j <- which(df_counts$sigm_cat == "Within location")
 label_radius[j] <- 0.9
-k <- which(df_counts$sigm_cat == "External data")
+k <- which(df_counts$sigm_cat == "External location")
 label_radius[k] <- 0.82
 
 text_colors <- c("salmon", "plum3", "lightsteelblue")
@@ -2250,14 +2255,13 @@ text(label_radius * cos(mid_angles),
 dev.off()     # close the file
 
 
-# add to fig 3 at the end of the script
 # Read the pie chart PDF as an image (first page)
 img <- magick::image_read_pdf("results/paper_figs/pie_chart.pdf", density = 300)
 
 image_info(img)
 
-img_cropped <- image_crop(img, geometry = "1800x1800+0+280") # "WIDTHxHEIGHT+LEFT+TOP"
-new_width  <- 1800 - 0 # how much to crop from right
+img_cropped <- image_crop(img, geometry = "1950x1800+0+280") # "WIDTHxHEIGHT+LEFT+TOP"
+new_width  <- 1950 - 0 # how much to crop from right
 new_height <- 1800 - 550 # how much to crop from bottom
 
 img_cropped <- image_crop(img_cropped, 
