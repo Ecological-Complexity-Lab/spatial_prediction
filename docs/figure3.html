@@ -276,7 +276,10 @@
     border-top: 1px solid #e0e0e0; min-height: 0; flex-shrink: 0;
   }
   .right-section:first-child { border-top: none; }
-  .right-section.grows { flex: 1 1 auto; min-height: 100px; max-height: 260px; }
+  .right-section.grows { flex: 0 0 auto; min-height: 100px; max-height: 260px; }
+  #corr-poll-section, #corr-plant-section { flex: 1 1 0; min-height: 0; flex-shrink: 1; }
+  #corr-poll-section .right-section-body,
+  #corr-plant-section .right-section-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
   .right-section-hdr {
     display: flex; align-items: center; gap: 6px;
     padding: 5px 14px; cursor: pointer; flex-shrink: 0;
@@ -381,7 +384,7 @@
   #matrix-table.hide-external  td.cell[data-ct="external"] { background: transparent !important; }
   #matrix-table.hide-both      td.cell[data-ct="both"]     { background: transparent !important; }
 
-  .corr-svg { display: block; width: 100%; }
+  .corr-svg { display: block; width: 100%; height: 100%; }
 
   /* ── legend ── */
   #legend {
@@ -1347,8 +1350,8 @@ function niceTicks(min, max, n) {
 
 function drawCorrPlot(svgId, data, ptColor, type) {
   const svgEl = document.getElementById(svgId);
-  const W = svgEl.parentElement.clientWidth || 280;
-  const H = Math.min(W, 200);
+  const W = 280;
+  const H = 190;
   const mg = { top: 20, right: 10, bottom: 36, left: 36 };
   const pw = W - mg.left - mg.right;
   const ph = H - mg.top  - mg.bottom;
@@ -1362,8 +1365,8 @@ function drawCorrPlot(svgId, data, ptColor, type) {
 
   const ns = "http://www.w3.org/2000/svg";
   svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svgEl.setAttribute("width",  W);
-  svgEl.setAttribute("height", H);
+  svgEl.removeAttribute("width");
+  svgEl.removeAttribute("height");
   svgEl.innerHTML = "";
 
   function el(tag, attrs, txt) {
