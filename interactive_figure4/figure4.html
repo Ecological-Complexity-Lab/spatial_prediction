@@ -624,7 +624,7 @@ function drawHeatmap(allPairs, metric) {
     .attr("stroke", "#bbb").attr("stroke-width", 0.25)
     .on("mouseover", (event, d) => {
       const label = isFinite(d.score) ? d.score.toFixed(4) : "N/A";
-      const type  = d.isDiag ? "Single location" : "Added location";
+      const type  = d.isDiag ? "Within location" : "Auxiliary location";  // display labels only
       tt.style("display", "block")
         .html(`<strong>${d.train} → ${d.test}</strong>`
             + `${METRIC_LABELS[metric]}: ${label}<br>${type}`);
@@ -651,7 +651,7 @@ function drawHeatmap(allPairs, metric) {
     .attr("fill", "none").attr("stroke", "#000").attr("stroke-width", 2.2)
     .attr("pointer-events", "none");
 
-  // X axis — Added location (bottom, rotated)
+  // X axis — auxiliary location (bottom, rotated)
   g.append("g").attr("class", "hm-axis")
     .attr("transform", `translate(0,${gridH})`)
     .call(d3.axisBottom(xScale).tickSize(0))
@@ -662,7 +662,7 @@ function drawHeatmap(allPairs, metric) {
       .attr("dx", "-0.4em").attr("dy", "0.4em")
       .style("font-size", "10px"));
 
-  // Y axis — Predicted location (left)
+  // Y axis — target location (left)
   g.append("g").attr("class", "hm-axis")
     .call(d3.axisLeft(yScale).tickSize(0))
     .call(ax => ax.select(".domain").remove())
@@ -670,18 +670,18 @@ function drawHeatmap(allPairs, metric) {
       .attr("text-anchor", "end").attr("x", -6)
       .style("font-size", "10px"));
 
-  // Axis title: Added location (x)
+  // Axis title: auxiliary location (x)
   g.append("text").attr("class", "axis-label")
     .attr("x", gridW / 2).attr("y", gridH + mb - 8)
     .attr("text-anchor", "middle").attr("font-size", "12px")
-    .text("Added location");
+    .text("Auxiliary location");
 
-  // Axis title: Predicted location (y, rotated)
+  // Axis title: target location (y, rotated)
   g.append("text").attr("class", "axis-label")
     .attr("transform", "rotate(-90)")
     .attr("x", -gridH / 2).attr("y", -ml + 10)
     .attr("text-anchor", "middle").attr("font-size", "12px")
-    .text("Predicted location");
+    .text("Target location");
 
   // ── Color legend ──
   const legH  = Math.min(gridH * 0.72, 180);

@@ -633,7 +633,7 @@ function drawHeatmap(allPairs, metric) {
     .attr("stroke", "#bbb").attr("stroke-width", 0.25)
     .on("mouseover", (event, d) => {
       const label = isFinite(d.score) ? d.score.toFixed(4) : "N/A";
-      const type  = d.isDiag ? "Single location" : "Added location";
+      const type  = d.isDiag ? "Within location" : "Auxiliary location";
       tt.style("display", "block")
         .html(`<strong>${d.train} → ${d.test}</strong>`
             + `${METRIC_LABELS[metric]}: ${label}<br>${type}`);
@@ -683,14 +683,14 @@ function drawHeatmap(allPairs, metric) {
   g.append("text").attr("class", "axis-label")
     .attr("x", gridW / 2).attr("y", gridH + mb - 8)
     .attr("text-anchor", "middle").attr("font-size", "12px")
-    .text("Added location");
+    .text("Auxiliary location");
 
   // Axis title: Predicted location (y, rotated)
   g.append("text").attr("class", "axis-label")
     .attr("transform", "rotate(-90)")
     .attr("x", -gridH / 2).attr("y", -ml + 10)
     .attr("text-anchor", "middle").attr("font-size", "12px")
-    .text("Predicted location");
+    .text("Target location");
 
   // ── Color legend ──
   const legH  = Math.min(gridH * 0.72, 180);
