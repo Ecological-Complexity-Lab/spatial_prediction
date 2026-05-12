@@ -276,7 +276,7 @@
     border-top: 1px solid #e0e0e0; min-height: 0; flex-shrink: 0;
   }
   .right-section:first-child { border-top: none; }
-  .right-section.grows { flex: 1 1 auto; }
+  .right-section.grows { flex: 2 1 auto; min-height: 180px; }
   .right-section-hdr {
     display: flex; align-items: center; gap: 6px;
     padding: 5px 14px; cursor: pointer; flex-shrink: 0;
@@ -942,7 +942,8 @@ function showInteractionPanel(plantId, pollId) {
     if (ix.sigm_cat_plot) {
       const cat = ix.sigm_cat_plot;
       const cls = cat === "Single location" ? "single" : cat === "External location" ? "external" : "both";
-      badgeHtml = `<span class="pred-badge ${cls}">${cat}</span><br>`;
+      const displayCat = cat === "Single location" ? "Within location" : cat;
+      badgeHtml = `<span class="pred-badge ${cls}">${displayCat}</span><br>`;
     }
 
     predHtml = `
@@ -1347,7 +1348,7 @@ function niceTicks(min, max, n) {
 function drawCorrPlot(svgId, data, ptColor, type) {
   const svgEl = document.getElementById(svgId);
   const W = svgEl.parentElement.clientWidth || 280;
-  const H = W;   // square
+  const H = Math.min(W, 200);
   const mg = { top: 20, right: 10, bottom: 36, left: 36 };
   const pw = W - mg.left - mg.right;
   const ph = H - mg.top  - mg.bottom;
