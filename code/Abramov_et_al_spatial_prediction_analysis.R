@@ -1948,7 +1948,9 @@ map_missing_links_merged <- ggplot(df_combined, aes(x = node_to, y = node_from))
       title.position = "top",
       title.hjust = 0.5,
       barwidth = unit(4, "cm"),
-      barheight = unit(0.45, "cm")
+      barheight = unit(0.45, "cm"),
+      frame.colour = "black",
+      frame.linewidth = 0.6
     )
   ) +
   
