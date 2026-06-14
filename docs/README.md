@@ -2,14 +2,14 @@
 
 | Figure | Description | URL |
 |--------|-------------|-----|
-| **Fig. 3** | Predicted plant–pollinator interactions | [ecological-complexity-lab.github.io/svd_based_spatial_prediction/](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/) |
-| **Fig. 4** | Prediction performance vs. network similarity & distance | [ecological-complexity-lab.github.io/svd_based_spatial_prediction/figure4.html](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/figure4.html) |
+| **Fig. 3** | Predicted plant–pollinator interactions | [ecological-complexity-lab.github.io/spatial_prediction/](https://ecological-complexity-lab.github.io/spatial_prediction/) |
+| **Fig. 4** | Prediction performance vs. network similarity & distance | [ecological-complexity-lab.github.io/spatial_prediction/figure4.html](https://ecological-complexity-lab.github.io/spatial_prediction/figure4.html) |
 
 ---
 
 # Interactive Fig. 3 – Predicted Plant–Pollinator Interactions (Canary Islands)
 
-**Live figure:** [ecological-complexity-lab.github.io/svd_based_spatial_prediction](https://ecological-complexity-lab.github.io/svd_based_spatial_prediction/)
+**Live figure:** [ecological-complexity-lab.github.io/spatial_prediction](https://ecological-complexity-lab.github.io/spatial_prediction/)
 
 ---
 
@@ -78,6 +78,6 @@ The map at the bottom shows the **seven sampling locations** across the Canary I
 
 ## Repository
 
-[github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction](https://github.com/Ecological-Complexity-Lab/svd_based_spatial_prediction)
+[github.com/Ecological-Complexity-Lab/spatial_prediction](https://github.com/Ecological-Complexity-Lab/spatial_prediction)
 
-Developed by the [Ecological Complexity Lab](https://ecomplab.com), University of Haifa.
+Developed by the [Ecological Complexity Lab](https://ecomplab.com), Ben-Gurion University of the Negev.
