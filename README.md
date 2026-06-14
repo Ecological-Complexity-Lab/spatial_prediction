@@ -3,7 +3,7 @@ This repository contains the code and data for the paper: "Predicting ecological
 
 
 # :page_facing_up: Paper and citing
-Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Predicting ecological interactions across space through pairwise integration of latent network patterns**. EcoEvoRxiv? (preprint) 2025. [DOI:TBD](TBD).
+Kesem Abramov, Geut Galai, Barry Biton, Rami Puzis, and Shai Pilosof (2025). **Predicting ecological interactions across space through pairwise integration of latent network patterns**. *bioRxiv* 2025.11.20.689463; doi: <https://doi.org/10.1101/2025.11.20.689463>
 
 
 # Abstract:
@@ -12,7 +12,7 @@ Kesem Abramov, Barry Biton, Geut Galai, Rami Puzis, and Shai Pilosof. **Predicti
 3. Predictions revealed that latent network structure contains substantial predictive information, with F0.5 scores consistently exceeding a random baseline (mean F0.5 = 0.67 ± 0.02 SD), while being less sensitive to interaction strength. The method enabled identifying plausible gaps in the data and producing ecologically coherent predictions. Incorporating information from auxiliary locations enhanced predictive accuracy in certain cases, but success depended on spatial context: predictions were most reliable when derived from nearby, ecologically similar locations, and declined with increasing geographic and ecological distance, consistent with a distance-decay effect.
 4. We conclude that the predictability of missing links is spatially variable, reflecting both network and species-level heterogeneity. These patterns provide insights into network structure and the ecological processes shaping it, complementing trait-based approaches. While network structure offers rich predictive information, spatial context is essential for applying it effectively: ignoring spatial variability can obscure ecological signals and inflate predictive error. Our framework is computationally efficient, transferable, and readily applicable to any system with spatial or temporal replication. It can be used for a variety of ecological contexts, including island systems, fragmented landscapes, and environmental gradients, making it a practical and scalable tool for advancing link prediction in ecology.
 
-<p align="center"><img src="fig1_method_overview.png" alt="Method overview" width="600"/></p>
+<p align="center"><img src="results/paper_figs/fig1_method_overview.png" alt="Method overview" width="600"/></p>
 
 # :computer: Code:
 Instructions for running the code and reproducing the results are in the repository Wiki under "Code".
