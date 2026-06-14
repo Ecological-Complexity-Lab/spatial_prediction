@@ -15,7 +15,7 @@ Kesem Abramov, Geut Galai, Barry Biton, Rami Puzis, and Shai Pilosof (2025). **P
 <p align="center"><img src="results/paper_figs/fig1_method_overview.png" alt="Method overview" width="600"/></p>
 
 # :computer: Code:
-Instructions for running the code and reproducing the results are in the repository Wiki under "Code".
+Instructions for running the code and reproducing the results are in the repository Wiki under ["Code"](https://github.com/Ecological-Complexity-Lab/spatial_prediction/wiki/Code).
 
 # :file_cabinet: Data:
-Detailed in the repository Wiki (under "Data").
+Detailed in the repository Wiki under ["Data"](https://github.com/Ecological-Complexity-Lab/spatial_prediction/wiki/Data).
