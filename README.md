@@ -3,7 +3,7 @@ This repository contains the code and data for the paper: "Predicting ecological
 
 
 # :page_facing_up: Paper and citing
-Kesem Abramov, Geut Galai, Barry Biton, Rami Puzis, and Shai Pilosof (2026). **Predicting ecological interactions across space through pairwise integration of latent network patterns**. *Methods in Ecology and Evolution,* 00, 1–16. doi: <https://doi.org/10.1111/2041-210x.70357>
+Abramov, K., Galai, G., Biton, B., Puzis, R., & Pilosof, S. (2026). **Predicting ecological interactions across space through pairwise integration of latent network patterns**. *Methods in Ecology and Evolution,* 00, 1–16. doi: <https://doi.org/10.1111/2041-210x.70357>
 
 
 # Abstract:
