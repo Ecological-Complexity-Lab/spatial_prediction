@@ -15,3 +15,4 @@ results/predictions_island_scale.rds
 results/hp_analysis/predictions_year_scale.rds
 results/predictions_island_scale_check_P.rds
 results/predictions_island_scale_check.rds
+.Rproj.user/shared/notebooks/paths
